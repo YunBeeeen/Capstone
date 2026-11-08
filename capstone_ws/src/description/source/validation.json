@@ -1,0 +1,21 @@
+{
+  "xml_tree": "PASS",
+  "links": 40,
+  "joints": 39,
+  "root": "world",
+  "unique_meshes": 59,
+  "mesh_resources": "PASS",
+  "arm_joint_semantics": "PASS",
+  "mimic_graph": "PASS",
+  "lift_travel_m": 0.65,
+  "arm_follows_top_plate": "PASS",
+  "ROS_RViz_execution": "NOT RUN: ROS not installed",
+  "mount": "Aligned to right inclined plate \u00d816 hole outer-face center and outward normal; bolt fit/collision not verified",
+  "mount_hole_diameter_mm": 16.0,
+  "mount_roll_deg": 45.0,
+  "mount_housing_bottom_center_top_frame_m": [
+    0.022000000000000002,
+    -0.09225077,
+    -0.03742640999999991
+  ]
+}

@@ -1,0 +1,11 @@
+# 캡스톤 USB-CAN 어댑터 4개 → 역할 이름 고정 (꽂는 순서·포트와 무관). 2026-11-08
+# 이름만 고정. bitrate 설정·up 은 직접:  ~/capstone/capstone_ws/can/can_up.sh
+#   (꽂는 순간 자동 up 은 안 함 — 2026-11-08 결정. udev RUN 으로 하면 어댑터 초기화 전에 실행돼 실패하기도 함)
+# 설치:  sudo cp 80-capstone-can.rules /etc/udev/rules.d/ && sudo udevadm control --reload → 어댑터 다시 꽂기
+# 확인:  ip -br link | grep can
+# can0..3 같은 숫자 이름은 커널 자동 이름과 겹쳐 rename 이 실패할 수 있어서 역할 이름을 씀.
+# 어댑터 바꾸면 새 시리얼:  udevadm info -q property -p /sys/class/net/<이름> | grep ID_SERIAL_SHORT
+SUBSYSTEM=="net", ACTION=="add", KERNEL=="can*", ATTRS{serial}=="001D00335053530720373232", NAME="can_drive"
+SUBSYSTEM=="net", ACTION=="add", KERNEL=="can*", ATTRS{serial}=="003200273830511420393658", NAME="can_steer"
+SUBSYSTEM=="net", ACTION=="add", KERNEL=="can*", ATTRS{serial}=="003E002A5353510C20353934", NAME="can_arm_r"
+SUBSYSTEM=="net", ACTION=="add", KERNEL=="can*", ATTRS{serial}=="004200495056511620363138", NAME="can_arm_l"

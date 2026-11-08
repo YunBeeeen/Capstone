@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>wheel_can_bridge</name>
+  <version>0.1.0</version>
+  <description>구동 바퀴 4축 (XDrive = ODrive v3.6, fw 0.5.1 CANSimple) SocketCAN ↔ ROS2 브리지</description>
+  <maintainer email="djadbsqls120@hanyang.ac.kr">eomyunbeen</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>rclcpp</depend>
+  <depend>std_srvs</depend>
+  <depend>capstone_msgs</depend>
+  <exec_depend>launch_ros</exec_depend>
+  <test_depend>ament_cmake_gtest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

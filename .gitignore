@@ -1,0 +1,17 @@
+# 외부 저장소 clone (각자 원본 git 있음)
+/YOR/
+/reBot-DevArm/
+
+# colcon 산출물
+capstone_ws/build/
+capstone_ws/install/
+capstone_ws/log/
+
+# Python
+__pycache__/
+*.pyc
+
+# 보드 설정 백업은 커밋 (capstone_ws/Wheel_motor/backup/*.json) — 작아서 기록용으로 유지
+
+# MuJoCo 런타임 로그
+MUJOCO_LOG.TXT

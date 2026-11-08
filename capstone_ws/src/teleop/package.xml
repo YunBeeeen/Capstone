@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>capstone_teleop</name>
+  <version>0.1.0</version>
+  <description>teleop → /cmd_vel: SHAKS S0 게임패드 (joy + gamepad_teleop, 원형 데드존) / 화면 가상 패드 (pygame, ksrc 에서 가져옴)</description>
+  <maintainer email="djadbsqls120@hanyang.ac.kr">eomyunbeen</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <exec_depend>joy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>python3-pygame</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

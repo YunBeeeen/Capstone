@@ -1,0 +1,28 @@
+# swerve_controller 파라미터. 모듈 순서 = [1 FR, 2 RR, 3 RL, 4 FL] (wheel_cmd / steer_cmd 배열 순서와 같음)
+swerve_controller:
+  ros__parameters:
+    # 조향축 위치 [m], base_link(회전중심) 기준 x 전진 / y 좌측.
+    # mobile_robot_right_arm_description URDF 의 steering_*_joint 위치 (2026-11-07). CAD 바뀌면 같이 갱신
+    module_x: [0.0911, -0.0911, -0.0911, 0.0911]
+    module_y: [-0.13605, -0.13605, 0.13605, 0.13605]
+    wheel_radius: 0.0525           # [m] BL41105 타이어 외경 105 mm. 지면 하중 실은 뒤 실측 보정
+    max_wheel_mps: 0.6             # [m/s] desaturation 상한. 브리지 vel_max 2 turn/s = 0.66 m/s 보다 약간 아래
+    steer_limit_deg: 180.0         # 조향 운용 한계 ±. 기구 스토퍼/케이블 ±190° (URDF steer_limit) 까지 여유 10° (2026-11-07)
+    steer_min_mps: 0.03            # [m/s] 바퀴 속도가 이보다 느린 명령은 조향을 안 바꿈 (스틱 놓을 때 잡음 → 조향 튐 방지)
+    unwind_deg: 0.0                # 0 = 끔. >0 이면 |조향각| 이 이보다 크고 멈춰 있을 때 반대쪽 등가각으로 미리 180° 돌림
+                                   #   (멈춰 있는 동안 명령 없이 바퀴가 돌아서 끔 — 팔 작업/사람 근처에서 위험, 2026-11-07)
+    unwind_slow_mps: 0.02          # unwind 의 "거의 안 굴" 기준 [m/s]
+    require_steer_feedback: true   # false = steer_state 없이 시험 (정렬 게이트 끔 — 바퀴 띄우고만!)
+    gate_trigger_deg: 60.0         # 목표 조향각이 이만큼 바뀌면 구동 보류 (ksrc 값)
+    gate_release_deg: 10.0         # 전 바퀴 실제각이 목표 ±이 안이면 구동 재개 (ksrc 값)
+    gate_max_hold_s: 0.0           # 0 = 정렬될 때까지 무한 보류 (ksrc 는 모래 때문에 1.5 s 후 강제 해제했음)
+    gate_warn_s: 1.5               # 이보다 오래 보류되면 경고 로그
+    flip_stop_deg: 60.0            # 목표 조향각이 이만큼 바뀌는데 바퀴가 구르면: 조향 유지 + 구동 0 → 멈춘 뒤 조향 (0 = 끔)
+                                   #   구르는 채로 조향이 180° 돌면 차체가 넘어짐 (시뮬 0.5 m/s 에서 전복 재현)
+    stop_speed_mps: 0.03           # "멈춤" 기준 (wheel_state 실측). 되감기(unwind)도 이 아래에서만
+    est_decel_mps2: 0.66           # wheel_state 없을 때 감속 추정 = 보드 vel_ramp_rate 2 turn/s²
+    wheel_state_timeout: 0.3       # [s] 이보다 오래된 wheel_state 는 무시 (추정으로)
+    max_steer_rate_deg_s: 360.0    # 조향 명령 회전 속도 제한 (180° 반전 = 0.5 s). 0 = 끔 (목표각 한 번에 → 조향이 "확" 돎)
+    cmd_timeout: 0.3               # [s] cmd_vel 끊기면 구동 HOLD (브리지 cmd_timeout 0.2 보다 길게 — 브리지는 이 노드의 50 Hz 를 봄)
+    steer_state_timeout: 0.2       # [s] steer_state 가 이보다 오래되면 실제각 모름 취급
+    control_rate_hz: 50.0

@@ -1,0 +1,24 @@
+# SHAKS S0 (Xbox 360 호환) 게임패드 teleop 파라미터
+# 인덱스는 jstest 실측값 — /joy 에서도 같은지 확인할 것
+# 부호: ROS joy_node 는 스틱 왼쪽·위 = + (jstest 는 왼쪽·위 = −). scale 부호는 joy 기준
+#   axes:    0 L좌우  1 L상하  2 LT  3 R좌우  4 R상하  5 RT  6 십자좌우  7 십자상하
+#   buttons: 0 A  1 B  2 X  3 Y  4 LB  5 RB  6 Select  7 Start  8 SHAKS  9 L클릭  10 R클릭
+
+joy_node:
+  ros__parameters:
+    device_id: 0               # /dev/input/js0
+    deadzone: 0.0              # 0 = joy 는 원값 그대로. 데드존은 gamepad_teleop 이 원형으로 (축별로 하면 한 축만 살아남은 잡음이 나감)
+    autorepeat_rate: 20.0      # [Hz] 스틱 고정해도 /joy 계속 발행 → swerve cmd_timeout(0.3 s) 안 걸리게. 0 이면 안 됨
+
+gamepad_teleop:
+  ros__parameters:
+    require_enable_button: true
+    enable_button: 5           # RB = deadman. 놓으면 0 한 번 발행 후 멈춤 → swerve 가 cmd_timeout 으로 HOLD
+    axis_linear_x: 1           # L 상하 → vx
+    axis_linear_y: 0           # L 좌우 → vy
+    axis_angular: 3            # R 좌우 → ω
+    scale_linear_x: 0.25       # [m/s] cmd = axis × scale. TODO 부호 미검증 — 스틱 위 = linear.x > 0
+    scale_linear_y: -0.25      # [m/s] TODO 부호 미검증 — 스틱 왼쪽 = linear.y > 0
+    scale_angular: -0.5        # [rad/s] TODO 부호 미검증 — 스틱 왼쪽 = angular.z > 0
+    deadzone: 0.15             # 왼쪽 스틱 원형 데드존 (크기 비율). 밖은 방향 유지 + 0~1 로 다시 늘림
+    deadzone_angular: 0.15     # 오른쪽 스틱 좌우 데드존

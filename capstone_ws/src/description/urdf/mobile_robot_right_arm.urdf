@@ -1,0 +1,920 @@
+<?xml version='1.0' encoding='utf-8'?>
+<robot name="mobile_robot_right_arm">
+  <link name="world" />
+  <link name="base_link">
+    <inertial>
+      <origin xyz="-0.00127648 -4.25225e-06 0.268718" rpy="0 0 0" />
+      <mass value="13.551" />
+      <inertia ixx="0.303453" ixy="-2.44724e-05" ixz="0.0062276" iyy="0.252511" iyz="-2.23405e-06" izz="0.26482" />
+    </inertial>
+    <visual>
+      <origin xyz="0.000000000 0.000000000 0.020000000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/mobile/base_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0.000000000 0.000000000 0.020000000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/mobile/base_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="steering_fl_link">
+    <inertial>
+      <origin xyz="5.92672e-10 0.000218125 -0.0491333" rpy="0 0 0" />
+      <mass value="0.2725" />
+      <inertia ixx="0.000368866" ixy="0" ixz="0" iyy="0.000312926" iyz="-1.23482e-06" izz="0.000255353" />
+    </inertial>
+    <visual>
+      <origin xyz="-0.091100000 -0.136050000 -0.169000000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/mobile/steering_fl_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="-0.091100000 -0.136050000 -0.169000000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/mobile/steering_fl_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="steering_fr_link">
+    <inertial>
+      <origin xyz="6.34429e-10 0.000218126 -0.0491333" rpy="0 0 0" />
+      <mass value="0.2725" />
+      <inertia ixx="0.000368866" ixy="0" ixz="0" iyy="0.000312926" iyz="-1.23481e-06" izz="0.000255353" />
+    </inertial>
+    <visual>
+      <origin xyz="-0.091100000 0.136050000 -0.169000000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/mobile/steering_fr_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="-0.091100000 0.136050000 -0.169000000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/mobile/steering_fr_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="steering_rl_link">
+    <inertial>
+      <origin xyz="1.37201e-09 0.000218125 -0.0491333" rpy="0 0 0" />
+      <mass value="0.2725" />
+      <inertia ixx="0.000368866" ixy="0" ixz="0" iyy="0.000312926" iyz="-1.23482e-06" izz="0.000255353" />
+    </inertial>
+    <visual>
+      <origin xyz="0.091100000 -0.136050000 -0.169000000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/mobile/steering_rl_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0.091100000 -0.136050000 -0.169000000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/mobile/steering_rl_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="steering_rr_link">
+    <inertial>
+      <origin xyz="-5.38792e-06 0.000219937 -0.0491332" rpy="0 0 0" />
+      <mass value="0.2725" />
+      <inertia ixx="0.000368874" ixy="-2.05089e-09" ixz="4.82139e-07" iyy="0.000312928" iyz="-1.36639e-06" izz="0.000255345" />
+    </inertial>
+    <visual>
+      <origin xyz="0.091100000 0.136050000 -0.169000000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/mobile/steering_rr_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0.091100000 0.136050000 -0.169000000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/mobile/steering_rr_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="wheel_fl_link">
+    <inertial>
+      <origin xyz="-4.4306e-06 -8.15918e-06 -9.94781e-06" rpy="0 0 0" />
+      <mass value="1.5" />
+      <inertia ixx="0.00116468" ixy="-1.17079e-07" ixz="-1.4714e-07" iyy="0.00178836" iyz="-2.58817e-07" izz="0.00116442" />
+    </inertial>
+    <visual>
+      <origin xyz="-0.091100000 -0.136050000 -0.052500000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/mobile/wheel_fl_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="-0.091100000 -0.136050000 -0.052500000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/mobile/wheel_fl_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="wheel_fr_link">
+    <inertial>
+      <origin xyz="-4.4306e-06 -8.16802e-06 -9.94781e-06" rpy="0 0 0" />
+      <mass value="1.5" />
+      <inertia ixx="0.00116468" ixy="-1.17079e-07" ixz="-1.4714e-07" iyy="0.00178836" iyz="-2.58817e-07" izz="0.00116442" />
+    </inertial>
+    <visual>
+      <origin xyz="-0.091100000 0.136050000 -0.052500000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/mobile/wheel_fr_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="-0.091100000 0.136050000 -0.052500000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/mobile/wheel_fr_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="wheel_rl_link">
+    <inertial>
+      <origin xyz="-4.43093e-06 -8.15911e-06 -9.9478e-06" rpy="0 0 0" />
+      <mass value="1.5" />
+      <inertia ixx="0.00116468" ixy="-1.17079e-07" ixz="-1.4714e-07" iyy="0.00178836" iyz="-2.58817e-07" izz="0.00116442" />
+    </inertial>
+    <visual>
+      <origin xyz="0.091100000 -0.136050000 -0.052500000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/mobile/wheel_rl_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0.091100000 -0.136050000 -0.052500000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/mobile/wheel_rl_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="wheel_rr_link">
+    <inertial>
+      <origin xyz="-4.43093e-06 -8.16795e-06 -9.9478e-06" rpy="0 0 0" />
+      <mass value="1.5" />
+      <inertia ixx="0.00116468" ixy="-1.17079e-07" ixz="-1.4714e-07" iyy="0.00178836" iyz="-2.58817e-07" izz="0.00116442" />
+    </inertial>
+    <visual>
+      <origin xyz="0.091100000 0.136050000 -0.052500000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/mobile/wheel_rr_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0.091100000 0.136050000 -0.052500000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/mobile/wheel_rr_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="lift_stage_1_link">
+    <inertial>
+      <origin xyz="2.87949e-10 8.67289e-21 0.175" rpy="0 0 0" />
+      <mass value="1.2" />
+      <inertia ixx="0.00863758" ixy="0" ixz="0" iyy="0.00822664" iyz="0" izz="0.000860802" />
+    </inertial>
+    <visual>
+      <origin xyz="0.025260000 0.000000000 -0.624180000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/mobile/lift_stage_1_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0.025260000 0.000000000 -0.624180000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/mobile/lift_stage_1_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="lift_stage_2_link">
+    <inertial>
+      <origin xyz="-3.64424e-10 1.91122e-20 0.173331" rpy="0 0 0" />
+      <mass value="1" />
+      <inertia ixx="0.00962043" ixy="0" ixz="0" iyy="0.00934183" iyz="0" izz="0.000545098" />
+    </inertial>
+    <visual>
+      <origin xyz="0.025260000 0.000000000 -0.974180000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/mobile/lift_stage_2_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0.025260000 0.000000000 -0.974180000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/mobile/lift_stage_2_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="top_plate_link">
+    <inertial>
+      <origin xyz="0.0143275 0.000728789 -0.00229961" rpy="0 0 0" />
+      <mass value="0.2562" />
+      <inertia ixx="0.000785419" ixy="2.27948e-06" ixz="1.72329e-05" iyy="0.000849643" iyz="-1.23303e-06" izz="0.00139612" />
+    </inertial>
+    <visual>
+      <origin xyz="0.025260000 0.000000000 -1.321180000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/mobile/top_plate_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="0.025260000 0.000000000 -1.321180000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/mobile/top_plate_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="front_camera_link">
+    <inertial>
+      <origin xyz="-0.0243726 0.00269808 -0.00032321" rpy="0 0 0" />
+      <mass value="0.1008" />
+      <inertia ixx="6.23827e-05" ixy="-1.69067e-06" ixz="-9.69418e-06" iyy="3.34947e-05" iyz="-1.09925e-06" izz="7.89459e-05" />
+    </inertial>
+    <visual>
+      <origin xyz="-0.179567112 0.000001220 -1.345048987" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/mobile/front_camera_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin xyz="-0.179567112 0.000001220 -1.345048987" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/mobile/front_camera_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="world_to_base" type="fixed">
+    <parent link="world" />
+    <child link="base_link" />
+    <origin xyz="0 0 -0.020" rpy="0 0 0" />
+  </joint>
+  <joint name="steering_fl_joint" type="continuous">
+    <parent link="base_link" />
+    <child link="steering_fl_link" />
+    <origin xyz="0.09110 0.13605 0.189" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+  </joint>
+  <joint name="drive_fl_joint" type="continuous">
+    <parent link="steering_fl_link" />
+    <child link="wheel_fl_link" />
+    <origin xyz="0 0 -0.1165" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+  </joint>
+  <joint name="steering_fr_joint" type="continuous">
+    <parent link="base_link" />
+    <child link="steering_fr_link" />
+    <origin xyz="0.09110 -0.13605 0.189" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+  </joint>
+  <joint name="drive_fr_joint" type="continuous">
+    <parent link="steering_fr_link" />
+    <child link="wheel_fr_link" />
+    <origin xyz="0 0 -0.1165" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+  </joint>
+  <joint name="steering_rl_joint" type="continuous">
+    <parent link="base_link" />
+    <child link="steering_rl_link" />
+    <origin xyz="-0.09110 0.13605 0.189" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+  </joint>
+  <joint name="drive_rl_joint" type="continuous">
+    <parent link="steering_rl_link" />
+    <child link="wheel_rl_link" />
+    <origin xyz="0 0 -0.1165" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+  </joint>
+  <joint name="steering_rr_joint" type="continuous">
+    <parent link="base_link" />
+    <child link="steering_rr_link" />
+    <origin xyz="-0.09110 -0.13605 0.189" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+  </joint>
+  <joint name="drive_rr_joint" type="continuous">
+    <parent link="steering_rr_link" />
+    <child link="wheel_rr_link" />
+    <origin xyz="0 0 -0.1165" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+  </joint>
+  <joint name="lift_stage_1_joint" type="prismatic">
+    <parent link="base_link" />
+    <child link="lift_stage_1_link" />
+    <origin xyz="-0.02526 0 0.31918" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+    <limit lower="0" upper="0.325" effort="1000" velocity="0.1" />
+  </joint>
+  <joint name="lift_stage_2_joint" type="prismatic">
+    <parent link="lift_stage_1_link" />
+    <child link="lift_stage_2_link" />
+    <origin xyz="0 0 0.025" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+    <limit lower="0" upper="0.325" effort="1000" velocity="0.1" />
+    <mimic joint="lift_stage_1_joint" multiplier="1" offset="0" />
+  </joint>
+  <joint name="top_plate_joint" type="fixed">
+    <parent link="lift_stage_2_link" />
+    <child link="top_plate_link" />
+    <origin xyz="0 0 0.347" rpy="0 0 0" />
+  </joint>
+  <joint name="front_camera_joint" type="fixed">
+    <parent link="top_plate_link" />
+    <child link="front_camera_link" />
+    <origin xyz="0.204827112 0 0.023868987" rpy="0 0 0" />
+  </joint>
+  <material name="right_arm_gripper_finger_black">
+    <color rgba="0.066667 0.074510 0.070588 1" />
+  </material>
+  <material name="right_arm_gripper_carriage_grey">
+    <color rgba="0.239 0.278 0.271 1" />
+  </material>
+  <material name="right_arm_gripper_rack_metal">
+    <color rgba="0.831373 0.847059 0.831373 1" />
+  </material>
+  <material name="right_arm_gripper_seeed_yellow">
+    <color rgba="0.725 0.835 0.118 1" />
+  </material>
+  <material name="right_arm_gripper_hardware_black">
+    <color rgba="0.019608 0.027451 0.023529 1" />
+  </material>
+  <material name="right_arm_gripper_base_metal">
+    <color rgba="0.831373 0.847059 0.831373 1" />
+  </material>
+  <material name="right_arm_anodized_grey">
+    <color rgba="0.831373 0.847059 0.831373 1" />
+  </material>
+  <material name="right_arm_silver_trim">
+    <color rgba="0.878431 0.890196 0.874510 1" />
+  </material>
+  <material name="right_arm_seeed_yellow">
+    <color rgba="0.73 0.84 0.12 1" />
+  </material>
+  <material name="right_arm_matte_black">
+    <color rgba="0.066667 0.074510 0.070588 1" />
+  </material>
+  <material name="right_arm_hardware_black">
+    <color rgba="0.019608 0.027451 0.023529 1" />
+  </material>
+  <link name="right_arm_base_link">
+    <inertial>
+      <origin xyz="-9.73557096746e-07 -1.58042016191e-06 0.0505772703902" rpy="0 0 0" />
+      <mass value="0.436412758859" />
+      <inertia ixx="0.000444618457596" ixy="-1.8317009426e-09" ixz="5.83429144626e-08" iyy="0.000429790140876" iyz="-4.4141658085e-07" izz="0.000537733810041" />
+    </inertial>
+    <visual name="right_arm_base_link_silver_trim">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_base_link_silver_trim.stl" />
+      </geometry>
+      <material name="right_arm_silver_trim" />
+    </visual>
+    <visual name="right_arm_base_link_hardware_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_base_link_hardware_black_no_plate.stl" />
+      </geometry>
+      <material name="right_arm_hardware_black" />
+    </visual>
+    <visual name="right_arm_base_link_matte_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_base_link_matte_black_no_plate.stl" />
+      </geometry>
+      <material name="right_arm_matte_black" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/collision/base_link_no_plate.stl" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="right_arm_link1">
+    <inertial>
+      <origin xyz="0.000113614552951627 -0.000616319527051323 0.0236476372671394" rpy="0 0 0" />
+      <mass value="0.16130000" />
+      <inertia ixx="0.00025207" ixy="0.00000000" ixz="-0.00002832" iyy="0.00015464" iyz="0.00000000" izz="0.00023416" />
+    </inertial>
+    <visual name="right_arm_link1_matte_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_link1_matte_black.stl" />
+      </geometry>
+      <material name="right_arm_matte_black" />
+    </visual>
+    <visual name="right_arm_link1_hardware_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_link1_hardware_black.stl" />
+      </geometry>
+      <material name="right_arm_hardware_black" />
+    </visual>
+    <visual name="right_arm_link1_anodized_grey">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_link1_anodized_grey.stl" />
+      </geometry>
+      <material name="right_arm_anodized_grey" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/collision/link1.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="right_arm_joint1" type="revolute">
+    <origin xyz="-8.416E-05 0 0.08465" rpy="0 0 0" />
+    <parent link="right_arm_base_link" />
+    <child link="right_arm_link1" />
+    <axis xyz="0 0 1" />
+    <limit lower="-2.8" upper="2.8" effort="27" velocity="50" />
+  </joint>
+  <link name="right_arm_link2">
+    <inertial>
+      <origin xyz="-0.13225622308888 -0.0030617036386309 -0.0308306967030205" rpy="0 0 0" />
+      <mass value="1.32660000" />
+      <inertia ixx="0.00073374" ixy="-0.00000043" ixz="0.00000851" iyy="0.01255987" iyz="0.00000128" izz="0.01281387" />
+    </inertial>
+    <visual name="right_arm_link2_seeed_yellow">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_link2_seeed_yellow.stl" />
+      </geometry>
+      <material name="right_arm_seeed_yellow" />
+    </visual>
+    <visual name="right_arm_link2_matte_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_link2_matte_black.stl" />
+      </geometry>
+      <material name="right_arm_matte_black" />
+    </visual>
+    <visual name="right_arm_link2_hardware_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_link2_hardware_black.stl" />
+      </geometry>
+      <material name="right_arm_hardware_black" />
+    </visual>
+    <visual name="right_arm_link2_anodized_grey">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_link2_anodized_grey.stl" />
+      </geometry>
+      <material name="right_arm_anodized_grey" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/collision/link2.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="right_arm_joint2" type="revolute">
+    <origin xyz="0.020084 0.031625 0.05555" rpy="-1.5708 0 0" />
+    <parent link="right_arm_link1" />
+    <child link="right_arm_link2" />
+    <axis xyz="0 0 -1" />
+    <limit lower="-3.14" upper="0" effort="27" velocity="50" />
+  </joint>
+  <link name="right_arm_link3">
+    <inertial>
+      <origin xyz="0.121040035791843 -0.0536211076627949 -0.0310137854608077" rpy="0 0 0" />
+      <mass value="0.83530000" />
+      <inertia ixx="0.00046807" ixy="-0.00003456" ixz="-0.00004260" iyy="0.00632695" iyz="0.00000006" izz="0.00648221" />
+    </inertial>
+    <visual name="right_arm_link3_seeed_yellow">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_link3_seeed_yellow.stl" />
+      </geometry>
+      <material name="right_arm_seeed_yellow" />
+    </visual>
+    <visual name="right_arm_link3_matte_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_link3_matte_black.stl" />
+      </geometry>
+      <material name="right_arm_matte_black" />
+    </visual>
+    <visual name="right_arm_link3_hardware_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_link3_hardware_black.stl" />
+      </geometry>
+      <material name="right_arm_hardware_black" />
+    </visual>
+    <visual name="right_arm_link3_anodized_grey">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_link3_anodized_grey.stl" />
+      </geometry>
+      <material name="right_arm_anodized_grey" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/collision/link3.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="right_arm_joint3" type="revolute">
+    <origin xyz="-0.264 0 0" rpy="0 0 0" />
+    <parent link="right_arm_link2" />
+    <child link="right_arm_link3" />
+    <axis xyz="0 0 1" />
+    <limit lower="-3.14" upper="0" effort="27" velocity="50" />
+  </joint>
+  <link name="right_arm_link4">
+    <inertial>
+      <origin xyz="0.0608200956293136 -0.0511711906613122 -0.030299458623927" rpy="0 0 0" />
+      <mass value="0.52000000" />
+      <inertia ixx="0.00045986" ixy="0.00024219" ixz="-0.00000672" iyy="0.00075258" iyz="-0.00000535" izz="0.00066742" />
+    </inertial>
+    <visual name="right_arm_link4_seeed_yellow">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_link4_seeed_yellow.stl" />
+      </geometry>
+      <material name="right_arm_matte_black" />
+    </visual>
+    <visual name="right_arm_link4_matte_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_link4_matte_black.stl" />
+      </geometry>
+      <material name="right_arm_matte_black" />
+    </visual>
+    <visual name="right_arm_link4_hardware_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_link4_hardware_black.stl" />
+      </geometry>
+      <material name="right_arm_hardware_black" />
+    </visual>
+    <visual name="right_arm_link4_anodized_grey">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_link4_anodized_grey.stl" />
+      </geometry>
+      <material name="right_arm_anodized_grey" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/collision/link4.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="right_arm_joint4" type="revolute">
+    <origin xyz="0.2426 -0.054 -0.001625" rpy="0 0 0" />
+    <parent link="right_arm_link3" />
+    <child link="right_arm_link4" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.87" upper="1.57" effort="7" velocity="200" />
+  </joint>
+  <link name="right_arm_link5">
+    <inertial>
+      <origin xyz="-0.00502802058982517 1.73866206692364E-06 0.0386233236326755" rpy="0 0 0" />
+      <mass value="0.38300000" />
+      <inertia ixx="0.00019772" ixy="-0.00000062" ixz="-0.00002426" iyy="0.00021737" iyz="0.00000002" izz="0.00017191" />
+    </inertial>
+    <visual name="right_arm_link5_matte_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_link5_matte_black.stl" />
+      </geometry>
+      <material name="right_arm_matte_black" />
+    </visual>
+    <visual name="right_arm_link5_hardware_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_link5_hardware_black.stl" />
+      </geometry>
+      <material name="right_arm_hardware_black" />
+    </visual>
+    <visual name="right_arm_link5_anodized_grey">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_link5_anodized_grey.stl" />
+      </geometry>
+      <material name="right_arm_anodized_grey" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/collision/link5.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="right_arm_joint5" type="revolute">
+    <origin xyz="0.078308 -0.0375 -0.03" rpy="-1.5708 0 0" />
+    <parent link="right_arm_link4" />
+    <child link="right_arm_link5" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.57" upper="1.57" effort="7" velocity="200" />
+  </joint>
+  <link name="right_arm_link6">
+    <inertial>
+      <origin xyz="3.76418727127126E-06 -0.000100908819946677 0.0253308606425965" rpy="0 0 0" />
+      <mass value="0.36630000" />
+      <inertia ixx="0.00015554" ixy="-0.00000" ixz="-0.00000" iyy="0.00015554" iyz="-0.0000" izz="0.00013966" />
+    </inertial>
+    <visual name="right_arm_link6_matte_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_link6_matte_black.stl" />
+      </geometry>
+      <material name="right_arm_matte_black" />
+    </visual>
+    <visual name="right_arm_link6_hardware_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_link6_hardware_black.stl" />
+      </geometry>
+      <material name="right_arm_hardware_black" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/collision/link6.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="right_arm_joint6" type="revolute">
+    <origin xyz="0.028008 0 0.04" rpy="0 1.5708 0" />
+    <parent link="right_arm_link5" />
+    <child link="right_arm_link6" />
+    <axis xyz="0 0 1" />
+    <limit lower="-3.14" upper="3.14" effort="7" velocity="200" />
+  </joint>
+  <link name="right_arm_end_link">
+    <inertial>
+      <origin xyz="-0.0737654295815033 -9.5080995865868E-06 7.04327840286845E-06" rpy="0 0 0" />
+      <mass value="0.5000000" />
+      <inertia ixx="0.00037354" ixy="-0.00000011" ixz="0.00000050" iyy="0.00015830" iyz="0.00000348" izz="0.00045353" />
+    </inertial>
+    <visual name="right_arm_gripper_base_seeed_yellow">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_gripper_base_seeed_yellow.stl" />
+      </geometry>
+      <material name="right_arm_gripper_seeed_yellow" />
+    </visual>
+    <visual name="right_arm_gripper_base_hardware_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_gripper_base_hardware_black.stl" />
+      </geometry>
+      <material name="right_arm_gripper_hardware_black" />
+    </visual>
+    <visual name="right_arm_gripper_base_metal">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_gripper_base_metal.stl" />
+      </geometry>
+      <material name="right_arm_gripper_base_metal" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/collision/gripper_base.stl" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="right_arm_end_joint" type="fixed">
+    <origin xyz="0 0 0.15539" rpy="0 -1.5708 3.1415" />
+    <parent link="right_arm_link6" />
+    <child link="right_arm_end_link" />
+    <axis xyz="0 0 0" />
+  </joint>
+  <link name="right_arm_finger_left_link">
+    <visual name="right_arm_finger_left_body">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_left_finger_finger_black.stl" />
+      </geometry>
+      <material name="right_arm_gripper_finger_black" />
+    </visual>
+    <visual name="right_arm_finger_left_carriage">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/shared/colored_left_finger_carriage_grey.stl" />
+      </geometry>
+      <material name="right_arm_gripper_carriage_grey" />
+    </visual>
+    <visual name="right_arm_finger_left_travel_stop">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/shared/colored_left_finger_travel_stop_yellow.stl" />
+      </geometry>
+      <material name="right_arm_gripper_seeed_yellow" />
+    </visual>
+    <visual name="right_arm_finger_left_crossed_rack">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_left_finger_rack_metal.stl" />
+      </geometry>
+      <material name="right_arm_gripper_rack_metal" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/collision/left_finger.stl" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="right_arm_finger_left" type="prismatic">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="right_arm_end_link" />
+    <child link="right_arm_finger_left_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="0.05" effort="8" velocity="0.08" />
+  </joint>
+  <link name="right_arm_finger_right_link">
+    <visual name="right_arm_finger_right_body">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_right_finger_finger_black.stl" />
+      </geometry>
+      <material name="right_arm_gripper_finger_black" />
+    </visual>
+    <visual name="right_arm_finger_right_carriage">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/shared/colored_right_finger_carriage_grey.stl" />
+      </geometry>
+      <material name="right_arm_gripper_carriage_grey" />
+    </visual>
+    <visual name="right_arm_finger_right_travel_stop">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/shared/colored_right_finger_travel_stop_yellow.stl" />
+      </geometry>
+      <material name="right_arm_gripper_seeed_yellow" />
+    </visual>
+    <visual name="right_arm_finger_right_crossed_rack">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/visual/colored_right_finger_rack_metal.stl" />
+      </geometry>
+      <material name="right_arm_gripper_rack_metal" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/collision/right_finger.stl" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="right_arm_finger_right" type="prismatic">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="right_arm_end_link" />
+    <child link="right_arm_finger_right_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="-0.05" upper="0" effort="8" velocity="0.08" />
+    <mimic joint="right_arm_finger_left" multiplier="-1" offset="0" />
+  </joint>
+  <joint name="right_arm_wrist_camera_adapter_joint" type="fixed">
+    <parent link="right_arm_end_link" />
+    <child link="right_arm_wrist_gripper_end" />
+    <origin xyz="0.010819999999927027 -5.0915006438381365e-23 -3.9744079217264094e-08" rpy="0.00010000000000164214 7.3464101910669655e-06 3.4033563838767496e-10" />
+  </joint>
+  <link name="right_arm_wrist_gripper_end" />
+  <material name="right_arm_wrist_aluminum">
+    <color rgba="0.5 0.5 0.5 1" />
+  </material>
+  <material name="right_arm_wrist_plastic">
+    <color rgba="0.1 0.1 0.1 1" />
+  </material>
+  <link name="right_arm_wrist_camera_mount_link">
+    <inertial>
+      <origin xyz="0.00168106 0.0392656 0.00129679" rpy="0 0 0" />
+      <mass value="0.0461" />
+      <inertia ixx="3.82934e-05" ixy="-1.01765e-06" ixz="4.05702e-07" iyy="2.84946e-05" iyz="1.29755e-05" izz="4.86058e-05" />
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/camera/mounts/D435_Gemini2_Mount.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="right_arm_wrist_gripper_to_mount" type="fixed">
+    <parent link="right_arm_wrist_gripper_end" />
+    <child link="right_arm_wrist_camera_mount_link" />
+    <origin rpy="1.5827 0.0024 1.5515" xyz="-0.1201 0.0003 0.0450" />
+  </joint>
+  <joint name="right_arm_wrist_camera_joint" type="fixed">
+    <origin rpy="0.0126 -1.0489 -1.5981" xyz="-0.0003 0.0445 -0.0095" />
+    <parent link="right_arm_wrist_camera_mount_link" />
+    <child link="right_arm_wrist_camera_bottom_screw_frame" />
+  </joint>
+  <link name="right_arm_wrist_camera_bottom_screw_frame" />
+  <joint name="right_arm_wrist_camera_link_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="0.010600000000000002 0.0175 0.0125" />
+    <parent link="right_arm_wrist_camera_bottom_screw_frame" />
+    <child link="right_arm_wrist_camera_link" />
+  </joint>
+  <link name="right_arm_wrist_camera_link">
+    <visual>
+      <origin rpy="1.5707963267948966 0 1.5707963267948966" xyz="0.0043 -0.0175 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_right_arm_description/meshes/right_arm/camera/realsense/d435.dae" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 -0.0175 0" />
+      <geometry>
+        <box size="0.02505 0.09 0.025" />
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.072" />
+      <origin xyz="0 0 0" />
+      <inertia ixx="0.003881243" ixy="0.0" ixz="0.0" iyy="0.000498940" iyz="0.0" izz="0.003879257" />
+    </inertial>
+  </link>
+  <joint name="right_arm_wrist_camera_depth_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="0 0 0" />
+    <parent link="right_arm_wrist_camera_link" />
+    <child link="right_arm_wrist_camera_depth_frame" />
+  </joint>
+  <link name="right_arm_wrist_camera_depth_frame" />
+  <joint name="right_arm_wrist_camera_depth_optical_joint" type="fixed">
+    <origin rpy="-1.5707963267948966 0 -1.5707963267948966" xyz="0 0 0" />
+    <parent link="right_arm_wrist_camera_depth_frame" />
+    <child link="right_arm_wrist_camera_depth_optical_frame" />
+  </joint>
+  <link name="right_arm_wrist_camera_depth_optical_frame" />
+  <joint name="right_arm_wrist_camera_infra1_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="0 0.0 0" />
+    <parent link="right_arm_wrist_camera_link" />
+    <child link="right_arm_wrist_camera_infra1_frame" />
+  </joint>
+  <link name="right_arm_wrist_camera_infra1_frame" />
+  <joint name="right_arm_wrist_camera_infra1_optical_joint" type="fixed">
+    <origin rpy="-1.5707963267948966 0 -1.5707963267948966" xyz="0 0 0" />
+    <parent link="right_arm_wrist_camera_infra1_frame" />
+    <child link="right_arm_wrist_camera_infra1_optical_frame" />
+  </joint>
+  <link name="right_arm_wrist_camera_infra1_optical_frame" />
+  <joint name="right_arm_wrist_camera_infra2_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="0 -0.05 0" />
+    <parent link="right_arm_wrist_camera_link" />
+    <child link="right_arm_wrist_camera_infra2_frame" />
+  </joint>
+  <link name="right_arm_wrist_camera_infra2_frame" />
+  <joint name="right_arm_wrist_camera_infra2_optical_joint" type="fixed">
+    <origin rpy="-1.5707963267948966 0 -1.5707963267948966" xyz="0 0 0" />
+    <parent link="right_arm_wrist_camera_infra2_frame" />
+    <child link="right_arm_wrist_camera_infra2_optical_frame" />
+  </joint>
+  <link name="right_arm_wrist_camera_infra2_optical_frame" />
+  <joint name="right_arm_wrist_camera_color_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="0 0.015 0" />
+    <parent link="right_arm_wrist_camera_link" />
+    <child link="right_arm_wrist_camera_color_frame" />
+  </joint>
+  <link name="right_arm_wrist_camera_color_frame" />
+  <joint name="right_arm_wrist_camera_color_optical_joint" type="fixed">
+    <origin rpy="-1.5707963267948966 0 -1.5707963267948966" xyz="0 0 0" />
+    <parent link="right_arm_wrist_camera_color_frame" />
+    <child link="right_arm_wrist_camera_color_optical_frame" />
+  </joint>
+  <link name="right_arm_wrist_camera_color_optical_frame" />
+  <link name="right_arm_wrist_camera_accel_frame" />
+  <link name="right_arm_wrist_camera_accel_optical_frame" />
+  <link name="right_arm_wrist_camera_gyro_frame" />
+  <link name="right_arm_wrist_camera_gyro_optical_frame" />
+  <joint name="right_arm_wrist_camera_accel_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="-0.01174 -0.00552 0.0051" />
+    <parent link="right_arm_wrist_camera_link" />
+    <child link="right_arm_wrist_camera_accel_frame" />
+  </joint>
+  <joint name="right_arm_wrist_camera_accel_optical_joint" type="fixed">
+    <origin rpy="-1.5707963267948966 0 -1.5707963267948966" xyz="0 0 0" />
+    <parent link="right_arm_wrist_camera_accel_frame" />
+    <child link="right_arm_wrist_camera_accel_optical_frame" />
+  </joint>
+  <joint name="right_arm_wrist_camera_gyro_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="-0.01174 -0.00552 0.0051" />
+    <parent link="right_arm_wrist_camera_link" />
+    <child link="right_arm_wrist_camera_gyro_frame" />
+  </joint>
+  <joint name="right_arm_wrist_camera_gyro_optical_joint" type="fixed">
+    <origin rpy="-1.5707963267948966 0 -1.5707963267948966" xyz="0 0 0" />
+    <parent link="right_arm_wrist_camera_gyro_frame" />
+    <child link="right_arm_wrist_camera_gyro_optical_frame" />
+  </joint>
+  <joint name="right_arm_mount_joint" type="fixed">
+    <parent link="top_plate_link" />
+    <child link="right_arm_base_link" />
+    <origin xyz="0.022000000 -0.082351275 -0.047325905" rpy="0.7853981633974483 0 0" />
+  </joint>
+</robot>

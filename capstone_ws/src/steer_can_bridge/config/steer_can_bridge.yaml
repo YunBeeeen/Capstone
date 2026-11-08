@@ -1,0 +1,26 @@
+# steer_can_bridge 파라미터. 모터 순서 = can_ids 순서 = SteerCommand.angle 순서
+# 번호 = 위에서 보고 앞오른쪽부터 시계방향: 1 FR, 2 RR, 3 RL, 4 FL (구동 XDrive CAN ID 와 같음)
+# 버스 배정: can_drive 구동 / can_steer 조향 / can_arm_r 오른팔 / can_arm_l 왼팔
+steer_can_bridge:
+  ros__parameters:
+    can_interface: can_steer              # RS02 1 Mbps
+    can_ids: [1, 2, 3, 4]            # [FR, RR, RL, FL]
+    host_id: 253                     # 0xFD (idle_ws 와 같음)
+    steer_sign: [1.0, 1.0, 1.0, 1.0] # 조향각 = sign × 모터각. TODO 실기 확인: + = 위에서 보고 반시계 (angle.py 로 손으로 돌려 확인)
+    steer_limit_deg: 180.0           # 명령 클램프 = swerve steer_limit_deg. 기구 스토퍼/케이블 ±190° 까지 여유 10°
+    confirm_limit_deg: 165.0         # 켤 때 각도 확정 기준. 반드시 < 360 − 190(스토퍼) = 170 (여유 5°)
+
+    # MIT 위치 제어: t = kp·(p_cmd − p) + kd·(v_ff − v). TODO 바닥 제자리 조향으로 튜닝 (Steer_motor/steer_can/step.py)
+    kp: 20.0                         # [Nm/rad] idle_ws RS02 관절 시작값. 마찰 τ 에서 남는 오차 ≈ τ/kp
+    kd: 2.0                          # [Nm·s/rad]
+    max_rate: 2.0                    # [rad/s] 램프 속도 — 90° ≈ 0.8 s. 목표 급변 시 토크 튐 방지
+    control_rate_hz: 200.0           # MIT 송신 주기 (4축 × 200 Hz + 응답 = 1 Mbps 의 약 25%)
+    state_rate_hz: 50.0              # steer_state 발행 (swerve steer_state_timeout 0.2 s)
+
+    cmd_timeout: 0.2                 # [s] steer_cmd 끊기면 램프 멈추고 그 자리 유지 (swerve 는 50 Hz 로 보냄)
+    fb_timeout: 0.15                 # [s] 피드백 끊김 → ENTERING/ACTIVE 면 FAULT
+    free_poll_hz: 20.0               # FREE/FAULT 에서 Type04 폴링 (토크 끈 채로 각도 읽기)
+    enter_timeout: 1.0               # [s] enable → RUN 확인 제한
+    retry_period: 0.2                # [s] enable 재요청
+    motor_can_timeout: 0.5           # [s] 모터 canTimeout(0x7028): 브리지가 죽으면 모터가 스스로 disable. 0 = 끔. TODO 실기 확인
+    temp_warn: 70.0                  # [°C]

@@ -1,0 +1,22 @@
+# CANSimple (ODrive fw 0.5.1) 공용 테스트 벡터 — Python(tests/test_cansimple.py)과 C++(wheel_can_bridge test)이 같이 읽음.
+# kind,can_id,a,b,arb_id_hex,data_hex
+#   인코드 kind (Pi→보드): axis_state(a=state) / input_vel(a=vel,b=torque_ff) / controller_mode(a=control,b=input) /
+#                          clear_errors / rtr_encoder / rtr_iq  (rtr_* = RTR 요청, data 없음)
+#   디코드 kind (보드→Pi): heartbeat(a=axis_error,b=state) / encoder_estimates(a=pos,b=vel) / iq(a=setpoint,b=measured) / vbus(a)
+#   실기 candump 프레임: heartbeat id1 IDLE, encoder_estimates 0.2829, vbus 24.75 (2026-11-03)
+axis_state,1,8,,027,08000000
+axis_state,4,1,,087,01000000
+input_vel,1,0.5,0.0,02D,0000003F00000000
+input_vel,3,-0.5,0.0,06D,000000BF00000000
+input_vel,2,1.25,0.1,04D,0000A03FCDCCCC3D
+controller_mode,2,2,2,04B,0200000002000000
+clear_errors,3,,,078,
+rtr_encoder,4,,,089,
+rtr_iq,1,,,034,
+heartbeat,1,0,1,021,0000000001000000
+heartbeat,4,2048,1,081,0008000001000000
+heartbeat,3,0,8,061,0000000008000000
+encoder_estimates,1,0.282922,0.0,029,76DA903E00000000
+encoder_estimates,2,-3.5,0.25,049,000060C00000803E
+iq,3,0.2,0.21,074,CDCC4C3E3D0A573E
+vbus,1,24.7524,,037,F304C64100000000

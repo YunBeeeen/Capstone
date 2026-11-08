@@ -1,0 +1,17 @@
+# wheel_can_bridge 파라미터. 바퀴 순서 = can_ids 순서 = WheelCommand.velocity 순서
+# 바퀴 번호 = 위에서 보고 시계방향: 1 FR, 2 RR, 3 RL, 4 FL (조향 RobStride 02 도 같은 번호)
+wheel_can_bridge:
+  ros__parameters:
+    can_interface: can_drive
+    can_ids: [1, 2, 3, 4]            # [FR, RR, RL, FL]. 보드 #1 M0/M1 = 1/2 (오른쪽), 보드 #2 M0/M1 = 3/4 (왼쪽)
+    wheel_sign: [1.0, 1.0, 1.0, 1.0] # 바퀴 기준 → 보드 기준. + = 트레드 V 꼭짓점 방향 (2026-11-05 4축 모두 동일)
+    vel_max: 2.0                     # [turn/s] 보드 controller.config.vel_limit 과 맞춤
+    control_rate_hz: 50.0            # 속도 명령 송신 주기 (워치독 feed 겸용 예정)
+    feedback_rate_hz: 20.0           # encoder/Iq RTR 요청 + wheel_state 발행 (ENTERING/ACTIVE/FAULT)
+    feedback_rate_free_hz: 5.0       # FREE(IDLE) 에선 느리게 — 손으로 밀어도 위치 추적은 유지
+    max_rtr_per_tick: 4              # RTR 을 틱당 이만큼씩 나눠 송신 (txqueuelen 10 넘침 방지)
+    cmd_timeout: 0.2                 # [s] DRIVE 명령 끊기면 속도 0 (HOLD)
+    hb_timeout: 0.5                  # [s] heartbeat 100 ms × 5
+    enter_timeout: 3.0               # [s] CLOSED_LOOP 진입 제한
+    retry_period: 0.5                # [s] 상태 전환 재요청
+    vbus_warn: 22.5                  # [V] 배터리 7S 3.2 V/셀 — 이하면 "충전 필요" 경고 (보드 트립 21 V)

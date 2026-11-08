@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.8)
+project(mobile_robot_right_arm_description)
+find_package(ament_cmake REQUIRED)
+install(DIRECTORY urdf mjcf meshes launch rviz licenses source DESTINATION share/${PROJECT_NAME})
+install(FILES README.md DESTINATION share/${PROJECT_NAME})
+ament_package()
