@@ -18,11 +18,19 @@ for n in "${ORDER[@]}"; do
   fi
   sudo ip link set "$n" down
   if [[ "${1:-up}" == "down" ]]; then printf "%-10s down\n" "$n"; continue; fi
-  # restart-ms: bus-off 자동 복구 / txqueuelen: 기본 10 은 버스트에 부족 (ENOBUFS)
-  sudo ip link set "$n" type can bitrate "${BITRATE[$n]}" restart-ms 100
+  sudo ip link set "$n" type can bitrate "${BITRATE[$n]}" || { echo "!! $n bitrate 설정 실패"; continue; }
+  # restart-ms: bus-off 자동 복구. 드라이버가 지원할 때만 (라파 6.8-raspi gs_usb 는 미지원 → bus-off 면 이 스크립트 다시)
+  sudo ip link set "$n" type can restart-ms 100 2>/dev/null || true
+  # txqueuelen: 기본 10 은 버스트에 부족 (ENOBUFS)
   sudo ip link set "$n" txqueuelen 100
   sudo ip link set "$n" up
-  printf "%-10s up  %7d bps\n" "$n" "${BITRATE[$n]}"
+  # 실제 적용된 값 읽어서 표시
+  info=$(ip -details link show "$n")
+  br=$(grep -o -E 'bitrate [0-9]+' <<<"$info" | awk '{print $2}')
+  rs=$(grep -o -E 'restart-ms [0-9]+' <<<"$info" | awk '{print $2}')
+  st=$(grep -o -E 'can state [A-Z-]+' <<<"$info" | awk '{print $3}')
+  printf "%-10s up  %7s bps  restart-ms %-3s %s\n" "$n" "$br" "${rs:-?}" "${st:-}"
+  [[ "${rs:-0}" == "0" ]] && echo "           (bus-off 자동 복구 미지원 — 통신 끊기면 ./can_up.sh 다시)"
 done
 leftover=$(ip -br link | awk '$1 ~ /^can[0-9]+$/ {print $1}')
 [[ -n "$leftover" ]] && echo "!! 이름 고정 안 된 어댑터: $leftover — 규칙 설치/시리얼 확인 (README.md)"

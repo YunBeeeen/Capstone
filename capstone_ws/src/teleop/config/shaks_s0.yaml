@@ -17,8 +17,9 @@ gamepad_teleop:
     axis_linear_x: 1           # L 상하 → vx
     axis_linear_y: 0           # L 좌우 → vy
     axis_angular: 3            # R 좌우 → ω
-    scale_linear_x: 0.25       # [m/s] cmd = axis × scale. TODO 부호 미검증 — 스틱 위 = linear.x > 0
-    scale_linear_y: -0.25      # [m/s] TODO 부호 미검증 — 스틱 왼쪽 = linear.y > 0
-    scale_angular: -0.5        # [rad/s] TODO 부호 미검증 — 스틱 왼쪽 = angular.z > 0
+    scale_linear_x: 0.25       # [m/s] cmd = axis × scale. 스틱 위(joy +) = 전진(+x)
+    scale_linear_y: 0.25       # [m/s] 스틱 왼쪽(joy +) = 좌측(+y)
+    scale_angular: 0.5         # [rad/s] 스틱 왼쪽(joy +) = 반시계(+ω). 2026-11-07 실기: −0.5 일 때 반대로 돎
+                               # 세 scale 모두 + 여야 가상 패드와 같은 방향 (test/test_directions.py)
     deadzone: 0.15             # 왼쪽 스틱 원형 데드존 (크기 비율). 밖은 방향 유지 + 0~1 로 다시 늘림
     deadzone_angular: 0.15     # 오른쪽 스틱 좌우 데드존

@@ -5,6 +5,14 @@
   ros2 run capstone_teleop virtual_pad.py --max-lin 0.3 --max-ang 1.0 --topic /cmd_vel
   ros2 launch capstone_sim sim.launch.py pad:=true          # 시뮬 + 이 패드
 
+  # 노트북 → UDP → 라파 (노트북엔 ROS 필요 없음, pygame 만). 라파: ros2 run capstone_teleop udp_teleop_bridge.py
+  python3 virtual_pad.py --udp raspberrypi.local --max-lin 0.15 --max-ang 0.5
+
+게임패드: 노트북에 꽂혀 있으면 이 창이 같이 읽음 (RB 누르는 동안 게임패드가 마우스보다 우선).
+  계산은 라파 gamepad_teleop 과 같은 gamepad_map.joy_to_cmd + config/shaks_s0.yaml (축·부호·데드존·scale).
+  pygame 축은 왼쪽·위 = − 라서 ROS joy 규약(왼쪽·위 = +)으로 뒤집어 넣음 → yaml 하나로 두 경로가 같은 방향.
+  최종 속도는 --max-lin / --max-ang 로 다시 자름.
+
 패드 둘 (마우스 드래그):
   왼쪽  → 병진 (vx, vy)   화면 위 = 전진, 화면 왼쪽 = 좌(+y)
   오른쪽 → 회전 ω (가로축만)  오른쪽으로 끌면 시계방향(−)
@@ -21,7 +29,10 @@
   - 저속 방향 고정: 작은 크기에서 바퀴 축을 크게 바꾸는 방향은 0 (오른쪽→왼쪽 옮기다 중앙 스칠 때 조향 안 돌게)
 """
 import argparse
+import json
 import math
+import socket
+import struct
 import sys
 import time
 from pathlib import Path
@@ -29,6 +40,62 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from joystick_math import (apply_deadzone, clamp_to_unit_circle, left_pad_to_linear,  # noqa: E402
                            lock_low_speed_direction, right_pad_to_angular, snap_to_axes)
+from gamepad_map import joy_to_cmd  # noqa: E402
+
+# 게임패드 기본값 = gamepad_teleop.py PARAMS 와 같음 (yaml 이 있으면 yaml 값으로 덮음)
+GAMEPAD_DEFAULTS = {
+    "require_enable_button": True, "enable_button": 5,
+    "axis_linear_x": 1, "axis_linear_y": 0, "axis_angular": 3,
+    "scale_linear_x": 0.25, "scale_linear_y": 0.25, "scale_angular": 0.5,
+    "deadzone": 0.15, "deadzone_angular": 0.15,
+}
+
+
+def load_gamepad_cfg():
+    """config/shaks_s0.yaml 의 gamepad_teleop 파라미터 (소스 트리 → 설치 share 순). 없으면 기본값."""
+    cfg = dict(GAMEPAD_DEFAULTS)
+    here = Path(__file__).resolve().parent
+    cands = [here.parent / "config" / "shaks_s0.yaml"]
+    try:
+        from ament_index_python.packages import get_package_share_directory
+        cands.append(Path(get_package_share_directory("capstone_teleop")) / "config" / "shaks_s0.yaml")
+    except Exception:
+        pass
+    for c in cands:
+        if c.exists():
+            try:
+                import yaml
+                p = yaml.safe_load(c.read_text())["gamepad_teleop"]["ros__parameters"]
+                cfg.update({k: p[k] for k in cfg if k in p})
+                return cfg, str(c)
+            except Exception as e:  # noqa: BLE001
+                print(f"[gamepad] {c} 읽기 실패 ({e}) — 기본값 사용")
+    return cfg, "기본값"
+
+
+class Gamepad:
+    """pygame 조이스틱 → (enabled, vx, vy, ω). 연결/분리 자동."""
+
+    def __init__(self, pygame, cfg):
+        self.pg, self.cfg, self.js = pygame, cfg, None
+        pygame.joystick.init()
+        self.rescan()
+
+    def rescan(self):
+        self.js = self.pg.joystick.Joystick(0) if self.pg.joystick.get_count() > 0 else None
+        if self.js is not None:
+            self.js.init()
+            print(f"[gamepad] {self.js.get_name()}  axes={self.js.get_numaxes()} buttons={self.js.get_numbuttons()}")
+
+    def read(self):
+        if self.js is None:
+            return False, 0.0, 0.0, 0.0
+        axes = [-self.js.get_axis(i) for i in range(self.js.get_numaxes())]  # ROS joy 규약: 왼쪽·위 = +
+        buttons = [self.js.get_button(i) for i in range(self.js.get_numbuttons())]
+        return joy_to_cmd(axes, buttons, self.cfg)
+
+    def name(self):
+        return self.js.get_name() if self.js is not None else None
 
 WIDTH, HEIGHT = 640, 380
 PAD_RADIUS = 100
@@ -88,16 +155,72 @@ class RosSink:
             self.rclpy.shutdown()
 
 
+class UdpSink:
+    """노트북 → 라파 udp_teleop_bridge.py. 패킷 b"CAPS" + <I seq> + <f vx vy w>, 라파가 5 Hz 로 JSON 상태를 돌려줌."""
+
+    PKT = struct.Struct("<4sIfff")
+
+    def __init__(self, dest):
+        host, _, port = dest.partition(":")
+        self.dest = (socket.gethostbyname(host), int(port or 5005))
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.setblocking(False)
+        self.seq = 0
+        self.tlm, self.tlm_time = None, -1e9
+        print(f"[udp] -> {self.dest[0]}:{self.dest[1]} (라파에서 udp_teleop_bridge.py 실행 중이어야 함)")
+
+    def send(self, vx, vy, omega):
+        self.seq = (self.seq + 1) & 0xFFFFFFFF
+        try:
+            self.sock.sendto(self.PKT.pack(b"CAPS", self.seq, vx, vy, omega), self.dest)
+        except OSError:
+            pass
+        while True:
+            try:
+                data, _ = self.sock.recvfrom(4096)
+            except (BlockingIOError, OSError):
+                break
+            try:
+                self.tlm, self.tlm_time = json.loads(data), time.monotonic()
+            except ValueError:
+                continue
+            f = self.tlm.get("fault", "")
+            if f != getattr(self, "_last_fault", ""):
+                print(f"[robot] FAULT: {f}" if f else "[robot] fault 해제")  # 창 글꼴은 한글 불가 → 터미널에
+                self._last_fault = f
+
+    def status(self):
+        if self.tlm is None or time.monotonic() - self.tlm_time > 1.0:
+            return "robot: no reply (check Pi udp_teleop_bridge / network)", (230, 120, 120)
+        t = self.tlm
+        txt = f"robot: steer {t.get('steer', '-')} | wheel {t.get('wheel', '-')} | vbus {t.get('vbus', '-')} V"
+        if "steer_deg" in t:
+            txt += f" | deg {t['steer_deg']}"
+        if t.get("fault"):
+            return txt + f" | FAULT {t['fault']}", (240, 90, 90)
+        return txt, (120, 220, 140)
+
+    def close(self):
+        self.sock.close()
+
+
 def run(args):
     import pygame
 
-    sink = RosSink(args.topic)
+    sink = UdpSink(args.udp) if args.udp else RosSink(args.topic)
     pygame.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption(f"capstone virtual pad → {args.topic}")
     font = pygame.font.SysFont(None, 22)
     clock = pygame.time.Clock()
     left, right = Pad(LEFT_CENTER, PAD_RADIUS), Pad(RIGHT_CENTER, PAD_RADIUS)
+    gcfg, gsrc = load_gamepad_cfg()
+    gpad = Gamepad(pygame, gcfg) if not args.no_gamepad else None
+    if gpad is not None:
+        print(f"[gamepad] 설정 {gsrc}: vx=axes[{gcfg['axis_linear_x']}]×{gcfg['scale_linear_x']} "
+              f"vy=axes[{gcfg['axis_linear_y']}]×{gcfg['scale_linear_y']} ω=axes[{gcfg['axis_angular']}]×{gcfg['scale_angular']} "
+              f"deadman 버튼 {gcfg['enable_button']}")
+    source = "mouse"
     period = 1.0 / args.rate
     next_send = time.monotonic()
     last_dir = None
@@ -123,6 +246,8 @@ def run(args):
                 elif ev.type in (pygame.WINDOWFOCUSLOST, pygame.ACTIVEEVENT):
                     left.release()
                     right.release()
+                elif gpad is not None and ev.type in (pygame.JOYDEVICEADDED, pygame.JOYDEVICEREMOVED):
+                    gpad.rescan()
 
             keys = pygame.key.get_pressed()
             if keys[pygame.K_SPACE]:
@@ -142,6 +267,13 @@ def run(args):
                 omega = -args.max_ang
             else:
                 omega = 0.0
+            source = "mouse"
+            if gpad is not None:
+                g_on, gvx, gvy, gw = gpad.read()
+                if g_on:  # deadman 누르는 동안 게임패드 우선
+                    lim = lambda v, m: max(-m, min(m, v))
+                    vx, vy, omega = lim(gvx, args.max_lin), lim(gvy, args.max_lin), lim(gw, args.max_ang)
+                    source = "gamepad"
             if keys[pygame.K_SPACE]:
                 vx = vy = omega = 0.0
 
@@ -158,12 +290,19 @@ def run(args):
                 pygame.draw.circle(screen, color, [int(c) for c in pad.handle_pixel_pos()], 18)
                 t = font.render(label, True, (150, 150, 160))
                 screen.blit(t, (pad.center[0] - t.get_width() // 2, pad.center[1] + pad.radius + 10))
-            screen.blit(font.render(f"vx={vx:+.2f} m/s  vy={vy:+.2f} m/s  omega={omega:+.2f} rad/s",
+            screen.blit(font.render(f"vx={vx:+.2f} m/s  vy={vy:+.2f} m/s  omega={omega:+.2f} rad/s   [{source}]",
                                     True, (220, 220, 230)), (16, 16))
+            gname = gpad.name() if gpad is not None else None
+            screen.blit(font.render(f"gamepad: {gname}  (hold RB + sticks)" if gname else "gamepad: none",
+                                    True, (120, 200, 230) if gname else (110, 110, 120)), (16, 70))
             screen.blit(font.render("drag pads with mouse | Q/E rotate | space=stop | Esc=quit",
                                     True, (140, 140, 150)), (16, 44))
-            screen.blit(font.render(f"max {args.max_lin} m/s, {args.max_ang} rad/s @ {args.rate:.0f} Hz",
+            screen.blit(font.render(f"max {args.max_lin} m/s, {args.max_ang} rad/s @ {args.rate:.0f} Hz"
+                                    + (f"  udp -> {args.udp}" if args.udp else f"  ros -> {args.topic}"),
                                     True, (110, 110, 120)), (16, HEIGHT - 30))
+            if hasattr(sink, "status"):
+                txt, col = sink.status()
+                screen.blit(font.render(txt, True, col), (16, HEIGHT - 56))
             pygame.display.flip()
             clock.tick(60)
     finally:
@@ -177,6 +316,8 @@ def run(args):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--topic", default="/cmd_vel")
+    ap.add_argument("--udp", metavar="HOST[:PORT]", help="ROS 대신 UDP 로 라파 udp_teleop_bridge.py 에 보냄 (기본 포트 5005)")
+    ap.add_argument("--no-gamepad", action="store_true", help="게임패드 읽지 않음")
     ap.add_argument("--rate", type=float, default=20.0, help="발행 주기 [Hz] (swerve cmd_timeout 0.3 s 보다 충분히 빠르게)")
     ap.add_argument("--max-lin", type=float, default=0.3, help="패드 끝 |vx|,|vy| [m/s] (swerve max_wheel_mps 0.6)")
     ap.add_argument("--max-ang", type=float, default=1.0, help="패드 끝 |ω| [rad/s]")
