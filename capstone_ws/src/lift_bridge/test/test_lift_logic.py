@@ -57,6 +57,7 @@ class Sim:
         self.t_ms = CLOCK["ms"]
         self.faults = []
         self.sent = []
+        self.duties = []
         self.ctrl = fw.PositionController(self.drive, lambda: CLOCK["ms"], self.encoder,
                                           calibration_store=FakeStore(), boot_reason="power_on")
         self.logic = LiftLogic(LiftConfig(mm_per_count=K), store=store)
@@ -108,6 +109,8 @@ class Sim:
                     self.logic.on_command(c, t)
                 for m in self.logic.step(t):
                     self.sent.append(m["cmd"])
+                    if m["cmd"] == "jog":
+                        self.duties.append((t, m["duty"]))
                     self.ctrl.command(json.loads(json.dumps(m)))
             if until is not None and until(self.logic):
                 return True
@@ -256,6 +259,29 @@ class TestLiftLogic(unittest.TestCase):
         s.run(1.3, LiftCmd(zero=True))
         s.run(8.0, LiftCmd(jog=1))
         self.assertIn("mm/count", s.logic.message)
+
+    def test_unhomed_caps_duty(self):
+        s = Sim(self.fw, x0=100.0)
+        s.run(0.5)
+        s.run(2.0, LiftCmd(jog=1, duty=1.0))
+        self.assertLessEqual(max(d for _, d in s.duties), 0.5)
+
+    def test_homed_ramps_to_full(self):
+        s = self.boot_zeroed()
+        s.run(2.0, LiftCmd(jog=1, duty=1.0))
+        self.assertAlmostEqual(s.duties[0][1], 0.3)
+        t0 = s.duties[0][0]
+        full = [t for t, d in s.duties if d >= 0.999]
+        self.assertTrue(full)
+        self.assertLess(full[0] - t0, 0.5)
+        self.assertEqual(s.faults, [])
+        # 빠름 → 느림 은 즉시
+        s.run(0.3, LiftCmd(jog=1, duty=0.5))
+        self.assertAlmostEqual(s.duties[-1][1], 0.5)
+        # 빠른 상승 → 빠른 하강 (반전) 도 fault 없음
+        s.run(1.5, LiftCmd(jog=-1, duty=1.0))
+        s.run(0.3, LiftCmd())
+        self.assertEqual(s.faults, [])
 
     def test_shutdown_request_park_when_already_parked(self):
         s = self.boot_zeroed()

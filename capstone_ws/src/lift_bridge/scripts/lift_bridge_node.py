@@ -130,8 +130,10 @@ class LiftBridge(Node):
         cfg = LiftConfig(
             mm_per_count=p("mm_per_count", 0.21574).value,
             encoder_sign=p("encoder_sign", 1).value,
-            jog_duty=p("jog_duty", 0.30).value,
-            max_jog_duty=p("max_jog_duty", 0.35).value,
+            jog_duty=p("jog_duty", 0.50).value,
+            max_jog_duty=p("max_jog_duty", 1.0).value,
+            unhomed_max_duty=p("unhomed_max_duty", 0.5).value,
+            jog_ramp_per_s=p("jog_ramp_per_s", 2.0).value,
             park_target_mm=p("park_target_mm", 10.0).value,
             park_move_duty=p("park_move_duty", 0.6).value,
             park_duty=p("park_duty", 0.25).value,

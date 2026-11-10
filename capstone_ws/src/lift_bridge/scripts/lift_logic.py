@@ -27,8 +27,11 @@ PARK_TASKS = ("PARK_MOVE", "PARK_DISARM", "PARK_FORGET", "PARK_DESCEND", "PARK_S
 class LiftConfig:
     mm_per_count: float = 0.21574    # Pico 보정값과 같게 (동료 실측: 122.32653 mm / 567 count)
     encoder_sign: int = 1
-    jog_duty: float = 0.30           # 조그 PWM 기본 (동료 GUI 기본 25 %, 10..35 %)
-    max_jog_duty: float = 0.35
+    jog_duty: float = 0.50           # 조그 PWM 기본 (명령 duty = 0 일 때). 패드: 느림 0.5 / 빠름 1.0
+    max_jog_duty: float = 1.0
+    unhomed_max_duty: float = 0.5    # 원점 미등록 (끝단 보호 없음) 일 땐 이 이상 안 냄
+    jog_start_duty: float = 0.3      # 조그 시작 PWM — 펌웨어 조그엔 램프가 없어서 브리지가 올림
+    jog_ramp_per_s: float = 2.0      # [PWM/s] 0.3 → 1.0 에 0.35 s. 낮출 땐 즉시
     cmd_timeout: float = 0.3         # [s] 명령이 이보다 오래되면 조그 정지
     status_timeout: float = 0.6      # [s] Pico 상태가 이보다 오래되면 연결 끊김으로 봄
     zero_hold_s: float = 1.0         # [s] zero 를 이만큼 계속 눌러야 원점 등록
@@ -84,6 +87,8 @@ class LiftLogic:
         self.last_req = -math.inf
         self.last_arm = -math.inf
         self.jogging = False
+        self.jog_duty_now = 0.0
+        self.jog_duty_time = 0.0
         self.last_dir = 0
         self.stop_time = -math.inf
         self.still_count = None
@@ -221,8 +226,15 @@ class LiftLogic:
                 return out
             if pstate == "JOG" or self.st_time < self.stop_time + self.cfg.stop_confirm_s:
                 return out
-        duty = c.duty if c.duty > 0 else self.cfg.jog_duty
-        duty = min(duty, self.cfg.max_jog_duty)
+        cfg = self.cfg
+        target = min(c.duty if c.duty > 0 else cfg.jog_duty, cfg.max_jog_duty)
+        if not self.homed():
+            target = min(target, cfg.unhomed_max_duty)
+        if not self.jogging or want != self.last_dir:
+            duty = min(target, cfg.jog_start_duty)
+        else:
+            duty = min(target, self.jog_duty_now + cfg.jog_ramp_per_s * (now - self.jog_duty_time))
+        self.jog_duty_now, self.jog_duty_time = duty, now
         out.append(msg("jog", direction=want, duty=round(duty, 3)))
         self.jogging, self.last_dir = True, want
         if self.store["parked"]:

@@ -49,7 +49,7 @@ class UdpTeleopBridge(Node):
         self.sock.bind(("0.0.0.0", a.port))
         self.sock.setblocking(False)
         self.cmd = (0.0, 0.0, 0.0)
-        self.lift_in = (0, 0)  # (jog, flags)
+        self.lift_in = (0, 0)  # (pwm %, flags)
         self.lift = None       # 마지막 LiftState
         self.lift_pub = None
         self.last_rx = -1e9
@@ -89,7 +89,7 @@ class UdpTeleopBridge(Node):
             if p is None:
                 self.n_bad += 1
                 continue
-            seq, vx, vy, w, jog, flags = p
+            seq, vx, vy, w, pwm, flags = p
             # 오래된 패킷(순서 뒤집힘) 버림. 노트북 재시작(seq 가 작게 다시 시작)은 허용
             if self.last_seq is not None and addr == self.peer and 0 < (self.last_seq - seq) % 2**32 < 2**31:
                 self.n_old += 1
@@ -99,7 +99,7 @@ class UdpTeleopBridge(Node):
             self.last_seq, self.peer = seq, addr
             lim = lambda v, m: max(-m, min(m, v))
             self.cmd = (lim(vx, self.a.max_lin), lim(vy, self.a.max_lin), lim(w, self.a.max_ang))
-            self.lift_in = (jog, flags)
+            self.lift_in = (pwm, flags)
             self.last_rx = time.monotonic()
             self.n_rx += 1
 
@@ -108,16 +108,17 @@ class UdpTeleopBridge(Node):
         age = time.monotonic() - self.last_rx
         if age <= STALE_S:
             vx, vy, w = self.cmd
-            jog, flags = self.lift_in
+            pwm, flags = self.lift_in
         elif age <= STALE_S + ZERO_HOLD_S:
             vx = vy = w = 0.0  # 끊김 → 즉시 정지 명령
-            jog, flags = 0, 0
+            pwm, flags = 0, 0
         else:
             return  # 발행 멈춤 → swerve 가 HOLD, lift_bridge 는 cmd_timeout 뒤 조그 정지
         if self.lift_pub is not None:
             lc = self.LiftCommand()
             lc.header.stamp = self.get_clock().now().to_msg()
-            lc.jog = int(jog)
+            lc.jog = (pwm > 0) - (pwm < 0)
+            lc.duty = abs(pwm) / 100.0
             lc.stop, lc.park = bool(flags & up.LIFT_STOP), bool(flags & up.LIFT_PARK)
             lc.zero, lc.clear = bool(flags & up.LIFT_ZERO), bool(flags & up.LIFT_CLEAR)
             self.lift_pub.publish(lc)

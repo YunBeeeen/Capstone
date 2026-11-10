@@ -21,9 +21,11 @@
   마우스를 떼거나 창 포커스를 잃으면 0.
 
 리프트 (--udp 일 때, 라파에서 lift_bridge_node.py 실행 중이어야 함):
-  키보드  R / F (누르는 동안) = 위 / 아래,  P = 주차 (최하단까지 내림),  Z 1 초 = 지금 위치를 0 mm 로 (최하단일 때만!),
-          C = Pico 오류 해제
-  게임패드 (RB 누른 채)  십자 위/아래 = 위/아래,  Start = 주차,  Select 1 초 = 원점 등록,  B = 오류 해제
+  키보드  R / F (누르는 동안) = 느린 위 / 아래 (PWM 50 %),  Shift+R / F = 빠른 (100 %)
+          P = 주차 (최하단까지 내림),  Z 1 초 = 지금 위치를 0 mm 로 (최하단일 때만!),  C = Pico 오류 해제
+  게임패드 (RB 누른 채)  Y / A = 빠른 위 / 아래 (100 %),  X / B = 느린 위 / 아래 (50 %),  십자 위/아래 = 느린
+                         Start = 주차,  Select 1 초 = 원점 등록,  LB = 오류 해제
+  PWM 은 --lift-fast / --lift-slow 로. 라파 브리지가 0.3 에서 램프로 올리고, 원점 미등록이면 50 % 까지만 냄
   원점 미등록이면 끝단 보호가 없음 → 보면서 조작. 라파 lift_bridge 를 Ctrl+C 로 끄면 최하단에 내려 놓고 꺼짐
 
 패드에서 손을 떼도 0 을 계속 보냄 (rate Hz) → swerve_controller 는 ACTIVE 유지(속도 0 = 제자리).
@@ -48,8 +50,17 @@ from joystick_math import (apply_deadzone, clamp_to_unit_circle, left_pad_to_lin
 from gamepad_map import joy_to_cmd  # noqa: E402
 import udp_packet as up  # noqa: E402
 
-# 게임패드 리프트 버튼 (SHAKS S0, pygame 번호 = jstest 번호). 십자키는 hat 0 (없으면 axes[7])
-LIFT_BTN_PARK, LIFT_BTN_ZERO, LIFT_BTN_CLEAR = 7, 6, 1  # Start, Select, B
+# 게임패드 리프트 버튼 (SHAKS S0, pygame 번호 = jstest 번호: 0 A 1 B 2 X 3 Y 4 LB 5 RB 6 Select 7 Start).
+# 십자키는 hat 0 (없으면 axes[7])
+LIFT_BTN_FAST_UP, LIFT_BTN_FAST_DOWN, LIFT_BTN_SLOW_UP, LIFT_BTN_SLOW_DOWN = 3, 0, 2, 1  # Y, A, X, B
+LIFT_BTN_PARK, LIFT_BTN_ZERO, LIFT_BTN_CLEAR = 7, 6, 4  # Start, Select, LB
+
+
+def lift_pwm(fast_up, fast_down, slow_up, slow_down, fast, slow):
+    """버튼 → 리프트 PWM % (+ 위). 빠른 쪽 우선, 위·아래 같이 누르면 0."""
+    up_ = fast if fast_up else (slow if slow_up else 0)
+    down = fast if fast_down else (slow if slow_down else 0)
+    return 0 if (up_ and down) else (up_ or -down)
 
 # 게임패드 기본값 = gamepad_teleop.py PARAMS 와 같음 (yaml 이 있으면 yaml 값으로 덮음)
 GAMEPAD_DEFAULTS = {
@@ -103,8 +114,8 @@ class Gamepad:
         buttons = [self.js.get_button(i) for i in range(self.js.get_numbuttons())]
         return joy_to_cmd(axes, buttons, self.cfg)
 
-    def lift(self):
-        """(jog, flags) — deadman(RB) 누르는 동안만."""
+    def lift(self, fast, slow):
+        """(pwm %, flags) — deadman(RB) 누르는 동안만."""
         js = self.js
         if js is None:
             return 0, 0
@@ -119,7 +130,9 @@ class Gamepad:
             hy = 0
         flags = ((up.LIFT_PARK if b(LIFT_BTN_PARK) else 0) | (up.LIFT_ZERO if b(LIFT_BTN_ZERO) else 0)
                  | (up.LIFT_CLEAR if b(LIFT_BTN_CLEAR) else 0))
-        return max(-1, min(1, int(hy))), flags
+        pwm = lift_pwm(b(LIFT_BTN_FAST_UP), b(LIFT_BTN_FAST_DOWN),
+                       b(LIFT_BTN_SLOW_UP) or hy > 0, b(LIFT_BTN_SLOW_DOWN) or hy < 0, fast, slow)
+        return pwm, flags
 
     def name(self):
         return self.js.get_name() if self.js is not None else None
@@ -175,7 +188,7 @@ class RosSink:
         except ImportError:
             self.lift_pub = None
 
-    def send(self, vx, vy, omega, lift_jog=0, lift_flags=0):
+    def send(self, vx, vy, omega, lift_pwm=0, lift_flags=0):
         if not self.rclpy.ok():
             return
         m = self.Twist()
@@ -183,7 +196,8 @@ class RosSink:
         self.pub.publish(m)
         if self.lift_pub is not None:
             lc = self.LiftCommand()
-            lc.jog = int(lift_jog)
+            lc.jog = (lift_pwm > 0) - (lift_pwm < 0)
+            lc.duty = abs(lift_pwm) / 100.0
             lc.stop, lc.park = bool(lift_flags & up.LIFT_STOP), bool(lift_flags & up.LIFT_PARK)
             lc.zero, lc.clear = bool(lift_flags & up.LIFT_ZERO), bool(lift_flags & up.LIFT_CLEAR)
             self.lift_pub.publish(lc)
@@ -206,10 +220,10 @@ class UdpSink:
         self.tlm, self.tlm_time = None, -1e9
         print(f"[udp] -> {self.dest[0]}:{self.dest[1]} (라파에서 udp_teleop_bridge.py 실행 중이어야 함)")
 
-    def send(self, vx, vy, omega, lift_jog=0, lift_flags=0):
+    def send(self, vx, vy, omega, lift_pwm=0, lift_flags=0):
         self.seq = (self.seq + 1) & 0xFFFFFFFF
         try:
-            self.sock.sendto(up.encode(self.seq, vx, vy, omega, lift_jog, lift_flags), self.dest)
+            self.sock.sendto(up.encode(self.seq, vx, vy, omega, lift_pwm, lift_flags), self.dest)
         except OSError:
             pass
         while True:
@@ -334,11 +348,13 @@ def run(args):
                 vx = vy = omega = 0.0
 
             # 리프트
-            lift_jog = (1 if keys[pygame.K_r] else 0) - (1 if keys[pygame.K_f] else 0)
+            shift = keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]
+            lift_jog = lift_pwm(shift and keys[pygame.K_r], shift and keys[pygame.K_f],
+                                keys[pygame.K_r], keys[pygame.K_f], args.lift_fast, args.lift_slow)
             lift_flags = ((up.LIFT_PARK if keys[pygame.K_p] else 0) | (up.LIFT_ZERO if keys[pygame.K_z] else 0)
                           | (up.LIFT_CLEAR if keys[pygame.K_c] else 0))
             if gpad is not None:
-                gj, gf = gpad.lift()
+                gj, gf = gpad.lift(args.lift_fast, args.lift_slow)
                 lift_jog = lift_jog or gj
                 lift_flags |= gf
             if keys[pygame.K_SPACE]:
@@ -364,8 +380,8 @@ def run(args):
                                     True, (120, 200, 230) if gname else (110, 110, 120)), (16, 70))
             screen.blit(font.render("drag pads with mouse | Q/E rotate | space=stop | Esc=quit",
                                     True, (140, 140, 150)), (16, 44))
-            screen.blit(font.render("lift: R/F up/down | P park | hold Z 1s = zero (at bottom!) | C clear"
-                                    + (f"   [{'UP' if lift_jog > 0 else 'DOWN'}]" if lift_jog else ""),
+            screen.blit(font.render("lift: R/F slow, Shift fast | P park | hold Z 1s = zero (bottom!) | C clear"
+                                    + (f"  [{'UP' if lift_jog > 0 else 'DOWN'} {abs(lift_jog)}%]" if lift_jog else ""),
                                     True, (140, 140, 150)), (16, HEIGHT - 108))
             screen.blit(font.render(f"max {args.max_lin} m/s, {args.max_ang} rad/s @ {args.rate:.0f} Hz"
                                     + (f"  udp -> {args.udp}" if args.udp else f"  ros -> {args.topic}"),
@@ -394,6 +410,8 @@ def main():
     ap.add_argument("--rate", type=float, default=20.0, help="발행 주기 [Hz] (swerve cmd_timeout 0.3 s 보다 충분히 빠르게)")
     ap.add_argument("--max-lin", type=float, default=0.3, help="패드 끝 |vx|,|vy| [m/s] (swerve max_wheel_mps 0.6)")
     ap.add_argument("--max-ang", type=float, default=1.0, help="패드 끝 |ω| [rad/s]")
+    ap.add_argument("--lift-fast", type=int, default=100, help="리프트 빠른 조그 PWM [%%] (게임패드 Y/A, Shift+R/F)")
+    ap.add_argument("--lift-slow", type=int, default=50, help="리프트 느린 조그 PWM [%%] (게임패드 X/B, 십자, R/F)")
     ap.add_argument("--deadzone", type=float, default=0.1, help="중앙 데드존 (반경 비율), 0 = 끔")
     ap.add_argument("--snap-deg", type=float, default=10.0, help="축 스냅 각도, 0 = 끔")
     ap.add_argument("--hold-mag", type=float, default=0.35, help="이 크기 미만에선 바퀴 축 크게 바꾸는 방향 무시, 0 = 끔")
