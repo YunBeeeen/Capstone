@@ -24,7 +24,7 @@ from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from lift_logic import LiftCmd, LiftConfig, LiftLogic  # noqa: E402
+from lift_logic import AUTO_CLEAR_FAULTS, LiftCmd, LiftConfig, LiftLogic  # noqa: E402
 
 DEFAULT_PORT_GLOB = "/dev/serial/by-id/usb-MicroPython_Board*"
 
@@ -157,7 +157,7 @@ class LiftBridge(Node):
     def _log_link(self, text):
         last, t = self._last_link_log
         if text != last or time.monotonic() - t > 10.0:  # 같은 말 10 s 에 한 번
-            self.get_logger().warn(text) if ("실패" in text or "없음" in text or "끊음" in text) \
+            self.get_logger().warning(text) if ("실패" in text or "없음" in text or "끊음" in text) \
                 else self.get_logger().info(text)
             self._last_link_log = (text, time.monotonic())
 
@@ -189,7 +189,7 @@ class LiftBridge(Node):
         f = (lg.st or {}).get("fault", "") or ""
         if f != self.last_fault:
             if f:
-                self.get_logger().warn(f"Pico fault: {f}  (패드 C / 게임패드 RB+B 로 해제)")
+                self.get_logger().warning(f"Pico fault: {f}" + ("  (자동 해제)" if f in AUTO_CLEAR_FAULTS else "  (패드 C / 게임패드 RB+LB 로 해제)"))
             self.last_fault = f
 
     def publish(self):

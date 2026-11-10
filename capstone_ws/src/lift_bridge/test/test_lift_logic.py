@@ -283,6 +283,23 @@ class TestLiftLogic(unittest.TestCase):
         s.run(0.3, LiftCmd())
         self.assertEqual(s.faults, [])
 
+    def test_comm_fault_auto_cleared(self):
+        s = Sim(self.fw, x0=100.0)
+        s.ctrl.fail("bad_json")  # 연결 직후 이상한 줄
+        s.run(1.5)
+        self.assertEqual(s.ctrl.fault, "")
+        s.run(1.0, LiftCmd(jog=1))
+        self.assertGreater(s.x, 102.0)
+
+    def test_real_fault_not_auto_cleared(self):
+        s = Sim(self.fw, x0=100.0)
+        s.ctrl.fail("encoder_no_pulse")
+        s.run(2.0, LiftCmd(jog=1))
+        self.assertEqual(s.ctrl.fault, "encoder_no_pulse")
+        s.run(0.2, LiftCmd(clear=True))  # 사람이 C
+        s.run(0.3, LiftCmd())
+        self.assertEqual(s.ctrl.fault, "")
+
     def test_shutdown_request_park_when_already_parked(self):
         s = self.boot_zeroed()
         s.run(3.0, LiftCmd(jog=1))

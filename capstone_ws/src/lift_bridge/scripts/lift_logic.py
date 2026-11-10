@@ -20,6 +20,9 @@ from dataclasses import dataclass
 
 PROTOCOL = "yor-lift-position-v1"
 MOVING_STATES = ("JOG", "MOVING", "SETTLING")
+# 통신 쪽 fault — 리프트 상태와 무관 (예: 연결 직후 ModemManager 가 ttyACM 에 AT 문자열 → bad_json,
+# 패드·와이파이 끊김 → command_timeout). 원점도 안 잃음 → 브리지가 알아서 해제
+AUTO_CLEAR_FAULTS = ("bad_json", "line_too_long", "bad_command", "command_timeout")
 PARK_TASKS = ("PARK_MOVE", "PARK_DISARM", "PARK_FORGET", "PARK_DESCEND", "PARK_SETTLE")
 
 
@@ -86,6 +89,7 @@ class LiftLogic:
         self.task_t0 = 0.0
         self.last_req = -math.inf
         self.last_arm = -math.inf
+        self.last_autoclear = -math.inf
         self.jogging = False
         self.jog_duty_now = 0.0
         self.jog_duty_time = 0.0
@@ -187,6 +191,11 @@ class LiftLogic:
         if clear_edge:
             out.append(msg("clear"))
             self._say("Pico 오류 해제 요청")
+        fault = self.st.get("fault") or ""
+        if fault in AUTO_CLEAR_FAULTS and now - self.last_autoclear >= 1.0:
+            out.append(msg("clear"))
+            self.last_autoclear = now
+            self._say(f"Pico 통신 오류 자동 해제 ({fault})")
         if park_edge and not self.task:
             self.request_park(now)
         if (self.zero_since is not None and not self.zero_used and not self.task

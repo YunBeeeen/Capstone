@@ -274,7 +274,7 @@ python3 src/teleop/scripts/virtual_pad.py --udp raspberrypi.local --max-lin 0.15
 | 동작 | 키보드 | 게임패드 |
 |---|---|---|
 | 빠른 위 / 아래 (PWM 100 %, 누르는 동안) | Shift+R / Shift+F | Y / A |
-| 느린 위 / 아래 (PWM 50 %) | R / F | X / B (십자 위 / 아래도) |
+| 느린 위 / 아래 (PWM 50 %) | R / F | X / B |
 | 주차 (최하단까지) | P | Start |
 | 지금 위치 = 0 mm (최하단일 때만!) | Z 1 초 | Select 1 초 |
 | Pico 오류 해제 | C | LB |
@@ -282,6 +282,15 @@ python3 src/teleop/scripts/virtual_pad.py --udp raspberrypi.local --max-lin 0.15
 
 - 빠른 조그는 0.3 → 1.0 을 0.35 s 램프로 올림. **원점 미등록이면 50 % 까지만** (끝단 보호 없음)
 - PWM 바꾸기: PC `--lift-fast 80 --lift-slow 40`
+
+주행 속도 상한 (게임패드 십자키, RB 안 눌러도 됨, 누르고 있으면 반복 — xy 축처럼 위·오른쪽 = +)
+
+| 십자 | 바뀌는 것 | 범위 |
+|---|---|---|
+| 위 / 아래 | 선속도 상한 ± 0.05 m/s | 0.05 .. 0.6 |
+| 오른쪽 / 왼쪽 | 각속도 상한 ± 0.1 rad/s | 0.1 .. 2.0 |
+
+- 시작값 = PC 명령의 `--max-lin` / `--max-ang`. 스틱 끝 = 지금 상한 (마우스 패드도 같은 상한). 바뀔 때 PC 터미널에 `[speed] …`
 
 확인: 터미널 1 "전 축 응답 + 각도 확정", 터미널 2 "모든 바퀴 heartbeat 확인", PC 창 아래 `robot: steer … | wheel …` 초록,
 `lift: IDLE | h … mm` (원점 미등록이면 노랑 `NOT HOMED`).

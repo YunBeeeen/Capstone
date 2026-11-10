@@ -42,5 +42,16 @@ class TestLiftButtons(unittest.TestCase):
         self.assertEqual(f(0, 0, 0, 0), 0)
 
 
+class TestSpeedLimits(unittest.TestCase):
+    def test_dpad_xy(self):
+        from virtual_pad import adjust_limits
+        self.assertEqual(adjust_limits(0.15, 0.5, 0, 1), (0.2, 0.5))     # 위 = 선속도 +
+        self.assertEqual(adjust_limits(0.15, 0.5, 0, -1), (0.1, 0.5))    # 아래 = 선속도 −
+        self.assertEqual(adjust_limits(0.15, 0.5, 1, 0), (0.15, 0.6))    # 오른쪽 = 각속도 +
+        self.assertEqual(adjust_limits(0.15, 0.5, -1, 0), (0.15, 0.4))   # 왼쪽 = 각속도 −
+        self.assertEqual(adjust_limits(0.05, 0.1, -1, -1), (0.05, 0.1))  # 하한
+        self.assertEqual(adjust_limits(0.6, 2.0, 1, 1), (0.6, 2.0))      # 상한
+
+
 if __name__ == "__main__":
     unittest.main()

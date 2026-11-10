@@ -9,9 +9,12 @@
   python3 virtual_pad.py --udp raspberrypi.local --max-lin 0.15 --max-ang 0.5
 
 게임패드: 노트북에 꽂혀 있으면 이 창이 같이 읽음 (RB 누르는 동안 게임패드가 마우스보다 우선).
+  십자키 = 속도 상한 조절 (xy 축처럼 위·오른쪽 = +, RB 안 눌러도 됨, 누르고 있으면 반복):
+    위 / 아래 = 선속도 상한 ± 0.05 m/s (0.05..0.6),  오른쪽 / 왼쪽 = 각속도 상한 ± 0.1 rad/s (0.1..2.0)
+    마우스 패드·게임패드 둘 다 이 상한을 씀 (게임패드 스틱 끝 = 상한). 시작값 = --max-lin / --max-ang
   계산은 라파 gamepad_teleop 과 같은 gamepad_map.joy_to_cmd + config/shaks_s0.yaml (축·부호·데드존·scale).
   pygame 축은 왼쪽·위 = − 라서 ROS joy 규약(왼쪽·위 = +)으로 뒤집어 넣음 → yaml 하나로 두 경로가 같은 방향.
-  최종 속도는 --max-lin / --max-ang 로 다시 자름.
+  게임패드 스틱 끝 = 지금 속도 상한 (--max-lin / --max-ang 에서 시작, 십자키로 조절). yaml scale 은 부호에만 씀.
 
 패드 둘 (마우스 드래그):
   왼쪽  → 병진 (vx, vy)   화면 위 = 전진, 화면 왼쪽 = 좌(+y)
@@ -23,7 +26,7 @@
 리프트 (--udp 일 때, 라파에서 lift_bridge_node.py 실행 중이어야 함):
   키보드  R / F (누르는 동안) = 느린 위 / 아래 (PWM 50 %),  Shift+R / F = 빠른 (100 %)
           P = 주차 (최하단까지 내림),  Z 1 초 = 지금 위치를 0 mm 로 (최하단일 때만!),  C = Pico 오류 해제
-  게임패드 (RB 누른 채)  Y / A = 빠른 위 / 아래 (100 %),  X / B = 느린 위 / 아래 (50 %),  십자 위/아래 = 느린
+  게임패드 (RB 누른 채)  Y / A = 빠른 위 / 아래 (100 %),  X / B = 느린 위 / 아래 (50 %)
                          Start = 주차,  Select 1 초 = 원점 등록,  LB = 오류 해제
   PWM 은 --lift-fast / --lift-slow 로. 라파 브리지가 0.3 에서 램프로 올리고, 원점 미등록이면 50 % 까지만 냄
   원점 미등록이면 끝단 보호가 없음 → 보면서 조작. 라파 lift_bridge 를 Ctrl+C 로 끄면 최하단에 내려 놓고 꺼짐
@@ -51,7 +54,18 @@ from gamepad_map import joy_to_cmd  # noqa: E402
 import udp_packet as up  # noqa: E402
 
 # 게임패드 리프트 버튼 (SHAKS S0, pygame 번호 = jstest 번호: 0 A 1 B 2 X 3 Y 4 LB 5 RB 6 Select 7 Start).
-# 십자키는 hat 0 (없으면 axes[7])
+# 십자키 = 속도 상한 조절 (hat 0, 없으면 axes[6]/[7])
+LIN_STEP, LIN_MIN, LIN_MAX = 0.05, 0.05, 0.6   # [m/s]  (swerve max_wheel_mps 0.6)
+ANG_STEP, ANG_MIN, ANG_MAX = 0.1, 0.1, 2.0     # [rad/s]
+
+
+def adjust_limits(max_lin, max_ang, dx, dy):
+    """십자키 한 번: 위(+dy) = 선속도 상한 +, 오른쪽(+dx) = 각속도 상한 +."""
+    if dy:
+        max_lin = round(min(LIN_MAX, max(LIN_MIN, max_lin + dy * LIN_STEP)), 3)
+    if dx:
+        max_ang = round(min(ANG_MAX, max(ANG_MIN, max_ang + dx * ANG_STEP)), 3)
+    return max_lin, max_ang
 LIFT_BTN_FAST_UP, LIFT_BTN_FAST_DOWN, LIFT_BTN_SLOW_UP, LIFT_BTN_SLOW_DOWN = 3, 0, 2, 1  # Y, A, X, B
 LIFT_BTN_PARK, LIFT_BTN_ZERO, LIFT_BTN_CLEAR = 7, 6, 4  # Start, Select, LB
 
@@ -122,17 +136,22 @@ class Gamepad:
         b = lambda i: 0 <= i < js.get_numbuttons() and js.get_button(i)  # noqa: E731
         if self.cfg["require_enable_button"] and not b(self.cfg["enable_button"]):
             return 0, 0
-        if js.get_numhats() > 0:
-            hy = js.get_hat(0)[1]                 # 위 = +1
-        elif js.get_numaxes() > 7:
-            hy = -round(js.get_axis(7))           # pygame 축: 위 = −1
-        else:
-            hy = 0
         flags = ((up.LIFT_PARK if b(LIFT_BTN_PARK) else 0) | (up.LIFT_ZERO if b(LIFT_BTN_ZERO) else 0)
                  | (up.LIFT_CLEAR if b(LIFT_BTN_CLEAR) else 0))
-        pwm = lift_pwm(b(LIFT_BTN_FAST_UP), b(LIFT_BTN_FAST_DOWN),
-                       b(LIFT_BTN_SLOW_UP) or hy > 0, b(LIFT_BTN_SLOW_DOWN) or hy < 0, fast, slow)
+        pwm = lift_pwm(b(LIFT_BTN_FAST_UP), b(LIFT_BTN_FAST_DOWN), b(LIFT_BTN_SLOW_UP), b(LIFT_BTN_SLOW_DOWN),
+                       fast, slow)
         return pwm, flags
+
+    def dpad(self):
+        """(dx, dy) 오른쪽·위 = +1."""
+        js = self.js
+        if js is None:
+            return 0, 0
+        if js.get_numhats() > 0:
+            return tuple(js.get_hat(0))           # pygame hat: 오른쪽·위 = +1
+        if js.get_numaxes() > 7:
+            return round(js.get_axis(6)), -round(js.get_axis(7))  # pygame 축: 위 = −1
+        return 0, 0
 
     def name(self):
         return self.js.get_name() if self.js is not None else None
@@ -294,6 +313,7 @@ def run(args):
     period = 1.0 / args.rate
     next_send = time.monotonic()
     last_dir = None
+    dpad_last, dpad_next = (0, 0), 0.0
     running = True
     try:
         while running:
@@ -319,6 +339,15 @@ def run(args):
                 elif gpad is not None and ev.type in (pygame.JOYDEVICEADDED, pygame.JOYDEVICEREMOVED):
                     gpad.rescan()
 
+            if gpad is not None:
+                d = gpad.dpad()
+                tnow = time.monotonic()
+                if d != (0, 0) and (d != dpad_last or tnow >= dpad_next):
+                    args.max_lin, args.max_ang = adjust_limits(args.max_lin, args.max_ang, *d)
+                    print(f"[speed] 선속도 상한 {args.max_lin:.2f} m/s, 각속도 상한 {args.max_ang:.1f} rad/s")
+                    dpad_next = tnow + (0.4 if d != dpad_last else 0.2)  # 누르고 있으면 반복
+                dpad_last = d
+
             keys = pygame.key.get_pressed()
             if keys[pygame.K_SPACE]:
                 left.release()
@@ -340,9 +369,12 @@ def run(args):
             source = "mouse"
             if gpad is not None:
                 g_on, gvx, gvy, gw = gpad.read()
-                if g_on:  # deadman 누르는 동안 게임패드 우선
-                    lim = lambda v, m: max(-m, min(m, v))
-                    vx, vy, omega = lim(gvx, args.max_lin), lim(gvy, args.max_lin), lim(gw, args.max_ang)
+                if g_on:  # deadman 누르는 동안 게임패드 우선. 스틱 끝 = 지금 상한 (yaml scale 은 부호·정규화에만)
+                    lim = lambda v, m: max(-m, min(m, v))  # noqa: E731
+                    nl = lambda v, sc, m: v / abs(sc) * m if sc else 0.0  # noqa: E731
+                    vx = lim(nl(gvx, gcfg["scale_linear_x"], args.max_lin), args.max_lin)
+                    vy = lim(nl(gvy, gcfg["scale_linear_y"], args.max_lin), args.max_lin)
+                    omega = lim(nl(gw, gcfg["scale_angular"], args.max_ang), args.max_ang)
                     source = "gamepad"
             if keys[pygame.K_SPACE]:
                 vx = vy = omega = 0.0
@@ -383,7 +415,7 @@ def run(args):
             screen.blit(font.render("lift: R/F slow, Shift fast | P park | hold Z 1s = zero (bottom!) | C clear"
                                     + (f"  [{'UP' if lift_jog > 0 else 'DOWN'} {abs(lift_jog)}%]" if lift_jog else ""),
                                     True, (140, 140, 150)), (16, HEIGHT - 108))
-            screen.blit(font.render(f"max {args.max_lin} m/s, {args.max_ang} rad/s @ {args.rate:.0f} Hz"
+            screen.blit(font.render(f"max {args.max_lin:.2f} m/s, {args.max_ang:.1f} rad/s (d-pad) @ {args.rate:.0f} Hz"
                                     + (f"  udp -> {args.udp}" if args.udp else f"  ros -> {args.topic}"),
                                     True, (110, 110, 120)), (16, HEIGHT - 30))
             if hasattr(sink, "status"):
@@ -411,7 +443,7 @@ def main():
     ap.add_argument("--max-lin", type=float, default=0.3, help="패드 끝 |vx|,|vy| [m/s] (swerve max_wheel_mps 0.6)")
     ap.add_argument("--max-ang", type=float, default=1.0, help="패드 끝 |ω| [rad/s]")
     ap.add_argument("--lift-fast", type=int, default=100, help="리프트 빠른 조그 PWM [%%] (게임패드 Y/A, Shift+R/F)")
-    ap.add_argument("--lift-slow", type=int, default=50, help="리프트 느린 조그 PWM [%%] (게임패드 X/B, 십자, R/F)")
+    ap.add_argument("--lift-slow", type=int, default=50, help="리프트 느린 조그 PWM [%%] (게임패드 X/B, R/F)")
     ap.add_argument("--deadzone", type=float, default=0.1, help="중앙 데드존 (반경 비율), 0 = 끔")
     ap.add_argument("--snap-deg", type=float, default=10.0, help="축 스냅 각도, 0 = 끔")
     ap.add_argument("--hold-mag", type=float, default=0.35, help="이 크기 미만에선 바퀴 축 크게 바꾸는 방향 무시, 0 = 끔")
