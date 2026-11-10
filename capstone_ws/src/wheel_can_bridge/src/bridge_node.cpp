@@ -56,6 +56,11 @@ class BridgeNode : public rclcpp::Node {
     cfg.hb_timeout = declare_parameter<double>("hb_timeout", 0.5);
     cfg.enter_timeout = declare_parameter<double>("enter_timeout", 3.0);
     cfg.retry_period = declare_parameter<double>("retry_period", 0.5);
+    cfg.encoder_recover = declare_parameter<bool>("encoder_recover", true);
+    cfg.recover_max = static_cast<int>(declare_parameter<int64_t>("recover_max", 3));
+    cfg.recover_window = declare_parameter<double>("recover_window", 10.0);
+    cfg.recover_timeout = declare_parameter<double>("recover_timeout", 1.0);
+    cfg.recover_retry = declare_parameter<double>("recover_retry", 0.2);
     const double control_hz = declare_parameter<double>("control_rate_hz", 50.0);
     feedback_period_ = 1.0 / declare_parameter<double>("feedback_rate_hz", 20.0);
     feedback_free_period_ = 1.0 / declare_parameter<double>("feedback_rate_free_hz", 5.0);
@@ -107,6 +112,15 @@ class BridgeNode : public rclcpp::Node {
     const auto ctrl = sup_->step(now);
     send_all(ctrl);
     const Phase after = sup_->phase();
+    if (sup_->recoveries() != last_recoveries_) {
+      last_recoveries_ = sup_->recoveries();
+      rec_start_ = now;
+      RCLCPP_WARN(get_logger(), "%s  [누적 %d회]", sup_->last_recovery().c_str(), last_recoveries_);
+    }
+    const bool rec = sup_->recovering();
+    if (was_recovering_ && !rec && after == Phase::ACTIVE)
+      RCLCPP_INFO(get_logger(), "자동 복구 완료 (%.0f ms) — 주행 재개", (now - rec_start_) * 1000.0);
+    was_recovering_ = rec;
     if (after != before) {
       if (after == Phase::FAULT)
         RCLCPP_ERROR(get_logger(), "%s → FAULT: %s  (해제: ros2 service call /wheel_can_bridge/clear_errors "
@@ -200,6 +214,9 @@ class BridgeNode : public rclcpp::Node {
   std::deque<cs::Frame> pending_rtr_;
   double next_feedback_ = 0.0;
   bool was_ready_ = false;
+  int last_recoveries_ = 0;
+  bool was_recovering_ = false;
+  double rec_start_ = 0.0;
   Mode last_mode_ = Mode::FREE;
 };
 

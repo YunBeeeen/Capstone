@@ -9,9 +9,11 @@
 //
 // 고장 조건: heartbeat 끊김(hb_timeout) / axis_error ≠ 0 / 폐루프 이탈 / 진입 실패.
 // 스워브는 바퀴 하나만 서도 차체가 끌리므로 한 축 고장 = 전 축 정지.
+// 예외: ACTIVE 중 axis_error == ENCODER_FAILED(0x100) 하나뿐이면 그 축만 자동 복구 (SupervisorConfig 참고).
 #pragma once
 
 #include <cstdint>
+#include <deque>
 #include <limits>
 #include <string>
 #include <vector>
@@ -31,6 +33,15 @@ struct SupervisorConfig {
   double hb_timeout = 0.5;     // [s] heartbeat 100 ms 의 5배
   double enter_timeout = 3.0;  // [s] CLOSED_LOOP 진입 제한시간
   double retry_period = 0.5;   // [s] 상태 전환 재요청 주기
+  // 순간 Hall 에러 자동 복구 (2026-11-10, 4번 FL 이 바닥 주행 중 1~2 샘플 ILLEGAL_HALL_STATE → ODrive 가 축을 멈춤):
+  // ACTIVE 중 한 축이 axis_error == ENCODER_FAILED(0x100) 만 내면 FAULT 대신 그 축만 클리어 + CLOSED_LOOP 재진입.
+  // 복구하는 동안 전 축 속도 0 (한 바퀴만 힘 빠진 채 끌리지 않게). 다른 에러 비트·heartbeat 끊김은 그대로 FAULT.
+  // recover_timeout 안에 폐루프로 못 돌아오거나, recover_window 안에 recover_max 번을 넘으면 진짜 고장으로 보고 FAULT.
+  bool encoder_recover = true;
+  int recover_max = 3;
+  double recover_window = 10.0;  // [s]
+  double recover_timeout = 1.0;  // [s]
+  double recover_retry = 0.2;    // [s] 복구 중 CLOSED_LOOP 재요청 주기
 };
 
 struct WheelData {
@@ -80,11 +91,18 @@ class Supervisor {
   const std::vector<WheelData>& wheels() const { return wheels_; }
   const SupervisorConfig& config() const { return cfg_; }
   float vbus() const { return vbus_; }
+  // 자동 복구 횟수 (누적) / 마지막 복구 설명 / 지금 복구 중인가 — 노드 로그용
+  int recoveries() const { return n_recover_; }
+  const std::string& last_recovery() const { return last_recovery_; }
+  bool recovering() const;
 
  private:
   void latch(const std::string& why, double now, std::vector<cs::Frame>& out);
   void push_all_stop(std::vector<cs::Frame>& out) const;
   int index_of(int can_id) const;
+  bool can_recover(double now);
+  void start_recover(size_t i, double now, std::vector<cs::Frame>& out);
+  void reset_recover();
 
   SupervisorConfig cfg_;
   std::vector<WheelData> wheels_;
@@ -97,6 +115,13 @@ class Supervisor {
   double last_req_ = -std::numeric_limits<double>::infinity();
   double clear_time_ = -std::numeric_limits<double>::infinity();
   float vbus_ = std::numeric_limits<float>::quiet_NaN();
+  // 자동 복구
+  std::vector<bool> rec_;          // 축별 복구 중
+  std::vector<double> rec_start_;  // 복구 시작 시각
+  std::vector<double> rec_req_;    // 마지막 CLOSED_LOOP 재요청 시각
+  std::deque<double> rec_times_;   // recover_window 안의 복구 시작 시각들
+  int n_recover_ = 0;
+  std::string last_recovery_;
 };
 
 }  // namespace wheel_can

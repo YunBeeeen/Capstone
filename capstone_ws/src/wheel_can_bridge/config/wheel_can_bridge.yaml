@@ -14,4 +14,12 @@ wheel_can_bridge:
     hb_timeout: 0.5                  # [s] heartbeat 100 ms × 5
     enter_timeout: 3.0               # [s] CLOSED_LOOP 진입 제한
     retry_period: 0.5                # [s] 상태 전환 재요청
+    # 순간 엔코더 에러 자동 복구 — ACTIVE 중 axis_error 가 ENCODER_FAILED(0x100) 하나뿐이면
+    # FAULT 대신 그 축만 클리어 + CLOSED_LOOP 재진입 (그동안 전 축 속도 0). 4번 FL 의 순간 ILLEGAL_HALL_STATE 대응.
+    # 다른 에러 비트 / heartbeat 끊김 / 아래 한도 초과는 그대로 FAULT
+    encoder_recover: true
+    recover_max: 3                   # recover_window 안에서 허용 횟수 (넘으면 진짜 고장으로 보고 FAULT)
+    recover_window: 10.0             # [s]
+    recover_timeout: 1.0             # [s] 이 안에 폐루프로 못 돌아오면 FAULT
+    recover_retry: 0.2               # [s] 복구 중 클리어 + CLOSED_LOOP 재요청 주기
     vbus_warn: 22.5                  # [V] 배터리 7S 3.2 V/셀 — 이하면 "충전 필요" 경고 (보드 트립 21 V)

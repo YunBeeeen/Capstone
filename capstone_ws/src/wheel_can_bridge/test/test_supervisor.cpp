@@ -197,6 +197,175 @@ TEST_F(SupTest, WheelDroppingOutOfClosedLoopFaults) {
   EXPECT_NE(sup.fault().find("id2"), std::string::npos);
 }
 
+// ── 순간 엔코더 에러 자동 복구 (axis_error == ENCODER_FAILED 0x100 만) ──
+namespace {
+constexpr uint32_t ENC_FAILED = 0x100;
+const std::vector<double> V5{0.5, 0.5, 0.5, 0.5};
+
+// id4 만 ENCODER_FAILED + IDLE, 나머지는 폐루프. DRIVE 명령 갱신 후 step
+Sent glitch4(Supervisor& sup, double t, uint32_t err = ENC_FAILED) {
+  for (int id : {1, 2, 3}) sup.on_frame(hb(id, cs::CLOSED_LOOP_CONTROL), t);
+  sup.on_frame(hb(4, cs::IDLE, err), t);
+  sup.set_command(Mode::DRIVE, V5, t);
+  return parse(sup.step(t));
+}
+// id4 가 아직 IDLE(에러 없음) 인 채로 한 틱
+Sent waiting4(Supervisor& sup, double t) {
+  for (int id : {1, 2, 3}) sup.on_frame(hb(id, cs::CLOSED_LOOP_CONTROL), t);
+  sup.on_frame(hb(4, cs::IDLE), t);
+  sup.set_command(Mode::DRIVE, V5, t);
+  return parse(sup.step(t));
+}
+Sent all_cl(Supervisor& sup, double t) {
+  for (int id : {1, 2, 3, 4}) sup.on_frame(hb(id, cs::CLOSED_LOOP_CONTROL), t);
+  sup.set_command(Mode::DRIVE, V5, t);
+  return parse(sup.step(t));
+}
+}  // namespace
+
+TEST_F(SupTest, TransientEncoderErrorRecovers) {
+  double t = bring_up(0.0) + 0.02;
+  auto s = glitch4(sup, t);
+  EXPECT_EQ(sup.phase(), Phase::ACTIVE);  // FAULT 아님
+  EXPECT_TRUE(sup.recovering());
+  EXPECT_EQ(sup.recoveries(), 1);
+  EXPECT_NE(sup.last_recovery().find("id4"), std::string::npos);
+  EXPECT_EQ(s.clears, 1);                        // 4번만 클리어
+  EXPECT_EQ(s.state.at(4), cs::CLOSED_LOOP_CONTROL);
+  EXPECT_EQ(s.state.count(1), 0u);
+  for (int id : {1, 2, 3, 4}) EXPECT_FLOAT_EQ(s.vel.at(id), 0.0f);  // 복구 중 전 축 0
+
+  // grace 안에 클리어 전 에러가 담긴 heartbeat 가 한 번 더 와도 무시
+  s = glitch4(sup, t + 0.02);
+  EXPECT_EQ(sup.phase(), Phase::ACTIVE);
+  EXPECT_EQ(sup.recoveries(), 1);
+
+  // 클리어 직후 heartbeat (grace 안) 의 폐루프는 아직 믿지 않음
+  all_cl(sup, t + 0.03);
+  EXPECT_TRUE(sup.recovering());
+
+  // 폐루프 복귀 확인 → 다음 틱부터 명령 속도
+  s = all_cl(sup, t + 0.1);
+  EXPECT_FALSE(sup.recovering());
+  EXPECT_EQ(sup.phase(), Phase::ACTIVE);
+  EXPECT_FLOAT_EQ(s.vel.at(1), 0.5f);
+  EXPECT_FLOAT_EQ(s.vel.at(2), -0.5f);  // sign
+  EXPECT_FLOAT_EQ(s.vel.at(4), 0.5f);
+}
+
+TEST_F(SupTest, RecoveryRetriesClosedLoop) {
+  double t = bring_up(0.0) + 0.02;
+  glitch4(sup, t);
+  auto s = waiting4(sup, t + 0.1);  // 재요청 주기(0.2 s) 전
+  EXPECT_EQ(s.clears, 0);
+  EXPECT_EQ(sup.phase(), Phase::ACTIVE);  // 4번 IDLE 이어도 복구 중이면 '폐루프 이탈' 아님
+  s = waiting4(sup, t + 0.21);
+  EXPECT_EQ(s.clears, 1);
+  EXPECT_EQ(s.state.at(4), cs::CLOSED_LOOP_CONTROL);
+  for (int id : {1, 2, 3, 4}) EXPECT_FLOAT_EQ(s.vel.at(id), 0.0f);
+}
+
+TEST_F(SupTest, RecoveryTimeoutFaults) {
+  double t = bring_up(0.0) + 0.02;
+  const double t0 = t;
+  glitch4(sup, t);
+  while (t < t0 + 0.95) {
+    t += 0.1;
+    waiting4(sup, t);
+    ASSERT_EQ(sup.phase(), Phase::ACTIVE) << "t-t0=" << t - t0;
+  }
+  waiting4(sup, t0 + 1.05);
+  EXPECT_EQ(sup.phase(), Phase::FAULT);
+  EXPECT_NE(sup.fault().find("복구 실패"), std::string::npos);
+  EXPECT_FALSE(sup.recovering());
+}
+
+TEST_F(SupTest, ErrorDuringRecoveryAfterGraceStillWaits) {
+  // 클리어가 안 먹어 에러가 계속 보여도, 시간 제한까지는 재시도
+  double t = bring_up(0.0) + 0.02;
+  glitch4(sup, t);
+  glitch4(sup, t + 0.1);
+  EXPECT_EQ(sup.phase(), Phase::ACTIVE);
+  EXPECT_EQ(sup.recoveries(), 1);  // 같은 복구로 침 (횟수 안 늘어남)
+}
+
+TEST_F(SupTest, TooManyRecoveriesFault) {
+  double t = bring_up(0.0);
+  for (int k = 1; k <= 3; ++k) {
+    t += 1.0;
+    glitch4(sup, t);
+    ASSERT_EQ(sup.phase(), Phase::ACTIVE) << k;
+    all_cl(sup, t + 0.1);
+    ASSERT_FALSE(sup.recovering()) << k;
+    for (double u = t + 0.2; u < t + 1.0; u += 0.2) all_cl(sup, u);  // heartbeat 유지
+  }
+  EXPECT_EQ(sup.recoveries(), 3);
+  t += 1.0;
+  glitch4(sup, t);  // 10 s 안 4번째
+  EXPECT_EQ(sup.phase(), Phase::FAULT);
+  EXPECT_NE(sup.fault().find("0x100"), std::string::npos);
+  EXPECT_NE(sup.fault().find("초과"), std::string::npos);
+}
+
+TEST_F(SupTest, RecoveryBudgetRefillsAfterWindow) {
+  double t = bring_up(0.0);
+  for (int k = 0; k < 4; ++k) {
+    t += 4.0;  // 4 s 간격 → 10 s 창 안엔 최대 3번
+    glitch4(sup, t);
+    ASSERT_EQ(sup.phase(), Phase::ACTIVE) << k;
+    all_cl(sup, t + 0.1);
+    for (double u = t + 0.2; u < t + 4.0; u += 0.2) all_cl(sup, u);
+  }
+  EXPECT_EQ(sup.recoveries(), 4);
+}
+
+TEST_F(SupTest, OtherAxisErrorBitsStillFault) {
+  double t = bring_up(0.0) + 0.02;
+  glitch4(sup, t, ENC_FAILED | cs::AXIS_ERROR_WATCHDOG_TIMER_EXPIRED);
+  EXPECT_EQ(sup.phase(), Phase::FAULT);
+  EXPECT_EQ(sup.recoveries(), 0);
+}
+
+TEST_F(SupTest, RecoveryDisabledFaults) {
+  auto c = make_cfg();
+  c.encoder_recover = false;
+  sup = Supervisor(c);
+  double t = bring_up(0.0) + 0.02;
+  glitch4(sup, t);
+  EXPECT_EQ(sup.phase(), Phase::FAULT);
+  EXPECT_EQ(sup.fault().find("초과"), std::string::npos);
+}
+
+TEST_F(SupTest, NoRecoveryWhileEntering) {
+  beat_all(cs::IDLE, 0.0);
+  sup.set_command(Mode::DRIVE, V5, 0.0);
+  sup.step(0.0);
+  ASSERT_EQ(sup.phase(), Phase::ENTERING);
+  sup.on_frame(hb(4, cs::IDLE, ENC_FAILED), 0.1);
+  sup.step(0.1);
+  EXPECT_EQ(sup.phase(), Phase::FAULT);
+}
+
+TEST_F(SupTest, HeartbeatLossDuringRecoveryFaults) {
+  double t = bring_up(0.0) + 0.02;
+  glitch4(sup, t);
+  for (int id : {1, 2, 3}) sup.on_frame(hb(id, cs::CLOSED_LOOP_CONTROL), t + 0.4);
+  sup.set_command(Mode::DRIVE, V5, t + 0.6);
+  sup.step(t + 0.6);  // 4번 heartbeat 0.6 s 없음
+  EXPECT_EQ(sup.phase(), Phase::FAULT);
+  EXPECT_NE(sup.fault().find("heartbeat"), std::string::npos);
+}
+
+TEST_F(SupTest, HoldCommandDuringRecoveryStaysZero) {
+  double t = bring_up(0.0) + 0.02;
+  glitch4(sup, t);
+  sup.set_command(Mode::FREE, {}, t + 0.05);
+  auto s = parse(sup.step(t + 0.05));
+  EXPECT_EQ(sup.phase(), Phase::FREE);
+  EXPECT_FALSE(sup.recovering());
+  for (int id : {1, 2, 3, 4}) EXPECT_EQ(s.state.at(id), cs::IDLE);
+}
+
 TEST_F(SupTest, EnterTimeoutFaults) {
   beat_all(cs::IDLE, 0.0);
   double t = 0.0;
