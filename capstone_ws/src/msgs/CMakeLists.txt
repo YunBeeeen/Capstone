@@ -12,6 +12,8 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/SteerCommand.msg"
   "msg/SteerState.msg"
   "msg/SteerStateArray.msg"
+  "msg/LiftCommand.msg"
+  "msg/LiftState.msg"
   DEPENDENCIES std_msgs
 )
 

@@ -13,6 +13,7 @@
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>capstone_msgs</exec_depend>
   <exec_depend>python3-pygame</exec_depend>
 
   <export>

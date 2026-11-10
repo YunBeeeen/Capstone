@@ -220,9 +220,9 @@ iw dev wlan0 link | grep SSID      # 연결된 와이파이 (sysysy / ybyb777 / 
 
 ---
 
-## 10. 주행 실행 요약 — 라파 4개 + PC 1개 (복사해서 쓰기)
+## 10. 주행 실행 요약 — 라파 6개 + PC 1개 (복사해서 쓰기)
 
-라파는 터미널 5개를 열어 각각 붙여넣기 (`.bashrc` 에 source 넣었으면 첫 줄 생략 가능). 순서대로 켜기.
+라파는 터미널 6개를 열어 각각 붙여넣기 (`.bashrc` 에 source 넣었으면 첫 줄 생략 가능). 순서대로 켜기.
 
 **라파 터미널 0 — CAN (한 번)**
 ```bash
@@ -253,11 +253,32 @@ source /opt/ros/jazzy/setup.bash && source ~/capstone/capstone_ws/install/setup.
 ros2 run capstone_teleop udp_teleop_bridge.py
 ```
 
+**라파 터미널 5 — 리프트 (Pico)** — `launch` 말고 `run` (종료 때 최하단까지 내리느라 수십 초 걸릴 수 있음)
+```bash
+source /opt/ros/jazzy/setup.bash && source ~/capstone/capstone_ws/install/setup.bash
+ros2 run lift_bridge lift_bridge_node.py
+```
+- 동료 GUI (`~/start_position.sh`, `lift_position.py`), mpremote, Thonny 는 닫기 — Pico 포트는 한 프로그램만
+- 켤 때: 지난번에 이 노드로 주차하고 껐으면 **자동 원점 등록**. 아니면 "원점 미등록" → 조그로 최하단까지 내린 뒤 Z 1 초
+- 끌 때 (Ctrl+C): **최하단(0 mm)까지 내려 놓고 꺼짐**. 내려가는 중 Ctrl+C 한 번 더 = 즉시 정지 (다음엔 수동 원점)
+- 주차 기록: `~/.local/state/capstone_lift/lift_state.json`
+
 **PC — 가상 패드 + 게임패드 (ROS source 불필요)**
 ```bash
 cd ~/capstone/capstone_ws
 python3 src/teleop/scripts/virtual_pad.py --udp raspberrypi.local --max-lin 0.15 --max-ang 0.5
 ```
 
-확인: 터미널 1 "전 축 응답 + 각도 확정", 터미널 2 "모든 바퀴 heartbeat 확인", PC 창 아래 `robot: steer … | wheel …` 초록.
-끄기: PC Esc → 라파 4 → 3 → 2 → 1 순서로 Ctrl+C.
+리프트 조작 (패드 창 / 게임패드는 RB 누른 채)
+
+| 동작 | 키보드 | 게임패드 |
+|---|---|---|
+| 위 / 아래 (누르는 동안) | R / F | 십자 위 / 아래 |
+| 주차 (최하단까지) | P | Start |
+| 지금 위치 = 0 mm (최하단일 때만!) | Z 1 초 | Select 1 초 |
+| Pico 오류 해제 | C | B |
+| 정지 · 주차 취소 | Space | — |
+
+확인: 터미널 1 "전 축 응답 + 각도 확정", 터미널 2 "모든 바퀴 heartbeat 확인", PC 창 아래 `robot: steer … | wheel …` 초록,
+`lift: IDLE | h … mm` (원점 미등록이면 노랑 `NOT HOMED`).
+끄기: PC Esc → 라파 5 (리프트, 내려갈 때까지 기다림) → 4 → 3 → 2 → 1 순서로 Ctrl+C.

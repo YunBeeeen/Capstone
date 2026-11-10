@@ -1,0 +1,36 @@
+{
+  "installed_at": "2026-11-09T22:23:21+09:00",
+  "protocol": "yor-lift-position-v1",
+  "control_revision": 3,
+  "raspberry_pi": "172.20.10.2 (host key verified as raspberrypi.local)",
+  "gui": "/home/pi/lift/position/lift_position.py",
+  "launcher": "/home/pi/lift/start_position.sh",
+  "firmware_source": "/home/pi/lift/position/firmware/main.py",
+  "pico_file": "/main.py",
+  "pico_port": "/dev/serial/by-id/usb-MicroPython_Board_in_FS_mode_e6658c344b234e27-if00",
+  "firmware_sha256": "9128629b0ab197790ae6efe3c38cf98bc19fbda311097129fdc976b00fd01e61",
+  "gui_sha256": "b68cb7226ab8e90c6d197ba49eaab9c40acec1cc346680ebd928b1c90d3cf67e",
+  "joystick_sha256": "c3f96964e409df1fbfda6c13ee3ebe6a3226ccece35f631b1bf823712314f1ef",
+  "backup": "/home/pi/lift/position/backups/update.ApzINtdm",
+  "pico_readback_verified": true,
+  "motor_24v_user_reported_off": true,
+  "motion_commands_sent": false,
+  "motor_motion_tested": false,
+  "passive_status": {
+    "state": "UNHOMED",
+    "armed": false,
+    "direction": 0,
+    "duty": 0,
+    "homed": false,
+    "calibrated": false,
+    "fault": "",
+    "stroke_mm": 630,
+    "work_min_mm": 10,
+    "work_max_mm": 620,
+    "arrival_tolerance_mm": 0.2
+  },
+  "notes": [
+    "Pico contained no saved lift_calibration.json; first calibration and manual reference are required.",
+    "Initial write failed because existing watchdog reset the board; unchanged old main was backed up, and the replacement was staged and verified before rename."
+  ]
+}\n

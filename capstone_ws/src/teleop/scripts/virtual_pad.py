@@ -17,8 +17,14 @@
   왼쪽  → 병진 (vx, vy)   화면 위 = 전진, 화면 왼쪽 = 좌(+y)
   오른쪽 → 회전 ω (가로축만)  오른쪽으로 끌면 시계방향(−)
   Q / E (누르고 있는 동안) → 반시계 / 시계 회전 — 마우스로 왼쪽 패드를 끌면서 호 주행
-  Space = 즉시 0,  Esc / 창 닫기 = 종료 (0 을 몇 번 보내고 끝)
+  Space = 즉시 0 (리프트도 정지·주차 취소),  Esc / 창 닫기 = 종료 (0 을 몇 번 보내고 끝)
   마우스를 떼거나 창 포커스를 잃으면 0.
+
+리프트 (--udp 일 때, 라파에서 lift_bridge_node.py 실행 중이어야 함):
+  키보드  R / F (누르는 동안) = 위 / 아래,  P = 주차 (최하단까지 내림),  Z 1 초 = 지금 위치를 0 mm 로 (최하단일 때만!),
+          C = Pico 오류 해제
+  게임패드 (RB 누른 채)  십자 위/아래 = 위/아래,  Start = 주차,  Select 1 초 = 원점 등록,  B = 오류 해제
+  원점 미등록이면 끝단 보호가 없음 → 보면서 조작. 라파 lift_bridge 를 Ctrl+C 로 끄면 최하단에 내려 놓고 꺼짐
 
 패드에서 손을 떼도 0 을 계속 보냄 (rate Hz) → swerve_controller 는 ACTIVE 유지(속도 0 = 제자리).
 창을 닫으면 발행이 멈춰서 swerve_controller 가 cmd_timeout 뒤 HOLD.
@@ -32,7 +38,6 @@ import argparse
 import json
 import math
 import socket
-import struct
 import sys
 import time
 from pathlib import Path
@@ -41,6 +46,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from joystick_math import (apply_deadzone, clamp_to_unit_circle, left_pad_to_linear,  # noqa: E402
                            lock_low_speed_direction, right_pad_to_angular, snap_to_axes)
 from gamepad_map import joy_to_cmd  # noqa: E402
+import udp_packet as up  # noqa: E402
+
+# 게임패드 리프트 버튼 (SHAKS S0, pygame 번호 = jstest 번호). 십자키는 hat 0 (없으면 axes[7])
+LIFT_BTN_PARK, LIFT_BTN_ZERO, LIFT_BTN_CLEAR = 7, 6, 1  # Start, Select, B
 
 # 게임패드 기본값 = gamepad_teleop.py PARAMS 와 같음 (yaml 이 있으면 yaml 값으로 덮음)
 GAMEPAD_DEFAULTS = {
@@ -94,10 +103,28 @@ class Gamepad:
         buttons = [self.js.get_button(i) for i in range(self.js.get_numbuttons())]
         return joy_to_cmd(axes, buttons, self.cfg)
 
+    def lift(self):
+        """(jog, flags) — deadman(RB) 누르는 동안만."""
+        js = self.js
+        if js is None:
+            return 0, 0
+        b = lambda i: 0 <= i < js.get_numbuttons() and js.get_button(i)  # noqa: E731
+        if self.cfg["require_enable_button"] and not b(self.cfg["enable_button"]):
+            return 0, 0
+        if js.get_numhats() > 0:
+            hy = js.get_hat(0)[1]                 # 위 = +1
+        elif js.get_numaxes() > 7:
+            hy = -round(js.get_axis(7))           # pygame 축: 위 = −1
+        else:
+            hy = 0
+        flags = ((up.LIFT_PARK if b(LIFT_BTN_PARK) else 0) | (up.LIFT_ZERO if b(LIFT_BTN_ZERO) else 0)
+                 | (up.LIFT_CLEAR if b(LIFT_BTN_CLEAR) else 0))
+        return max(-1, min(1, int(hy))), flags
+
     def name(self):
         return self.js.get_name() if self.js is not None else None
 
-WIDTH, HEIGHT = 640, 380
+WIDTH, HEIGHT = 640, 430
 PAD_RADIUS = 100
 LEFT_CENTER = (170, 190)
 RIGHT_CENTER = (470, 190)
@@ -141,13 +168,25 @@ class RosSink:
         self.rclpy, self.Twist = rclpy, Twist
         self.node = rclpy.create_node("virtual_pad")
         self.pub = self.node.create_publisher(Twist, topic, 10)
+        try:
+            from capstone_msgs.msg import LiftCommand
+            self.LiftCommand = LiftCommand
+            self.lift_pub = self.node.create_publisher(LiftCommand, "lift_cmd", 10)
+        except ImportError:
+            self.lift_pub = None
 
-    def send(self, vx, vy, omega):
+    def send(self, vx, vy, omega, lift_jog=0, lift_flags=0):
         if not self.rclpy.ok():
             return
         m = self.Twist()
         m.linear.x, m.linear.y, m.angular.z = float(vx), float(vy), float(omega)
         self.pub.publish(m)
+        if self.lift_pub is not None:
+            lc = self.LiftCommand()
+            lc.jog = int(lift_jog)
+            lc.stop, lc.park = bool(lift_flags & up.LIFT_STOP), bool(lift_flags & up.LIFT_PARK)
+            lc.zero, lc.clear = bool(lift_flags & up.LIFT_ZERO), bool(lift_flags & up.LIFT_CLEAR)
+            self.lift_pub.publish(lc)
 
     def close(self):
         self.node.destroy_node()
@@ -156,9 +195,7 @@ class RosSink:
 
 
 class UdpSink:
-    """노트북 → 라파 udp_teleop_bridge.py. 패킷 b"CAPS" + <I seq> + <f vx vy w>, 라파가 5 Hz 로 JSON 상태를 돌려줌."""
-
-    PKT = struct.Struct("<4sIfff")
+    """노트북 → 라파 udp_teleop_bridge.py. 패킷 udp_packet.py (v2: 속도 + 리프트), 라파가 5 Hz 로 JSON 상태를 돌려줌."""
 
     def __init__(self, dest):
         host, _, port = dest.partition(":")
@@ -169,10 +206,10 @@ class UdpSink:
         self.tlm, self.tlm_time = None, -1e9
         print(f"[udp] -> {self.dest[0]}:{self.dest[1]} (라파에서 udp_teleop_bridge.py 실행 중이어야 함)")
 
-    def send(self, vx, vy, omega):
+    def send(self, vx, vy, omega, lift_jog=0, lift_flags=0):
         self.seq = (self.seq + 1) & 0xFFFFFFFF
         try:
-            self.sock.sendto(self.PKT.pack(b"CAPS", self.seq, vx, vy, omega), self.dest)
+            self.sock.sendto(up.encode(self.seq, vx, vy, omega, lift_jog, lift_flags), self.dest)
         except OSError:
             pass
         while True:
@@ -188,6 +225,10 @@ class UdpSink:
             if f != getattr(self, "_last_fault", ""):
                 print(f"[robot] FAULT: {f}" if f else "[robot] fault 해제")  # 창 글꼴은 한글 불가 → 터미널에
                 self._last_fault = f
+            lm = (self.tlm.get("lift") or {}).get("msg", "")
+            if lm and lm != getattr(self, "_last_lift_msg", ""):
+                print(f"[lift] {lm}")
+                self._last_lift_msg = lm
 
     def status(self):
         if self.tlm is None or time.monotonic() - self.tlm_time > 1.0:
@@ -199,6 +240,21 @@ class UdpSink:
         if t.get("fault"):
             return txt + f" | FAULT {t['fault']}", (240, 90, 90)
         return txt, (120, 220, 140)
+
+    def lift_status(self):
+        if self.tlm is None or time.monotonic() - self.tlm_time > 1.0:
+            return None
+        lf = self.tlm.get("lift")
+        if lf is None:
+            return "lift: no state (run lift_bridge_node.py on Pi)", (150, 150, 160)
+        if not lf.get("conn"):
+            return "lift: Pico not connected", (230, 120, 120)
+        h = f"h {lf['h']:.1f} mm" if lf.get("h") is not None else f"NOT HOMED (rel {lf.get('rel', 0):+.1f} mm)"
+        txt = f"lift: {lf.get('st')} | {h}" + (f" | {lf['task']}" if lf.get("task") else "") \
+            + (" | parked" if lf.get("parked") else "") + (" | armed" if lf.get("armed") else "")
+        if lf.get("fault"):
+            return txt + f" | FAULT {lf['fault']} (C to clear)", (240, 90, 90)
+        return txt, ((120, 220, 140) if lf.get("homed") else (230, 190, 90))
 
     def close(self):
         self.sock.close()
@@ -277,9 +333,20 @@ def run(args):
             if keys[pygame.K_SPACE]:
                 vx = vy = omega = 0.0
 
+            # 리프트
+            lift_jog = (1 if keys[pygame.K_r] else 0) - (1 if keys[pygame.K_f] else 0)
+            lift_flags = ((up.LIFT_PARK if keys[pygame.K_p] else 0) | (up.LIFT_ZERO if keys[pygame.K_z] else 0)
+                          | (up.LIFT_CLEAR if keys[pygame.K_c] else 0))
+            if gpad is not None:
+                gj, gf = gpad.lift()
+                lift_jog = lift_jog or gj
+                lift_flags |= gf
+            if keys[pygame.K_SPACE]:
+                lift_jog, lift_flags = 0, up.LIFT_STOP
+
             now = time.monotonic()
             if now >= next_send:
-                sink.send(vx, vy, omega)
+                sink.send(vx, vy, omega, lift_jog, lift_flags)
                 next_send = max(next_send + period, now - period)  # 고정 주기 (화면 갱신 60 fps 에 밀리지 않게)
 
             screen.fill((24, 24, 28))
@@ -297,12 +364,18 @@ def run(args):
                                     True, (120, 200, 230) if gname else (110, 110, 120)), (16, 70))
             screen.blit(font.render("drag pads with mouse | Q/E rotate | space=stop | Esc=quit",
                                     True, (140, 140, 150)), (16, 44))
+            screen.blit(font.render("lift: R/F up/down | P park | hold Z 1s = zero (at bottom!) | C clear"
+                                    + (f"   [{'UP' if lift_jog > 0 else 'DOWN'}]" if lift_jog else ""),
+                                    True, (140, 140, 150)), (16, HEIGHT - 108))
             screen.blit(font.render(f"max {args.max_lin} m/s, {args.max_ang} rad/s @ {args.rate:.0f} Hz"
                                     + (f"  udp -> {args.udp}" if args.udp else f"  ros -> {args.topic}"),
                                     True, (110, 110, 120)), (16, HEIGHT - 30))
             if hasattr(sink, "status"):
                 txt, col = sink.status()
                 screen.blit(font.render(txt, True, col), (16, HEIGHT - 56))
+                ls = sink.lift_status()
+                if ls is not None:
+                    screen.blit(font.render(ls[0], True, ls[1]), (16, HEIGHT - 82))
             pygame.display.flip()
             clock.tick(60)
     finally:

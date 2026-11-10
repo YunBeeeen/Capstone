@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>lift_bridge</name>
+  <version>0.1.0</version>
+  <description>리프트 Pico (yor-lift-position-v1, USB 시리얼) ↔ /lift_cmd, /lift_state. 조그 · 종료 시 최하단 주차 · 켤 때 자동 원점</description>
+  <maintainer email="djadbsqls120@hanyang.ac.kr">eomyunbeen</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>capstone_msgs</exec_depend>
+  <exec_depend>python3-serial</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>
