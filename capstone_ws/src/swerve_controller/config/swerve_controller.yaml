@@ -4,7 +4,7 @@
 /**:
   ros__parameters:
     # 조향축 위치 [m], base_link(회전중심) 기준 x 전진 / y 좌측.
-    # mobile_robot_right_arm_description URDF 의 steering_*_joint 위치 (2026-11-07). CAD 바뀌면 같이 갱신
+    # mobile_robot_description URDF 의 steering_*_joint 위치 (2026-11-07). CAD 바뀌면 같이 갱신
     module_x: [0.0911, -0.0911, -0.0911, 0.0911]
     module_y: [-0.13605, -0.13605, 0.13605, 0.13605]
     wheel_radius: 0.0525           # [m] BL41105 타이어 외경 105 mm. 지면 하중 실은 뒤 실측 보정 (odom 거리 오차에 그대로 비례)

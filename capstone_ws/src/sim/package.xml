@@ -10,7 +10,7 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
   <exec_depend>rclpy</exec_depend>
   <exec_depend>capstone_msgs</exec_depend>
-  <exec_depend>mobile_robot_right_arm_description</exec_depend>
+  <exec_depend>mobile_robot_description</exec_depend>
   <exec_depend>swerve_controller</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>nav_msgs</exec_depend>

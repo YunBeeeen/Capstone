@@ -1,0 +1,1740 @@
+<?xml version='1.0' encoding='utf-8'?>
+<robot name="mobile_robot_right_arm_collision">
+  <link name="world" />
+  <link name="base_link">
+    <inertial>
+      <origin xyz="-0.026819589412 0.007634056943 0.242121170980" rpy="0 0 0" />
+      <mass value="13.527271003440" />
+      <inertia ixx="0.25065159076446" ixy="-0.0043483964911349" ixz="0.014083067306078" iyy="0.22912224379847" iyz="0.0040589565962989" izz="0.22692591472168" />
+    </inertial>
+    <visual>
+      <origin xyz="0.000000000 0.000000000 0.020000000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/base_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision name="compact_00">
+      <origin xyz="0 0 0.280242498159" rpy="0 0 0" />
+      <geometry>
+        <box size="0.341900193896 0.431800187793 0.316125195708" />
+      </geometry>
+    </collision>
+    <collision name="compact_01">
+      <origin xyz="-0.0252599999998 0 0.613929993629" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0504802000004 0.0802001969482 0.140500198093" />
+      </geometry>
+    </collision>
+    <collision name="compact_02">
+      <origin xyz="-0.0252599999998 0 0.490992495298" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0504802000004 0.0802001969482 0.105375198569" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="steering_fl_link">
+    <inertial>
+      <origin xyz="0.000000000000 -0.000450007286 -0.052078079305" rpy="0 0 0" />
+      <mass value="0.42090031539200" />
+      <inertia ixx="0.00082161880391073" ixy="2.3093800000000e-13" ixz="3.7509000000000e-14" iyy="0.00068149356619259" iyz="0.0000044658814868010" izz="0.00056064398542761" />
+    </inertial>
+    <visual>
+      <origin xyz="-0.091100000 -0.136050000 -0.169000000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/steering_fl_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision name="compact_00">
+      <origin xyz="1.10396470576e-08 -0.0372809645275 -0.1238125" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0511249864977 0.00542120551532 0.0353752" />
+      </geometry>
+    </collision>
+    <collision name="compact_01">
+      <origin xyz="-1.52587890934e-09 -0.0321629118862 -0.06190625" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0590002 0.00397352242989 0.0176877" />
+      </geometry>
+    </collision>
+    <collision name="compact_02">
+      <origin xyz="1.10396470576e-08 0.0372809836211 -0.1238125" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0511249864977 0.00542124057036 0.0353752" />
+      </geometry>
+    </collision>
+    <collision name="compact_03">
+      <origin xyz="-1.52587890934e-09 -0.0306557885758 -0.048087890625" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0590002 0.0040581750569 0.00994941875" />
+      </geometry>
+    </collision>
+    <collision name="compact_04">
+      <origin xyz="-2.05993652275e-08 3.05175781867e-09 -0.0066328125" rpy="0 0 0" />
+      <geometry>
+        <box size="0.034955239978 0.0350002 0.013265825" />
+      </geometry>
+    </collision>
+    <collision name="compact_05">
+      <origin xyz="-1.04270935059e-05 -9.54437255868e-07 -0.028189453125" rpy="0 0 0" />
+      <geometry>
+        <box size="0.101579263416 0.101588723865 0.02984785625" />
+      </geometry>
+    </collision>
+    <collision name="compact_06">
+      <origin xyz="-1.52587890934e-09 0.0321629108563 -0.06190625" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0590002 0.00397352143794 0.0176877" />
+      </geometry>
+    </collision>
+    <collision name="compact_07">
+      <origin xyz="-1.52587890934e-09 0.0306557837385 -0.048087890625" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0590002 0.00405818167972 0.00994941875" />
+      </geometry>
+    </collision>
+    <collision name="compact_08">
+      <origin xyz="-1.52587890934e-09 0.0343600367911 -0.0884375" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0590002 0.00543829415057 0.0353752" />
+      </geometry>
+    </collision>
+    <collision name="compact_09">
+      <origin xyz="-1.52587890934e-09 -0.0343600325895 -0.0884375" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0590002 0.00543829007739 0.0353752" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="steering_fr_link">
+    <inertial>
+      <origin xyz="0.000000000000 -0.000450007286 -0.052078079305" rpy="0 0 0" />
+      <mass value="0.42090031539200" />
+      <inertia ixx="0.00082161880391073" ixy="2.3093800000000e-13" ixz="3.7509000000000e-14" iyy="0.00068149356619259" iyz="0.0000044658814868010" izz="0.00056064398542761" />
+    </inertial>
+    <visual>
+      <origin xyz="-0.091100000 0.136050000 -0.169000000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/steering_fr_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision name="compact_00">
+      <origin xyz="1.10396470576e-08 -0.0372809836211 -0.1238125" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0511249864977 0.00542124057036 0.0353752" />
+      </geometry>
+    </collision>
+    <collision name="compact_01">
+      <origin xyz="-1.52587890934e-09 -0.0321629108563 -0.06190625" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0590002 0.00397352143794 0.0176877" />
+      </geometry>
+    </collision>
+    <collision name="compact_02">
+      <origin xyz="1.10396470576e-08 0.0372809645275 -0.1238125" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0511249864977 0.00542120551532 0.0353752" />
+      </geometry>
+    </collision>
+    <collision name="compact_03">
+      <origin xyz="-1.52587890934e-09 -0.0306557837385 -0.048087890625" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0590002 0.00405818167972 0.00994941875" />
+      </geometry>
+    </collision>
+    <collision name="compact_04">
+      <origin xyz="-2.05993652275e-08 -3.05175781867e-09 -0.0066328125" rpy="0 0 0" />
+      <geometry>
+        <box size="0.034955239978 0.0350002 0.013265825" />
+      </geometry>
+    </collision>
+    <collision name="compact_05">
+      <origin xyz="-1.04270935059e-05 -9.33837890627e-07 -0.028189453125" rpy="0 0 0" />
+      <geometry>
+        <box size="0.101579263416 0.101588731494 0.02984785625" />
+      </geometry>
+    </collision>
+    <collision name="compact_06">
+      <origin xyz="-1.52587890934e-09 0.0321629118862 -0.06190625" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0590002 0.00397352242989 0.0176877" />
+      </geometry>
+    </collision>
+    <collision name="compact_07">
+      <origin xyz="-1.52587890934e-09 0.0306557885758 -0.048087890625" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0590002 0.0040581750569 0.00994941875" />
+      </geometry>
+    </collision>
+    <collision name="compact_08">
+      <origin xyz="-1.52587890934e-09 -0.0343600367911 -0.0884375" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0590002 0.00543829415057 0.0353752" />
+      </geometry>
+    </collision>
+    <collision name="compact_09">
+      <origin xyz="-1.52587890934e-09 0.0343600325895 -0.0884375" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0590002 0.00543829007739 0.0353752" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="steering_rl_link">
+    <inertial>
+      <origin xyz="0.000000000000 -0.000450007286 -0.052078079305" rpy="0 0 0" />
+      <mass value="0.42090031539200" />
+      <inertia ixx="0.00082161880391073" ixy="2.3093800000000e-13" ixz="3.7509000000000e-14" iyy="0.00068149356619259" iyz="0.0000044658814868010" izz="0.00056064398542761" />
+    </inertial>
+    <visual>
+      <origin xyz="0.091100000 -0.136050000 -0.169000000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/steering_rl_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision name="compact_00">
+      <origin xyz="-1.10396470576e-08 -0.0372809645275 -0.1238125" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0511249864977 0.00542120551532 0.0353752" />
+      </geometry>
+    </collision>
+    <collision name="compact_01">
+      <origin xyz="1.52587890934e-09 -0.0321629118862 -0.06190625" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0590002 0.00397352242989 0.0176877" />
+      </geometry>
+    </collision>
+    <collision name="compact_02">
+      <origin xyz="-1.10396470576e-08 0.0372809836211 -0.1238125" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0511249864977 0.00542124057036 0.0353752" />
+      </geometry>
+    </collision>
+    <collision name="compact_03">
+      <origin xyz="1.52587890934e-09 -0.0306557885758 -0.048087890625" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0590002 0.0040581750569 0.00994941875" />
+      </geometry>
+    </collision>
+    <collision name="compact_04">
+      <origin xyz="2.05993652275e-08 3.05175781867e-09 -0.0066328125" rpy="0 0 0" />
+      <geometry>
+        <box size="0.034955239978 0.0350002 0.013265825" />
+      </geometry>
+    </collision>
+    <collision name="compact_05">
+      <origin xyz="-1.04373931885e-05 -9.54437255868e-07 -0.028189453125" rpy="0 0 0" />
+      <geometry>
+        <box size="0.101579313007 0.101588723865 0.02984785625" />
+      </geometry>
+    </collision>
+    <collision name="compact_06">
+      <origin xyz="1.52587890934e-09 0.0321629108563 -0.06190625" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0590002 0.00397352143794 0.0176877" />
+      </geometry>
+    </collision>
+    <collision name="compact_07">
+      <origin xyz="1.52587890934e-09 0.0306557837385 -0.048087890625" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0590002 0.00405818167972 0.00994941875" />
+      </geometry>
+    </collision>
+    <collision name="compact_08">
+      <origin xyz="1.52587890934e-09 0.0343600367911 -0.0884375" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0590002 0.00543829415057 0.0353752" />
+      </geometry>
+    </collision>
+    <collision name="compact_09">
+      <origin xyz="1.52587890934e-09 -0.0343600325895 -0.0884375" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0590002 0.00543829007739 0.0353752" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="steering_rr_link">
+    <inertial>
+      <origin xyz="0.000008233316 -0.000452188943 -0.052078144203" rpy="0 0 0" />
+      <mass value="0.42090031539200" />
+      <inertia ixx="0.00082163487126308" ixy="-6.3645461520000e-9" ixz="0.0000011523083375740" iyy="0.00068149360271510" iyz="0.0000041605562191520" izz="0.00056062375527401" />
+    </inertial>
+    <visual>
+      <origin xyz="0.091100000 0.136050000 -0.169000000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/steering_rr_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision name="compact_00">
+      <origin xyz="-1.10396470576e-08 -0.0372809836211 -0.1238125" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0511249864977 0.00542124057036 0.0353752" />
+      </geometry>
+    </collision>
+    <collision name="compact_01">
+      <origin xyz="1.52587890934e-09 -0.0321629108563 -0.06190625" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0590002 0.00397352143794 0.0176877" />
+      </geometry>
+    </collision>
+    <collision name="compact_02">
+      <origin xyz="-1.10396470576e-08 0.0372809645275 -0.1238125" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0511249864977 0.00542120551532 0.0353752" />
+      </geometry>
+    </collision>
+    <collision name="compact_03">
+      <origin xyz="1.52587890934e-09 -0.0306557837385 -0.048087890625" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0590002 0.00405818167972 0.00994941875" />
+      </geometry>
+    </collision>
+    <collision name="compact_04">
+      <origin xyz="2.05993652275e-08 -3.05175781867e-09 -0.0066328125" rpy="0 0 0" />
+      <geometry>
+        <box size="0.034955239978 0.0350002 0.013265825" />
+      </geometry>
+    </collision>
+    <collision name="compact_05">
+      <origin xyz="3.78623962402e-05 -1.00090026856e-05 -0.028189453125" rpy="0 0 0" />
+      <geometry>
+        <box size="0.101649331775 0.101608392444 0.02984785625" />
+      </geometry>
+    </collision>
+    <collision name="compact_06">
+      <origin xyz="1.52587890934e-09 0.0321629118862 -0.06190625" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0590002 0.00397352242989 0.0176877" />
+      </geometry>
+    </collision>
+    <collision name="compact_07">
+      <origin xyz="1.52587890934e-09 0.0306557885758 -0.048087890625" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0590002 0.0040581750569 0.00994941875" />
+      </geometry>
+    </collision>
+    <collision name="compact_08">
+      <origin xyz="1.52587890934e-09 -0.0343600367911 -0.0884375" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0590002 0.00543829415057 0.0353752" />
+      </geometry>
+    </collision>
+    <collision name="compact_09">
+      <origin xyz="1.52587890934e-09 0.0343600325895 -0.0884375" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0590002 0.00543829007739 0.0353752" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="wheel_fl_link">
+    <inertial>
+      <origin xyz="-0.000000257783 -0.000000390730 -0.000000504319" rpy="0 0 0" />
+      <mass value="1.50000016473000" />
+      <inertia ixx="0.0012291849460000" ixy="-7.7426233840000e-9" ixz="-1.0236911611000e-8" iyy="0.0019179877360000" iyz="-1.6541694440000e-8" izz="0.0012291701800000" />
+    </inertial>
+    <visual>
+      <origin xyz="-0.091100000 -0.136050000 -0.052500000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/wheel_fl_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision name="compact_wheel">
+      <origin xyz="-1.15142822266e-05 -7.62939461607e-10 1.39930052684e-08" rpy="1.5707963267948966 0 0" />
+      <geometry>
+        <cylinder radius="0.0525139708952" length="0.119887414661" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="wheel_fr_link">
+    <inertial>
+      <origin xyz="-0.000000257783 -0.000000390730 -0.000000504319" rpy="0 0 0" />
+      <mass value="1.50000016473000" />
+      <inertia ixx="0.0012291849460000" ixy="-7.7426233840000e-9" ixz="-1.0236911611000e-8" iyy="0.0019179877360000" iyz="-1.6541694440000e-8" izz="0.0012291701800000" />
+    </inertial>
+    <visual>
+      <origin xyz="-0.091100000 0.136050000 -0.052500000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/wheel_fr_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision name="compact_wheel">
+      <origin xyz="-1.15142822266e-05 7.62939461607e-10 1.39930052684e-08" rpy="1.5707963267948966 0 0" />
+      <geometry>
+        <cylinder radius="0.0525139708952" length="0.119887414661" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="wheel_rl_link">
+    <inertial>
+      <origin xyz="-0.000000257783 -0.000000390730 -0.000000504319" rpy="0 0 0" />
+      <mass value="1.50000016473000" />
+      <inertia ixx="0.0012291849460000" ixy="-7.7426233840000e-9" ixz="-1.0236911611000e-8" iyy="0.0019179877360000" iyz="-1.6541694440000e-8" izz="0.0012291701800000" />
+    </inertial>
+    <visual>
+      <origin xyz="0.091100000 -0.136050000 -0.052500000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/wheel_rl_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision name="compact_wheel">
+      <origin xyz="-1.15131378174e-05 -7.62939461607e-10 1.39930052684e-08" rpy="1.5707963267948966 0 0" />
+      <geometry>
+        <cylinder radius="0.0525139384845" length="0.119887414661" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="wheel_rr_link">
+    <inertial>
+      <origin xyz="-0.000000257783 -0.000000390730 -0.000000504319" rpy="0 0 0" />
+      <mass value="1.50000016473000" />
+      <inertia ixx="0.0012291849460000" ixy="-7.7426233840000e-9" ixz="-1.0236911611000e-8" iyy="0.0019179877360000" iyz="-1.6541694440000e-8" izz="0.0012291701800000" />
+    </inertial>
+    <visual>
+      <origin xyz="0.091100000 0.136050000 -0.052500000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/wheel_rr_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision name="compact_wheel">
+      <origin xyz="-1.15131378174e-05 7.62939461607e-10 1.39930052684e-08" rpy="1.5707963267948966 0 0" />
+      <geometry>
+        <cylinder radius="0.0525139384845" length="0.119887414661" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="lift_stage_1_link">
+    <inertial>
+      <origin xyz="0.000000000000 0.000000000000 0.175000000000" rpy="0 0 0" />
+      <mass value="0.47402211944000" />
+      <inertia ixx="0.0052012912150000" ixy="-3.0000000000000e-16" ixz="-4.5000000000000e-17" iyy="0.0050041813890000" iyz="-1.1800000000000e-16" izz="0.00052752099894222" />
+    </inertial>
+    <visual>
+      <origin xyz="0.025260000 0.000000000 -0.624180000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/lift_stage_1_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision name="compact_00">
+      <origin xyz="4.86373902958e-10 0 0.174999992676" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0454001991417 0.0752202012207 0.3500002" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="lift_stage_2_link">
+    <inertial>
+      <origin xyz="0.000000000000 0.000000000000 0.171572529629" rpy="0 0 0" />
+      <mass value="2.16239543267800" />
+      <inertia ixx="0.022083766470000" ixy="-2.9940000000000e-15" ixz="-6.7100000000000e-16" iyy="0.021507697790000" iyz="-4.4100000000000e-16" izz="0.0011521207460000" />
+    </inertial>
+    <visual>
+      <origin xyz="0.025260000 0.000000000 -0.974180000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/lift_stage_2_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision name="compact_00">
+      <origin xyz="-2.28881837094e-10 0 0.173500023193" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0403402001526 0.0702801987793 0.347000261035" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="top_plate_link">
+    <inertial>
+      <origin xyz="0.015667367559 0.000110589602 -0.014034967018" rpy="0 0 0" />
+      <mass value="1.31809055708400" />
+      <inertia ixx="0.0064141037090000" ixy="4.5981498919200e-7" ixz="0.000059426104509922" iyy="0.0029419185960000" iyz="-0.0000037699471576500" izz="0.0078299470800000" />
+    </inertial>
+    <visual>
+      <origin xyz="0.025260000 0.000000000 -1.321180000" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/top_plate_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision name="compact_00">
+      <origin xyz="0.0200000016785 -0.106806233514 -0.0567152783203" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0900002 0.0285979380493 0.0250617234375" />
+      </geometry>
+    </collision>
+    <collision name="compact_01">
+      <origin xyz="0.0200000016785 -0.0647166498933 -0.0128576123047" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0900002 0.0196021871813 0.0125309617188" />
+      </geometry>
+    </collision>
+    <collision name="compact_02">
+      <origin xyz="0.0200000016785 0.106806233514 -0.0567152783203" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0900002 0.0285979380493 0.0250617234375" />
+      </geometry>
+    </collision>
+    <collision name="compact_03">
+      <origin xyz="-0.000700000991821 0 -0.00189319580078" rpy="0 0 0" />
+      <geometry>
+        <box size="0.131400205341 0.123973558795 0.00939827128906" />
+      </geometry>
+    </collision>
+    <collision name="compact_04">
+      <origin xyz="0.128474996338 0.000569999694824 0.0135000537109" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0682502 0.1200002 0.0170002" />
+      </geometry>
+    </collision>
+    <collision name="compact_05">
+      <origin xyz="0.0200000016785 0.0647166498933 -0.0128576123047" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0900002 0.0196021871813 0.0125309617188" />
+      </geometry>
+    </collision>
+    <collision name="compact_06">
+      <origin xyz="-0.0336187536621 0.00106999969482 0.0169029467773" rpy="0 0 0" />
+      <geometry>
+        <box size="0.1535627 0.1360002 0.0281944138672" />
+      </geometry>
+    </collision>
+    <collision name="compact_07">
+      <origin xyz="0.0200000016785 0.0835125727915 -0.0316537548828" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0900002 0.0321337437606 0.0250617234375" />
+      </geometry>
+    </collision>
+    <collision name="compact_08">
+      <origin xyz="0.0200000016785 -0.0835125727915 -0.0316537548828" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0900002 0.0321337437606 0.0250617234375" />
+      </geometry>
+    </collision>
+    <collision name="compact_09">
+      <origin xyz="0.0687562463379 0.000569999694824 0.0124029467773" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0511877 0.1200002 0.0191944138672" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="front_camera_link">
+    <inertial>
+      <origin xyz="-0.026296146574 -0.001186598020 -0.002091568086" rpy="0 0 0" />
+      <mass value="0.412700000000" />
+      <inertia ixx="0.00071008016901784" ixy="-1.5621926565241e-05" ixz="-2.2776432371541e-05" iyy="0.00015911922623517" iyz="-3.4002259358329e-06" izz="0.00075128909710499" />
+    </inertial>
+    <visual>
+      <origin xyz="-0.186866903370 -0.000569999080 -1.344253298790" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/front_camera_link.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+    <collision name="compact_00">
+      <origin xyz="-0.060295381611 -0.00403902776681 -0.00907324507906" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0184632508423 0.0809221432367 0.0140002" />
+      </geometry>
+    </collision>
+    <collision name="compact_01">
+      <origin xyz="-0.0195608509084 6.14824217145e-10 -0.0245309515305" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0107804608612 0.1000002 0.00332282420654" />
+      </geometry>
+    </collision>
+    <collision name="compact_02">
+      <origin xyz="-0.0251587526627 -8.46573902728e-07 -0.00542586234286" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0518104070543 0.173227702796 0.0149520089294" />
+      </geometry>
+    </collision>
+    <collision name="compact_03">
+      <origin xyz="-0.0193535025107 1.55280431334e-07 0.0182478351288" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0283005868544 0.174118624686 0.00249216815491" />
+      </geometry>
+    </collision>
+    <collision name="compact_04">
+      <origin xyz="-0.0196876049691 -3.19987304579e-09 0.00952594658659" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0480260026123 0.175250665393 0.0149520089294" />
+      </geometry>
+    </collision>
+    <collision name="compact_05">
+      <origin xyz="-0.030803388452 6.14824217145e-10 -0.0162243910141" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0405211354757 0.1000002 0.00664544841309" />
+      </geometry>
+    </collision>
+    <collision name="compact_06">
+      <origin xyz="-0.0246145156154 -3.47636285942e-06 0.0232317714386" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0141505275837 0.169457322136 0.00249216815491" />
+      </geometry>
+    </collision>
+    <collision name="compact_07">
+      <origin xyz="-0.0235206842473 6.14824217145e-10 -0.0212083273239" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0211186607149 0.1000002 0.00332282420654" />
+      </geometry>
+    </collision>
+    <collision name="compact_08">
+      <origin xyz="-0.0219843767314 -5.3995765807e-07 0.0207398032837" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0212246980966 0.172345481515 0.00249216815491" />
+      </geometry>
+    </collision>
+    <collision name="compact_09">
+      <origin xyz="-0.0272447789268 -1.22005578922e-06 0.0257237395935" rpy="0 0 0" />
+      <geometry>
+        <box size="0.00707600255596 0.16470305975 0.00249216815491" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="world_to_base" type="fixed">
+    <parent link="world" />
+    <child link="base_link" />
+    <origin xyz="0 0 -0.020" rpy="0 0 0" />
+  </joint>
+  <joint name="steering_fl_joint" type="continuous">
+    <parent link="base_link" />
+    <child link="steering_fl_link" />
+    <origin xyz="0.09110 0.13605 0.189" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+  </joint>
+  <joint name="drive_fl_joint" type="continuous">
+    <parent link="steering_fl_link" />
+    <child link="wheel_fl_link" />
+    <origin xyz="0 0 -0.1165" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+  </joint>
+  <joint name="steering_fr_joint" type="continuous">
+    <parent link="base_link" />
+    <child link="steering_fr_link" />
+    <origin xyz="0.09110 -0.13605 0.189" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+  </joint>
+  <joint name="drive_fr_joint" type="continuous">
+    <parent link="steering_fr_link" />
+    <child link="wheel_fr_link" />
+    <origin xyz="0 0 -0.1165" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+  </joint>
+  <joint name="steering_rl_joint" type="continuous">
+    <parent link="base_link" />
+    <child link="steering_rl_link" />
+    <origin xyz="-0.09110 0.13605 0.189" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+  </joint>
+  <joint name="drive_rl_joint" type="continuous">
+    <parent link="steering_rl_link" />
+    <child link="wheel_rl_link" />
+    <origin xyz="0 0 -0.1165" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+  </joint>
+  <joint name="steering_rr_joint" type="continuous">
+    <parent link="base_link" />
+    <child link="steering_rr_link" />
+    <origin xyz="-0.09110 -0.13605 0.189" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+  </joint>
+  <joint name="drive_rr_joint" type="continuous">
+    <parent link="steering_rr_link" />
+    <child link="wheel_rr_link" />
+    <origin xyz="0 0 -0.1165" rpy="0 0 0" />
+    <axis xyz="0 1 0" />
+  </joint>
+  <joint name="lift_stage_1_joint" type="prismatic">
+    <parent link="base_link" />
+    <child link="lift_stage_1_link" />
+    <origin xyz="-0.02526 0 0.31918" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+    <limit lower="0" upper="0.315" effort="1000" velocity="0.1" />
+  </joint>
+  <joint name="lift_stage_2_joint" type="prismatic">
+    <parent link="lift_stage_1_link" />
+    <child link="lift_stage_2_link" />
+    <origin xyz="0 0 0.025" rpy="0 0 0" />
+    <axis xyz="0 0 1" />
+    <limit lower="0" upper="0.315" effort="1000" velocity="0.1" />
+    <mimic joint="lift_stage_1_joint" multiplier="1" offset="0" />
+  </joint>
+  <joint name="top_plate_joint" type="fixed">
+    <parent link="lift_stage_2_link" />
+    <child link="top_plate_link" />
+    <origin xyz="0 0 0.347" rpy="0 0 0" />
+  </joint>
+  <joint name="front_camera_joint" type="fixed">
+    <parent link="top_plate_link" />
+    <child link="front_camera_link" />
+    <origin xyz="0.212126903370 0.000569999080 0.023073298790" rpy="0 0.376991 0" />  <!-- ZED 2i 아래로 21.6° (IMU 실측 2026-11-11, 로봇 정지·평평한 바닥. CAD 20°, YOR URDF 23.9°) -->
+  </joint>
+  <material name="right_arm_gripper_finger_black">
+    <color rgba="0.066667 0.074510 0.070588 1" />
+  </material>
+  <material name="right_arm_gripper_carriage_grey">
+    <color rgba="0.239 0.278 0.271 1" />
+  </material>
+  <material name="right_arm_gripper_rack_metal">
+    <color rgba="0.831373 0.847059 0.831373 1" />
+  </material>
+  <material name="right_arm_gripper_seeed_yellow">
+    <color rgba="0.725 0.835 0.118 1" />
+  </material>
+  <material name="right_arm_gripper_hardware_black">
+    <color rgba="0.019608 0.027451 0.023529 1" />
+  </material>
+  <material name="right_arm_gripper_base_metal">
+    <color rgba="0.831373 0.847059 0.831373 1" />
+  </material>
+  <material name="right_arm_anodized_grey">
+    <color rgba="0.831373 0.847059 0.831373 1" />
+  </material>
+  <material name="right_arm_silver_trim">
+    <color rgba="0.878431 0.890196 0.874510 1" />
+  </material>
+  <material name="right_arm_seeed_yellow">
+    <color rgba="0.73 0.84 0.12 1" />
+  </material>
+  <material name="right_arm_matte_black">
+    <color rgba="0.066667 0.074510 0.070588 1" />
+  </material>
+  <material name="right_arm_hardware_black">
+    <color rgba="0.019608 0.027451 0.023529 1" />
+  </material>
+  <link name="right_arm_base_link">
+    <inertial>
+      <origin xyz="-9.6699420691751e-07 -1.567914900198e-06 0.050489298469187" rpy="0 0 0" />
+      <mass value="0.43907260552389" />
+      <inertia ixx="0.00044952626274939" ixy="-1.8317678600389e-09" ixz="5.8391756156901e-08" iyy="0.00043469794487015" iyz="-4.4134739360162e-07" izz="0.00054318688772603" />
+    </inertial>
+    <visual name="right_arm_base_link_silver_trim">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_base_link_silver_trim.stl" />
+      </geometry>
+      <material name="right_arm_silver_trim" />
+    </visual>
+    <visual name="right_arm_base_link_hardware_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_base_link_hardware_black.stl" />
+      </geometry>
+      <material name="right_arm_hardware_black" />
+    </visual>
+    <visual name="right_arm_base_link_matte_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_base_link_matte_black_no_plate.stl" />
+      </geometry>
+      <material name="right_arm_matte_black" />
+    </visual>
+    <collision name="compact_00">
+      <origin xyz="0 0 0.0450750004966" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0920002001788 0.0920002001788 0.0851502011049" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="right_arm_link1">
+    <inertial>
+      <origin xyz="0.000113614552951627 -0.000616319527051323 0.0236476372671394" rpy="0 0 0" />
+      <mass value="0.16130000" />
+      <inertia ixx="0.00025207" ixy="0.00000000" ixz="-0.00002832" iyy="0.00015464" iyz="0.00000000" izz="0.00023416" />
+    </inertial>
+    <visual name="right_arm_link1_matte_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_link1_matte_black.stl" />
+      </geometry>
+      <material name="right_arm_matte_black" />
+    </visual>
+    <visual name="right_arm_link1_hardware_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_link1_hardware_black.stl" />
+      </geometry>
+      <material name="right_arm_hardware_black" />
+    </visual>
+    <visual name="right_arm_link1_anodized_grey">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_link1_anodized_grey.stl" />
+      </geometry>
+      <material name="right_arm_anodized_grey" />
+    </visual>
+    <collision name="compact_00">
+      <origin xyz="0.00275120869882 0 0.0104899179235" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0759007096675 0.0772501963641 0.0209800345596" />
+      </geometry>
+    </collision>
+    <collision name="compact_01">
+      <origin xyz="0.0158217869626 -0.037023748504 0.0629395043224" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0654877368027 0.00320269935612 0.0419598691191" />
+      </geometry>
+    </collision>
+    <collision name="compact_02">
+      <origin xyz="0.0200841586338 0.0333750015125 0.057447778222" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0348001983933 0.00350019777973 0.0309764169182" />
+      </geometry>
+    </collision>
+    <collision name="compact_03">
+      <origin xyz="0.00932076275824 -0.0371249988675 0.0288472731631" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0707627536343 0.00300019862909 0.0157350759197" />
+      </geometry>
+    </collision>
+    <collision name="compact_04">
+      <origin xyz="0.0200841561008 0.0333750015125 0.0400618912399" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0217106671037 0.00350019777973 0.00379575704594" />
+      </geometry>
+    </collision>
+    <collision name="compact_05">
+      <origin xyz="-0.0192158417776 0 0.0214109069288" rpy="0 0 0" />
+      <geometry>
+        <box size="0.00900020147521 0.0300001993294 0.000862343450975" />
+      </geometry>
+    </collision>
+    <collision name="compact_06">
+      <origin xyz="0.0200841580518 -0.0327203899942 0.0574539398521" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0347966158282 0.00540441766345 0.0309887401785" />
+      </geometry>
+    </collision>
+    <collision name="compact_07">
+      <origin xyz="0.0134144750995 -0.0345949996263 0.0393371904429" rpy="0 0 0" />
+      <geometry>
+        <box size="0.065242379647 0.00806019711156 0.00524515863989" />
+      </geometry>
+    </collision>
+    <collision name="compact_08">
+      <origin xyz="0.0158217869626 0.0368749992922 0.0629395043224" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0654877368027 0.00350019777973 0.0419598691191" />
+      </geometry>
+    </collision>
+    <collision name="compact_09">
+      <origin xyz="0.00998752543203 0.0368749992922 0.0314697524831" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0720962789819 0.00350019777973 0.0209800345596" />
+      </geometry>
+    </collision>
+    <collision name="compact_10">
+      <origin xyz="0.0200841580518 -0.0270159380161 0.055549999699" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0169984453808 0.00240207451709 0.0169984500374" />
+      </geometry>
+    </collision>
+    <collision name="compact_11">
+      <origin xyz="0.0200877079274 -0.0291175782186 0.055549999699" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0169840543205 0.00180160588782 0.0169984500374" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="right_arm_joint1" type="revolute">
+    <origin xyz="-8.416E-05 0 0.08465" rpy="0 0 0" />
+    <parent link="right_arm_base_link" />
+    <child link="right_arm_link1" />
+    <axis xyz="0 0 1" />
+    <limit lower="-2.8" upper="2.8" effort="27" velocity="50" />
+  </joint>
+  <link name="right_arm_link2">
+    <inertial>
+      <origin xyz="-0.13225622308888 -0.0030617036386309 -0.0308306967030205" rpy="0 0 0" />
+      <mass value="1.32660000" />
+      <inertia ixx="0.00073374" ixy="-0.00000043" ixz="0.00000851" iyy="0.01255987" iyz="0.00000128" izz="0.01281387" />
+    </inertial>
+    <visual name="right_arm_link2_seeed_yellow">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_link2_seeed_yellow.stl" />
+      </geometry>
+      <material name="right_arm_seeed_yellow" />
+    </visual>
+    <visual name="right_arm_link2_matte_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_link2_matte_black.stl" />
+      </geometry>
+      <material name="right_arm_matte_black" />
+    </visual>
+    <visual name="right_arm_link2_hardware_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_link2_hardware_black.stl" />
+      </geometry>
+      <material name="right_arm_hardware_black" />
+    </visual>
+    <visual name="right_arm_link2_anodized_grey">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_link2_anodized_grey.stl" />
+      </geometry>
+      <material name="right_arm_anodized_grey" />
+    </visual>
+    <collision name="compact_00">
+      <origin xyz="-0.131999994628 1.86264514923e-09 -0.031625001342" rpy="0 0 0" />
+      <geometry>
+        <box size="0.321000189286 0.0570002037551 0.0673502027042" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="right_arm_joint2" type="revolute">
+    <origin xyz="0.020084 0.031625 0.05555" rpy="-1.5708 0 0" />
+    <parent link="right_arm_link1" />
+    <child link="right_arm_link2" />
+    <axis xyz="0 0 -1" />
+    <limit lower="-3.14" upper="0" effort="27" velocity="50" />
+  </joint>
+  <link name="right_arm_link3">
+    <inertial>
+      <origin xyz="0.121040035791843 -0.0536211076627949 -0.0310137854608077" rpy="0 0 0" />
+      <mass value="0.83530000" />
+      <inertia ixx="0.00046807" ixy="-0.00003456" ixz="-0.00004260" iyy="0.00632695" iyz="0.00000006" izz="0.00648221" />
+    </inertial>
+    <visual name="right_arm_link3_seeed_yellow">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_link3_seeed_yellow.stl" />
+      </geometry>
+      <material name="right_arm_seeed_yellow" />
+    </visual>
+    <visual name="right_arm_link3_matte_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_link3_matte_black.stl" />
+      </geometry>
+      <material name="right_arm_matte_black" />
+    </visual>
+    <visual name="right_arm_link3_hardware_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_link3_hardware_black.stl" />
+      </geometry>
+      <material name="right_arm_hardware_black" />
+    </visual>
+    <visual name="right_arm_link3_anodized_grey">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_link3_anodized_grey.stl" />
+      </geometry>
+      <material name="right_arm_anodized_grey" />
+    </visual>
+    <collision name="compact_00">
+      <origin xyz="0.0105428940151 -0.0393749717623 -0.0311249997467" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0744450830374 0.0742501940097 0.0802501987185" />
+      </geometry>
+    </collision>
+    <collision name="compact_01">
+      <origin xyz="0.0512549394261 -0.0556159824454 -0.0311249997467" rpy="0 0 0" />
+      <geometry>
+        <box size="0.00697940778475 0.0357681902866 0.0802501987185" />
+      </geometry>
+    </collision>
+    <collision name="compact_02">
+      <origin xyz="0.180370283444 -0.0573299988823 -0.0316249995958" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0418754467085 0.0323401574127 0.0578002009991" />
+      </geometry>
+    </collision>
+    <collision name="compact_03">
+      <origin xyz="0.117557413381 -0.058499969542 -0.0316249995958" rpy="0 0 0" />
+      <geometry>
+        <box size="0.083750693417 0.0340001943972 0.0578002009991" />
+      </geometry>
+    </collision>
+    <collision name="compact_04">
+      <origin xyz="0.00245152091967 0.00393752474338 -0.0643450003117" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0496567374431 0.0123751990016 0.0138101975884" />
+      </geometry>
+    </collision>
+    <collision name="compact_05">
+      <origin xyz="0 0.00756795704365 -0.00300000060815" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0348002004888 0.0196360636022 0.00800020014715" />
+      </geometry>
+    </collision>
+    <collision name="compact_06">
+      <origin xyz="0.243183153507 -0.0539999725297 -0.0316249994794" rpy="0 0 0" />
+      <geometry>
+        <box size="0.055833862278 0.0570002018924 0.0560002005644" />
+      </geometry>
+    </collision>
+    <collision name="compact_07">
+      <origin xyz="0.208287114583 -0.0513007505357 -0.0316249994794" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0139586155695 0.0443986541059 0.0560002005644" />
+      </geometry>
+    </collision>
+    <collision name="compact_08">
+      <origin xyz="0.068702958888 -0.058499969542 -0.031487781883" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0139586155695 0.0340001943972 0.0578746330392" />
+      </geometry>
+    </collision>
+    <collision name="compact_09">
+      <origin xyz="0.0582341472109 -0.057499974966 -0.0311250007437" rpy="0 0 0" />
+      <geometry>
+        <box size="0.00697940778475 0.0320002052452 0.0698439785034" />
+      </geometry>
+    </collision>
+    <collision name="compact_10">
+      <origin xyz="0.00245152091967 0.0101250242442 0.004999999539" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0496567374431 0.0247501980032 0.00800020014715" />
+      </geometry>
+    </collision>
+    <collision name="compact_11">
+      <origin xyz="7.43035467725e-05 0.016312523745 -0.0667199995369" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0401217573813 0.0123751990016 0.00906019913812" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="right_arm_joint3" type="revolute">
+    <origin xyz="-0.264 0 0" rpy="0 0 0" />
+    <parent link="right_arm_link2" />
+    <child link="right_arm_link3" />
+    <axis xyz="0 0 1" />
+    <limit lower="-3.14" upper="0" effort="27" velocity="50" />
+  </joint>
+  <link name="right_arm_link4">
+    <inertial>
+      <origin xyz="0.0608200956293136 -0.0511711906613122 -0.030299458623927" rpy="0 0 0" />
+      <mass value="0.52000000" />
+      <inertia ixx="0.00045986" ixy="0.00024219" ixz="-0.00000672" iyy="0.00075258" iyz="-0.00000535" izz="0.00066742" />
+    </inertial>
+    <visual name="right_arm_link4_seeed_yellow">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_link4_seeed_yellow.stl" />
+      </geometry>
+      <material name="right_arm_matte_black" />
+    </visual>
+    <visual name="right_arm_link4_matte_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_link4_matte_black.stl" />
+      </geometry>
+      <material name="right_arm_matte_black" />
+    </visual>
+    <visual name="right_arm_link4_hardware_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_link4_hardware_black.stl" />
+      </geometry>
+      <material name="right_arm_hardware_black" />
+    </visual>
+    <visual name="right_arm_link4_anodized_grey">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_link4_anodized_grey.stl" />
+      </geometry>
+      <material name="right_arm_anodized_grey" />
+    </visual>
+    <collision name="compact_00">
+      <origin xyz="0.0783077534288 -0.0735106440261 -0.03000000061" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0788877408471 0.0289789109941 0.0630002021774" />
+      </geometry>
+    </collision>
+    <collision name="compact_01">
+      <origin xyz="0.00607531570186 -0.00106386654079 -0.0618325024843" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0682182646119 0.0579576219882 0.00309520098228" />
+      </geometry>
+    </collision>
+    <collision name="compact_02">
+      <origin xyz="-0.0116938250139 0 -0.00962000091386" rpy="0 0 0" />
+      <geometry>
+        <box size="0.00299323978682 0.016499158692 0.0060002003723" />
+      </geometry>
+    </collision>
+    <collision name="compact_03">
+      <origin xyz="0.0533467244284 -0.0481542719062 -0.0300000015413" rpy="0 0 0" />
+      <geometry>
+        <box size="0.121143091809 0.0217342332456 0.0667602028683" />
+      </geometry>
+    </collision>
+    <collision name="compact_04">
+      <origin xyz="0.00607531567132 -0.00106386654079 0.00137999976869" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0682182645509 0.0579576219882 0.0040002002482" />
+      </geometry>
+    </collision>
+    <collision name="compact_05">
+      <origin xyz="0.0252908248765 -0.0336649164092 -0.061879998073" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0762131651041 0.00724487774853 0.0030001949038" />
+      </geometry>
+    </collision>
+    <collision name="compact_06">
+      <origin xyz="0.0252908234938 -0.0336649164092 0.00187999961781" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0762131678694 0.00724487774853 0.00300020054995" />
+      </geometry>
+    </collision>
+    <collision name="compact_07">
+      <origin xyz="1.86264514923e-09 0 -0.0568031258881" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0347989636924 0.0347989636924 0.00696395221014" />
+      </geometry>
+    </collision>
+    <collision name="compact_08">
+      <origin xyz="0 0 -0.00362000054156" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0347719776895 0.0348002004888 0.0060002003723" />
+      </geometry>
+    </collision>
+    <collision name="compact_09">
+      <origin xyz="-1.11614353955e-05 3.21911647916e-06 -0.0521606244147" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0169756857197 0.0169915666323 0.00232145073671" />
+      </geometry>
+    </collision>
+    <collision name="compact_10">
+      <origin xyz="0.0116888601333 0 -0.00962000091386" rpy="0 0 0" />
+      <geometry>
+        <box size="0.00299323978682 0.016499158692 0.0060002003723" />
+      </geometry>
+    </collision>
+    <collision name="compact_11">
+      <origin xyz="-2.4824985303e-06 0 -0.00962000091386" rpy="0 0 0" />
+      <geometry>
+        <box size="0.00299323990323 0.0299991581108 0.0060002003723" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="right_arm_joint4" type="revolute">
+    <origin xyz="0.2426 -0.054 -0.001625" rpy="0 0 0" />
+    <parent link="right_arm_link3" />
+    <child link="right_arm_link4" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.87" upper="1.57" effort="7" velocity="200" />
+  </joint>
+  <link name="right_arm_link5">
+    <inertial>
+      <origin xyz="-0.00502802058982517 1.73866206692364E-06 0.0386233236326755" rpy="0 0 0" />
+      <mass value="0.38300000" />
+      <inertia ixx="0.00019772" ixy="-0.00000062" ixz="-0.00002426" iyy="0.00021737" iyz="0.00000002" izz="0.00017191" />
+    </inertial>
+    <visual name="right_arm_link5_matte_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_link5_matte_black.stl" />
+      </geometry>
+      <material name="right_arm_matte_black" />
+    </visual>
+    <visual name="right_arm_link5_hardware_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_link5_hardware_black.stl" />
+      </geometry>
+      <material name="right_arm_hardware_black" />
+    </visual>
+    <visual name="right_arm_link5_anodized_grey">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_link5_anodized_grey.stl" />
+      </geometry>
+      <material name="right_arm_anodized_grey" />
+    </visual>
+    <collision name="compact_00">
+      <origin xyz="-0.0116913425736 0 -0.00500687651947" rpy="0 0 0" />
+      <geometry>
+        <box size="0.00299428007413 0.0165001999106 0.00398644739319" />
+      </geometry>
+    </collision>
+    <collision name="compact_01">
+      <origin xyz="-0.014932745602 0 0.0172496714258" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0257502009611 0.0500002007451 0.00597957108978" />
+      </geometry>
+    </collision>
+    <collision name="compact_02">
+      <origin xyz="-0.0302452475298 0 0.0680743256889" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0151252003837 0.0453547140824 0.0119589421796" />
+      </geometry>
+    </collision>
+    <collision name="compact_03">
+      <origin xyz="-0.00705774594098 0 0.0501362124196" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0615002035614 0.0770001995828 0.0239176843591" />
+      </geometry>
+    </collision>
+    <collision name="compact_04">
+      <origin xyz="0.00756725342944 4.48508522162e-09 0.0652974759287" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0302502007674 0.0359665789273 0.00640524265903" />
+      </geometry>
+    </collision>
+    <collision name="compact_05">
+      <origin xyz="0.0108172553591 -1.62433858963e-06 0.0262187280605" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0257502009611 0.0567300538063 0.0239176843591" />
+      </geometry>
+    </collision>
+    <collision name="compact_06">
+      <origin xyz="0.00219225510955 0 0.00628749109455" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0600002023842 0.0500002007451 0.0159451895727" />
+      </geometry>
+    </collision>
+    <collision name="compact_07">
+      <origin xyz="-0.0151202471461 0 0.0669474777824" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0151252003837 0.0455470964552 0.00970524636643" />
+      </geometry>
+    </collision>
+    <collision name="compact_08">
+      <origin xyz="-0.014932745602 0 0.0292084136054" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0257502009611 0.0768853281049 0.0179383132693" />
+      </geometry>
+    </collision>
+    <collision name="compact_09">
+      <origin xyz="-0.0292034833183 0 0.0760468204753" rpy="0 0 0" />
+      <geometry>
+        <box size="0.00879167545496 0.0400001991059 0.00398644739319" />
+      </geometry>
+    </collision>
+    <collision name="compact_10">
+      <origin xyz="0 0 -0.00234937825735" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0334030791366 0.0334301918858 0.00132894913106" />
+      </geometry>
+    </collision>
+    <collision name="compact_11">
+      <origin xyz="0.00584567128681 0 -0.00500687651947" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0146856226477 0.0300001993294 0.00398644739319" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="right_arm_joint5" type="revolute">
+    <origin xyz="0.078308 -0.0375 -0.03" rpy="-1.5708 0 0" />
+    <parent link="right_arm_link4" />
+    <child link="right_arm_link5" />
+    <axis xyz="0 0 1" />
+    <limit lower="-1.57" upper="1.57" effort="7" velocity="200" />
+  </joint>
+  <link name="right_arm_link6">
+    <inertial>
+      <origin xyz="3.76418727127126E-06 -0.000100908819946677 0.0253308606425965" rpy="0 0 0" />
+      <mass value="0.36630000" />
+      <inertia ixx="0.00015554" ixy="-0.00000" ixz="-0.00000" iyy="0.00015554" iyz="-0.0000" izz="0.00013966" />
+    </inertial>
+    <visual name="right_arm_link6_matte_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_link6_matte_black.stl" />
+      </geometry>
+      <material name="right_arm_matte_black" />
+    </visual>
+    <visual name="right_arm_link6_hardware_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_link6_hardware_black.stl" />
+      </geometry>
+      <material name="right_arm_hardware_black" />
+    </visual>
+    <collision name="compact_00">
+      <origin xyz="0 0 -0.000737586127798" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0568002003695 0.0568002003695 0.00815645009272" />
+      </geometry>
+    </collision>
+    <collision name="compact_01">
+      <origin xyz="0 0 0.0459342894028" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0570002000298 0.0570002000298 0.0145002001648" />
+      </geometry>
+    </collision>
+    <collision name="compact_02">
+      <origin xyz="0 4.57306153015e-10 0.0332467892586" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0570002000298 0.0570001991152 0.0108752001236" />
+      </geometry>
+    </collision>
+    <collision name="compact_03">
+      <origin xyz="0 0 0.0155749140577" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0770001995828 0.0636002037193 0.0244689502782" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="right_arm_joint6" type="revolute">
+    <origin xyz="0.028008 0 0.04" rpy="0 1.5708 0" />
+    <parent link="right_arm_link5" />
+    <child link="right_arm_link6" />
+    <axis xyz="0 0 1" />
+    <limit lower="-3.14" upper="3.14" effort="7" velocity="200" />
+  </joint>
+  <link name="right_arm_end_link">
+    <inertial>
+      <origin xyz="-0.0737654295815033 -9.5080995865868E-06 7.04327840286845E-06" rpy="0 0 0" />
+      <mass value="0.5000000" />
+      <inertia ixx="0.00037354" ixy="-0.00000011" ixz="0.00000050" iyy="0.00015830" iyz="0.00000348" izz="0.00045353" />
+    </inertial>
+    <visual name="right_arm_gripper_base_seeed_yellow">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_gripper_base_seeed_yellow.stl" />
+      </geometry>
+      <material name="right_arm_gripper_seeed_yellow" />
+    </visual>
+    <visual name="right_arm_gripper_base_hardware_black">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_gripper_base_hardware_black.stl" />
+      </geometry>
+      <material name="right_arm_gripper_hardware_black" />
+    </visual>
+    <visual name="right_arm_gripper_base_metal">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_gripper_base_metal.stl" />
+      </geometry>
+      <material name="right_arm_gripper_base_metal" />
+    </visual>
+    <collision name="compact_00">
+      <origin xyz="-0.0931593254209 0 -0.0278145056218" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0201001975204 0.0376131454348 0.0128376658525" />
+      </geometry>
+    </collision>
+    <collision name="compact_01">
+      <origin xyz="-0.0931593254209 0 0.0256749354303" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0201001975204 0.0454407096254 0.0171168211367" />
+      </geometry>
+    </collision>
+    <collision name="compact_02">
+      <origin xyz="-0.0931593254209 0 -0.0201922602719" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0201001975204 0.0422452009036 0.00240722484734" />
+      </geometry>
+    </collision>
+    <collision name="compact_03">
+      <origin xyz="-0.0965843237936 -0.0862825848162 -1.86264514923e-09" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0132502007749 0.0115045446422 0.0206001910831" />
+      </geometry>
+    </collision>
+    <collision name="compact_04">
+      <origin xyz="-0.0815843231976 0 -1.86264514923e-09" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0167502004172 0.184069714275 0.0206001910831" />
+      </geometry>
+    </collision>
+    <collision name="compact_05">
+      <origin xyz="-0.0965843237936 -0.037389120087 1.86264514923e-09" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0132502007749 0.0172567169632 0.0181221831205" />
+      </geometry>
+    </collision>
+    <collision name="compact_06">
+      <origin xyz="-0.0965843237936 0.0316369477659 0.00245672848579" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0132502007749 0.0172567169632 0.0284490035839" />
+      </geometry>
+    </collision>
+    <collision name="compact_07">
+      <origin xyz="-0.0965843237936 0.0596787878312 2.32830643654e-09" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0132502007749 0.0388273631673 0.00902879150147" />
+      </geometry>
+    </collision>
+    <collision name="compact_08">
+      <origin xyz="-0.0965843237936 0.0855635632761 -1.86264514923e-09" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0132502007749 0.0129425877224 0.0206001910831" />
+      </geometry>
+    </collision>
+    <collision name="compact_09">
+      <origin xyz="-0.0965843237936 -0.0632738955319 2.32830643654e-09" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0132502007749 0.0345132339265 0.00900020333786" />
+      </geometry>
+    </collision>
+    <collision name="compact_10">
+      <origin xyz="-0.099409326911 0 -0.0153782105772" rpy="0 0 0" />
+      <geometry>
+        <box size="0.014600193825 0.0526397068153 0.00722127454203" />
+      </geometry>
+    </collision>
+    <collision name="compact_11">
+      <origin xyz="-0.0983343236148 -0.00287608616054 0.00267447577789" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0167502004172 0.0517697508897 0.0288844981681" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="right_arm_end_joint" type="fixed">
+    <origin xyz="0 0 0.15539" rpy="0 -1.5708 3.1415" />
+    <parent link="right_arm_link6" />
+    <child link="right_arm_end_link" />
+    <axis xyz="0 0 0" />
+  </joint>
+  <link name="right_arm_finger_left_link">
+    <visual name="right_arm_finger_left_body">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_left_finger_finger_black.stl" />
+      </geometry>
+      <material name="right_arm_gripper_finger_black" />
+    </visual>
+    <visual name="right_arm_finger_left_carriage">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/shared/colored_left_finger_carriage_grey.stl" />
+      </geometry>
+      <material name="right_arm_gripper_carriage_grey" />
+    </visual>
+    <visual name="right_arm_finger_left_travel_stop">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/shared/colored_left_finger_travel_stop_yellow.stl" />
+      </geometry>
+      <material name="right_arm_gripper_seeed_yellow" />
+    </visual>
+    <visual name="right_arm_finger_left_crossed_rack">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_left_finger_rack_metal.stl" />
+      </geometry>
+      <material name="right_arm_gripper_rack_metal" />
+    </visual>
+    <collision name="compact_00">
+      <origin xyz="-0.0856093242764 0.0136496648192 -0.0132056064904" rpy="0 0 0" />
+      <geometry>
+        <box size="0.00600019725819 0.089999533024 0.0120024520423" />
+      </geometry>
+    </collision>
+    <collision name="compact_01">
+      <origin xyz="-0.058149869286 0.0117390418527 1.3031065464e-05" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0166144474289 0.0235333473377 0.0392141367759" />
+      </geometry>
+    </collision>
+    <collision name="compact_02">
+      <origin xyz="-0.0467275741786 0.00760027554729 1.30310472837e-05" rpy="0 0 0" />
+      <geometry>
+        <box size="0.00623054278582 0.0152558147269 0.0335022780168" />
+      </geometry>
+    </collision>
+    <collision name="compact_03">
+      <origin xyz="-0.0725331589961 0.0197000012267 0.00480499491096" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0121525319913 0.0291002022553 0.00961020099778" />
+      </geometry>
+    </collision>
+    <collision name="compact_04">
+      <origin xyz="-0.0719950754767 0.0197000012267 -0.00961000658572" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0110763649526 0.0291002022553 0.0192202019956" />
+      </geometry>
+    </collision>
+    <collision name="compact_05">
+      <origin xyz="-0.0780712414723 0.0197000012267 -0.0118600036949" rpy="0 0 0" />
+      <geometry>
+        <box size="0.00107636703873 0.0291002022553 0.0147202077772" />
+      </geometry>
+    </collision>
+    <collision name="compact_06">
+      <origin xyz="-0.0186910316424 0.00634326782892 1.30309972121e-05" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0124608855716 0.0127417992902 0.0177711719974" />
+      </geometry>
+    </collision>
+    <collision name="compact_07">
+      <origin xyz="-0.0389396456964 0.00634326782892 1.30310347658e-05" rpy="0 0 0" />
+      <geometry>
+        <box size="0.00934571417873 0.0127417992902 0.029569501512" />
+      </geometry>
+    </collision>
+    <collision name="compact_08">
+      <origin xyz="-0.0615126894441 0.0274278067445 1.3031065464e-05" rpy="0 0 0" />
+      <geometry>
+        <box size="0.00988880711267 0.00784458244591 0.0392141367759" />
+      </geometry>
+    </collision>
+    <collision name="compact_09">
+      <origin xyz="-0.00623034607079 0.00584326774697 1.30309721763e-05" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0124608855716 0.0117417991263 0.00990561898768" />
+      </geometry>
+    </collision>
+    <collision name="compact_10">
+      <origin xyz="-0.0745331593239 0.0197000012267 0.0144149959087" rpy="0 0 0" />
+      <geometry>
+        <box size="0.016152532647 0.0291002022553 0.00961020099778" />
+      </geometry>
+    </collision>
+    <collision name="compact_11">
+      <origin xyz="-0.0295941315176 0.00634326782892 1.3031015989e-05" rpy="0 0 0" />
+      <geometry>
+        <box size="0.00934571417873 0.0127417992902 0.0236703367547" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="right_arm_finger_left" type="prismatic">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="right_arm_end_link" />
+    <child link="right_arm_finger_left_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="0" upper="0.05" effort="8" velocity="0.08" />
+  </joint>
+  <link name="right_arm_finger_right_link">
+    <visual name="right_arm_finger_right_body">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_right_finger_finger_black.stl" />
+      </geometry>
+      <material name="right_arm_gripper_finger_black" />
+    </visual>
+    <visual name="right_arm_finger_right_carriage">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/shared/colored_right_finger_carriage_grey.stl" />
+      </geometry>
+      <material name="right_arm_gripper_carriage_grey" />
+    </visual>
+    <visual name="right_arm_finger_right_travel_stop">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/shared/colored_right_finger_travel_stop_yellow.stl" />
+      </geometry>
+      <material name="right_arm_gripper_seeed_yellow" />
+    </visual>
+    <visual name="right_arm_finger_right_crossed_rack">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/visual/colored_right_finger_rack_metal.stl" />
+      </geometry>
+      <material name="right_arm_gripper_rack_metal" />
+    </visual>
+    <collision name="compact_00">
+      <origin xyz="-0.0745331593239 -0.0197000012267 -0.0143785240679" rpy="0 0 0" />
+      <geometry>
+        <box size="0.016152532647 0.0291002022553 0.00968314467955" />
+      </geometry>
+    </collision>
+    <collision name="compact_01">
+      <origin xyz="-0.0614827674621 -0.0279501166588 0.000149157829583" rpy="0 0 0" />
+      <geometry>
+        <box size="0.00994865107652 0.00799381384998 0.039538514566" />
+      </geometry>
+    </collision>
+    <collision name="compact_02">
+      <origin xyz="-0.0467275741786 -0.00780825108723 1.53423242526e-06" rpy="0 0 0" />
+      <geometry>
+        <box size="0.00623054278582 0.0156717658068 0.0335314085762" />
+      </geometry>
+    </collision>
+    <collision name="compact_03">
+      <origin xyz="-0.0856093242764 -0.0136496648192 0.0132056064904" rpy="0 0 0" />
+      <geometry>
+        <box size="0.00600019725819 0.089999533024 0.0120024520423" />
+      </geometry>
+    </collision>
+    <collision name="compact_04">
+      <origin xyz="-0.0719950754767 -0.0198101450223 0.00982883763101" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0110763649526 0.0293204898465 0.0193660893591" />
+      </geometry>
+    </collision>
+    <collision name="compact_05">
+      <origin xyz="-0.0780712414723 -0.0197111803113 0.0118729731553" rpy="0 0 0" />
+      <geometry>
+        <box size="0.00107636703873 0.0291225604244 0.0147461466979" />
+      </geometry>
+    </collision>
+    <collision name="compact_06">
+      <origin xyz="-0.0186910316424 -0.00634326906047 -1.30309972121e-05" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0124608855716 0.0127418017533 0.0177711719974" />
+      </geometry>
+    </collision>
+    <collision name="compact_07">
+      <origin xyz="-0.0389396456964 -0.00636307752575 -1.14371347964e-05" rpy="0 0 0" />
+      <geometry>
+        <box size="0.00934571417873 0.0127814186838 0.0295726893119" />
+      </geometry>
+    </collision>
+    <collision name="compact_08">
+      <origin xyz="-0.058149869286 -0.0119628889588 0.000117219664252" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0166144474289 0.0239810415499 0.0394746382354" />
+      </geometry>
+    </collision>
+    <collision name="compact_09">
+      <origin xyz="-0.00623034607079 -0.00584326774697 -1.30309721763e-05" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0124608855716 0.0117417991263 0.00990561898768" />
+      </geometry>
+    </collision>
+    <collision name="compact_10">
+      <origin xyz="-0.0725331589961 -0.0197058662188 -0.00469557938831" rpy="0 0 0" />
+      <geometry>
+        <box size="0.0121525319913 0.0291119322395 0.00968314467955" />
+      </geometry>
+    </collision>
+    <collision name="compact_11">
+      <origin xyz="-0.0295941315176 -0.00634946372114 -1.27092918668e-05" rpy="0 0 0" />
+      <geometry>
+        <box size="0.00934571417873 0.0127541910746 0.0236709802029" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="right_arm_finger_right" type="prismatic">
+    <origin xyz="0 0 0" rpy="0 0 0" />
+    <parent link="right_arm_end_link" />
+    <child link="right_arm_finger_right_link" />
+    <axis xyz="0 1 0" />
+    <limit lower="-0.05" upper="0" effort="8" velocity="0.08" />
+    <mimic joint="right_arm_finger_left" multiplier="-1" offset="0" />
+  </joint>
+  <joint name="right_arm_mount_joint" type="fixed">
+    <parent link="top_plate_link" />
+    <child link="right_arm_base_link" />
+    <origin xyz="0.020000000000 -0.082921485063 -0.047325904937" rpy="0.7853981633974483 0 0" />
+  </joint>
+  <link name="right_arm_tool0" />
+  <joint name="right_arm_tool0_joint" type="fixed">
+    <parent link="right_arm_end_link" />
+    <child link="right_arm_tool0" />
+    <origin xyz="0 0 0" rpy="0 0 0" />
+  </joint>
+<!-- 손목 카메라 D435i (+ 마운트) — 이전 모델(mobile_robot_right_arm_description, 2026-11-07)에서 그대로 옮김.
+     부모 right_arm_end_link (두 모델에서 위치 같음: link6 기준 xyz 0 0 0.15539, rpy 0 -1.5708 3.1415).
+     질량: 마운트 0.0461 kg, 카메라 0.072 kg. 충돌: 카메라 박스 0.02505×0.09×0.025 (마운트는 충돌 없음).
+     tools/add_wrist_camera.py 가 URDF 에 넣음 — 직접 넣지 말 것 -->
+  <joint name="right_arm_wrist_camera_adapter_joint" type="fixed">
+    <parent link="right_arm_end_link" />
+    <child link="right_arm_wrist_gripper_end" />
+    <origin xyz="0.010819999999927027 -5.0915006438381365e-23 -3.9744079217264094e-08" rpy="0.00010000000000164214 7.3464101910669655e-06 3.4033563838767496e-10" />
+  </joint>
+  <link name="right_arm_wrist_gripper_end" />
+  <link name="right_arm_wrist_camera_mount_link">
+    <inertial>
+      <origin xyz="0.00168106 0.0392656 0.00129679" rpy="0 0 0" />
+      <mass value="0.0461" />
+      <inertia ixx="3.82934e-05" ixy="-1.01765e-06" ixz="4.05702e-07" iyy="2.84946e-05" iyz="1.29755e-05" izz="4.86058e-05" />
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/camera/D435_Gemini2_Mount.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="right_arm_wrist_gripper_to_mount" type="fixed">
+    <parent link="right_arm_wrist_gripper_end" />
+    <child link="right_arm_wrist_camera_mount_link" />
+    <origin rpy="1.5827 0.0024 1.5515" xyz="-0.1201 0.0003 0.0450" />
+  </joint>
+  <joint name="right_arm_wrist_camera_joint" type="fixed">
+    <origin rpy="0.0126 -1.0489 -1.5981" xyz="-0.0003 0.0445 -0.0095" />
+    <parent link="right_arm_wrist_camera_mount_link" />
+    <child link="right_arm_wrist_camera_bottom_screw_frame" />
+  </joint>
+  <link name="right_arm_wrist_camera_bottom_screw_frame" />
+  <joint name="right_arm_wrist_camera_link_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="0.010600000000000002 0.0175 0.0125" />
+    <parent link="right_arm_wrist_camera_bottom_screw_frame" />
+    <child link="right_arm_wrist_camera_link" />
+  </joint>
+  <link name="right_arm_wrist_camera_link">
+    <visual>
+      <origin rpy="1.5707963267948966 0 1.5707963267948966" xyz="0.0043 -0.0175 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/camera/d435.dae" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 -0.0175 0" />
+      <geometry>
+        <box size="0.02505 0.09 0.025" />
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.072" />
+      <origin xyz="0 0 0" />
+      <inertia ixx="0.003881243" ixy="0.0" ixz="0.0" iyy="0.000498940" iyz="0.0" izz="0.003879257" />
+    </inertial>
+  </link>
+  <joint name="right_arm_wrist_camera_depth_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="0 0 0" />
+    <parent link="right_arm_wrist_camera_link" />
+    <child link="right_arm_wrist_camera_depth_frame" />
+  </joint>
+  <link name="right_arm_wrist_camera_depth_frame" />
+  <joint name="right_arm_wrist_camera_depth_optical_joint" type="fixed">
+    <origin rpy="-1.5707963267948966 0 -1.5707963267948966" xyz="0 0 0" />
+    <parent link="right_arm_wrist_camera_depth_frame" />
+    <child link="right_arm_wrist_camera_depth_optical_frame" />
+  </joint>
+  <link name="right_arm_wrist_camera_depth_optical_frame" />
+  <joint name="right_arm_wrist_camera_infra1_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="0 0.0 0" />
+    <parent link="right_arm_wrist_camera_link" />
+    <child link="right_arm_wrist_camera_infra1_frame" />
+  </joint>
+  <link name="right_arm_wrist_camera_infra1_frame" />
+  <joint name="right_arm_wrist_camera_infra1_optical_joint" type="fixed">
+    <origin rpy="-1.5707963267948966 0 -1.5707963267948966" xyz="0 0 0" />
+    <parent link="right_arm_wrist_camera_infra1_frame" />
+    <child link="right_arm_wrist_camera_infra1_optical_frame" />
+  </joint>
+  <link name="right_arm_wrist_camera_infra1_optical_frame" />
+  <joint name="right_arm_wrist_camera_infra2_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="0 -0.05 0" />
+    <parent link="right_arm_wrist_camera_link" />
+    <child link="right_arm_wrist_camera_infra2_frame" />
+  </joint>
+  <link name="right_arm_wrist_camera_infra2_frame" />
+  <joint name="right_arm_wrist_camera_infra2_optical_joint" type="fixed">
+    <origin rpy="-1.5707963267948966 0 -1.5707963267948966" xyz="0 0 0" />
+    <parent link="right_arm_wrist_camera_infra2_frame" />
+    <child link="right_arm_wrist_camera_infra2_optical_frame" />
+  </joint>
+  <link name="right_arm_wrist_camera_infra2_optical_frame" />
+  <joint name="right_arm_wrist_camera_color_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="0 0.015 0" />
+    <parent link="right_arm_wrist_camera_link" />
+    <child link="right_arm_wrist_camera_color_frame" />
+  </joint>
+  <link name="right_arm_wrist_camera_color_frame" />
+  <joint name="right_arm_wrist_camera_color_optical_joint" type="fixed">
+    <origin rpy="-1.5707963267948966 0 -1.5707963267948966" xyz="0 0 0" />
+    <parent link="right_arm_wrist_camera_color_frame" />
+    <child link="right_arm_wrist_camera_color_optical_frame" />
+  </joint>
+  <link name="right_arm_wrist_camera_color_optical_frame" />
+  <link name="right_arm_wrist_camera_accel_frame" />
+  <link name="right_arm_wrist_camera_accel_optical_frame" />
+  <link name="right_arm_wrist_camera_gyro_frame" />
+  <link name="right_arm_wrist_camera_gyro_optical_frame" />
+  <joint name="right_arm_wrist_camera_accel_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="-0.01174 -0.00552 0.0051" />
+    <parent link="right_arm_wrist_camera_link" />
+    <child link="right_arm_wrist_camera_accel_frame" />
+  </joint>
+  <joint name="right_arm_wrist_camera_accel_optical_joint" type="fixed">
+    <origin rpy="-1.5707963267948966 0 -1.5707963267948966" xyz="0 0 0" />
+    <parent link="right_arm_wrist_camera_accel_frame" />
+    <child link="right_arm_wrist_camera_accel_optical_frame" />
+  </joint>
+  <joint name="right_arm_wrist_camera_gyro_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="-0.01174 -0.00552 0.0051" />
+    <parent link="right_arm_wrist_camera_link" />
+    <child link="right_arm_wrist_camera_gyro_frame" />
+  </joint>
+  <joint name="right_arm_wrist_camera_gyro_optical_joint" type="fixed">
+    <origin rpy="-1.5707963267948966 0 -1.5707963267948966" xyz="0 0 0" />
+    <parent link="right_arm_wrist_camera_gyro_frame" />
+    <child link="right_arm_wrist_camera_gyro_optical_frame" />
+  </joint>
+</robot>

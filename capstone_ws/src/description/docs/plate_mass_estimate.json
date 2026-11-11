@@ -1,0 +1,33 @@
+{
+  "method": "Uniform effective density calibrated to original mass / original signed mesh volume. Identify plate triangles by original vs no-plate visual difference using 1e-7 m vertex rounding, validate 140x200x14 mm bounds, remove matching collision triangles. Screws retained. Remaining COM and inertia integrated over signed tetrahedra. Geometry-based estimate, not CAD material properties.",
+  "original_mass_kg": 0.8366,
+  "estimated_remaining_mass_kg": 0.4390726055238945,
+  "estimated_removed_plate_mass_kg": 0.3975273944761055,
+  "density_kg_m3": 1030.9394901871474,
+  "remaining_COM_m": [
+    -9.669942069175058e-07,
+    -1.5679149001979947e-06,
+    0.05048929846918747
+  ],
+  "remaining_inertia_kg_m2": [
+    [
+      0.0004495262627493947,
+      -1.8317678600388694e-09,
+      5.839175615690149e-08
+    ],
+    [
+      -1.8317678600303416e-09,
+      0.0004346979448701502,
+      -4.413473936016235e-07
+    ],
+    [
+      5.839175615693627e-08,
+      -4.413473936016337e-07,
+      0.0005431868877260287
+    ]
+  ],
+  "original_triangles": 81594,
+  "plate_triangles_removed": 2720,
+  "remaining_triangles": 78874,
+  "gripper_fingers": "No inertials added: current RViz/kinematics use does not require them."
+}

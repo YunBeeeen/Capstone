@@ -20,6 +20,11 @@ import re
 import sys
 from pathlib import Path
 
+# 2026-11-11: URDF 를 질량이 들어간 mobile_robot_description 으로 교체 → 이 스크립트는 그 값을 덮어씀. 막아 둠
+if "--overwrite-new-masses" not in sys.argv:
+    sys.exit("set_urdf_inertia.py: 새 URDF(mobile_robot_description)에 질량이 이미 들어 있어서 막아 둠. "
+             "정말 옛 부품 무게표로 덮어쓰려면 --overwrite-new-masses")
+
 import mujoco
 import numpy as np
 

@@ -10,7 +10,7 @@
 
 그래서 swerve_controller 노드는 실기와 **같은 바이너리·같은 설정**으로 이 시뮬에 붙는다.
 
-모델: mobile_robot_right_arm_description/mjcf/mobile_robot_right_arm.xml (미리 생성, 켤 때 변환 없음)
+모델: mobile_robot_description/mjcf/mobile_robot_right_arm.xml (미리 생성, 켤 때 변환 없음)
   → URDF 를 고쳤으면 `python3 src/sim/scripts/build_mjcf.py` 로 다시 생성. 모델 쪽 가정은 그 파일 docstring 참고.
   다른 MJCF 를 쓰려면 파라미터 mjcf:=<경로>.
 URDF 의 'world' 링크 = 로봇 바닥 기준점(base_footprint 역할) → TF 는 odom → world 로 발행.
@@ -40,7 +40,7 @@ WORLD_Z = 0.020  # URDF world_to_base: base_link 가 world(바닥 기준점) 보
 
 
 def default_mjcf():
-    share = Path(get_package_share_directory("mobile_robot_right_arm_description"))
+    share = Path(get_package_share_directory("mobile_robot_description"))
     return str(share / "mjcf" / "mobile_robot_right_arm.xml")
 
 

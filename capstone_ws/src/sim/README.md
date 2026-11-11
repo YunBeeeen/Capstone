@@ -62,7 +62,7 @@ ros2 topic pub --once /wheel_cmd capstone_msgs/msg/WheelCommand "{mode: 2}"     
 - 실기도 같음: **보드 `vel_ramp_rate` 를 올리거나 `input_mode` 를 VEL_RAMP 가 아닌 것으로 바꾸면 급정지 때 넘어질 수 있음**
 
 ## 모델
-**`src/description/mjcf/mobile_robot_right_arm.xml`** (패키지 이름 `mobile_robot_right_arm_description`) — 미리 생성한 MJCF (켤 때 변환 없음).
+**`src/description/mjcf/mobile_robot_right_arm.xml`** (패키지 이름 `mobile_robot_description`) — 미리 생성한 MJCF (켤 때 변환 없음).
 원본은 같은 패키지의 `urdf/mobile_robot_right_arm.urdf` (이동로봇 + B601-DM 오른팔 + 손목 D435i, 메쉬 단순화 없음).
 
 ```bash

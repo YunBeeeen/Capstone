@@ -1,0 +1,44 @@
+Panels:
+- Class: rviz_common/Displays
+  Name: Displays
+Visualization Manager:
+  Class: ''
+  Global Options:
+    Fixed Frame: world
+    Background Color: 48; 48; 48
+  Displays:
+  - Class: rviz_default_plugins/Grid
+    Name: Grid
+    Enabled: true
+    Cell Size: 0.5
+  - Class: rviz_default_plugins/RobotModel
+    Name: RobotModel
+    Enabled: true
+    Description Source: Topic
+    Description Topic:
+      Value: /robot_description
+      Durability Policy: Transient Local
+      Reliability Policy: Reliable
+    Visual Enabled: false
+    Collision Enabled: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Name: Current View
+      Target Frame: world
+      Distance: 3.3
+      Pitch: 0.25
+      Yaw: 0.8
+      Focal Point:
+        X: 0.0
+        Y: 0.0
+        Z: 0.7
+      Near Clip Distance: 0.01
+    Saved: null
+  Tools:
+  - Class: rviz_default_plugins/MoveCamera
+  - Class: rviz_default_plugins/Interact
+    Hide Inactive Objects: true
+  - Class: rviz_default_plugins/Select
+  - Class: rviz_default_plugins/FocusCamera
+  Value: true

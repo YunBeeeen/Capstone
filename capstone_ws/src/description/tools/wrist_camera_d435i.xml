@@ -1,0 +1,130 @@
+<!-- 손목 카메라 D435i (+ 마운트) — 이전 모델(mobile_robot_right_arm_description, 2026-11-07)에서 그대로 옮김.
+     부모 right_arm_end_link (두 모델에서 위치 같음: link6 기준 xyz 0 0 0.15539, rpy 0 -1.5708 3.1415).
+     질량: 마운트 0.0461 kg, 카메라 0.072 kg. 충돌: 카메라 박스 0.02505×0.09×0.025 (마운트는 충돌 없음).
+     tools/add_wrist_camera.py 가 URDF 에 넣음 — 직접 넣지 말 것 -->
+  <joint name="right_arm_wrist_camera_adapter_joint" type="fixed">
+    <parent link="right_arm_end_link" />
+    <child link="right_arm_wrist_gripper_end" />
+    <origin xyz="0.010819999999927027 -5.0915006438381365e-23 -3.9744079217264094e-08" rpy="0.00010000000000164214 7.3464101910669655e-06 3.4033563838767496e-10" />
+  </joint>
+  <link name="right_arm_wrist_gripper_end" />
+  <link name="right_arm_wrist_camera_mount_link">
+    <inertial>
+      <origin xyz="0.00168106 0.0392656 0.00129679" rpy="0 0 0" />
+      <mass value="0.0461" />
+      <inertia ixx="3.82934e-05" ixy="-1.01765e-06" ixz="4.05702e-07" iyy="2.84946e-05" iyz="1.29755e-05" izz="4.86058e-05" />
+    </inertial>
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/camera/D435_Gemini2_Mount.stl" scale="0.001 0.001 0.001" />
+      </geometry>
+    </visual>
+  </link>
+  <joint name="right_arm_wrist_gripper_to_mount" type="fixed">
+    <parent link="right_arm_wrist_gripper_end" />
+    <child link="right_arm_wrist_camera_mount_link" />
+    <origin rpy="1.5827 0.0024 1.5515" xyz="-0.1201 0.0003 0.0450" />
+  </joint>
+  <joint name="right_arm_wrist_camera_joint" type="fixed">
+    <origin rpy="0.0126 -1.0489 -1.5981" xyz="-0.0003 0.0445 -0.0095" />
+    <parent link="right_arm_wrist_camera_mount_link" />
+    <child link="right_arm_wrist_camera_bottom_screw_frame" />
+  </joint>
+  <link name="right_arm_wrist_camera_bottom_screw_frame" />
+  <joint name="right_arm_wrist_camera_link_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="0.010600000000000002 0.0175 0.0125" />
+    <parent link="right_arm_wrist_camera_bottom_screw_frame" />
+    <child link="right_arm_wrist_camera_link" />
+  </joint>
+  <link name="right_arm_wrist_camera_link">
+    <visual>
+      <origin rpy="1.5707963267948966 0 1.5707963267948966" xyz="0.0043 -0.0175 0" />
+      <geometry>
+        <mesh filename="package://mobile_robot_description/meshes/arm/camera/d435.dae" />
+      </geometry>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 -0.0175 0" />
+      <geometry>
+        <box size="0.02505 0.09 0.025" />
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.072" />
+      <origin xyz="0 0 0" />
+      <inertia ixx="0.003881243" ixy="0.0" ixz="0.0" iyy="0.000498940" iyz="0.0" izz="0.003879257" />
+    </inertial>
+  </link>
+  <joint name="right_arm_wrist_camera_depth_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="0 0 0" />
+    <parent link="right_arm_wrist_camera_link" />
+    <child link="right_arm_wrist_camera_depth_frame" />
+  </joint>
+  <link name="right_arm_wrist_camera_depth_frame" />
+  <joint name="right_arm_wrist_camera_depth_optical_joint" type="fixed">
+    <origin rpy="-1.5707963267948966 0 -1.5707963267948966" xyz="0 0 0" />
+    <parent link="right_arm_wrist_camera_depth_frame" />
+    <child link="right_arm_wrist_camera_depth_optical_frame" />
+  </joint>
+  <link name="right_arm_wrist_camera_depth_optical_frame" />
+  <joint name="right_arm_wrist_camera_infra1_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="0 0.0 0" />
+    <parent link="right_arm_wrist_camera_link" />
+    <child link="right_arm_wrist_camera_infra1_frame" />
+  </joint>
+  <link name="right_arm_wrist_camera_infra1_frame" />
+  <joint name="right_arm_wrist_camera_infra1_optical_joint" type="fixed">
+    <origin rpy="-1.5707963267948966 0 -1.5707963267948966" xyz="0 0 0" />
+    <parent link="right_arm_wrist_camera_infra1_frame" />
+    <child link="right_arm_wrist_camera_infra1_optical_frame" />
+  </joint>
+  <link name="right_arm_wrist_camera_infra1_optical_frame" />
+  <joint name="right_arm_wrist_camera_infra2_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="0 -0.05 0" />
+    <parent link="right_arm_wrist_camera_link" />
+    <child link="right_arm_wrist_camera_infra2_frame" />
+  </joint>
+  <link name="right_arm_wrist_camera_infra2_frame" />
+  <joint name="right_arm_wrist_camera_infra2_optical_joint" type="fixed">
+    <origin rpy="-1.5707963267948966 0 -1.5707963267948966" xyz="0 0 0" />
+    <parent link="right_arm_wrist_camera_infra2_frame" />
+    <child link="right_arm_wrist_camera_infra2_optical_frame" />
+  </joint>
+  <link name="right_arm_wrist_camera_infra2_optical_frame" />
+  <joint name="right_arm_wrist_camera_color_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="0 0.015 0" />
+    <parent link="right_arm_wrist_camera_link" />
+    <child link="right_arm_wrist_camera_color_frame" />
+  </joint>
+  <link name="right_arm_wrist_camera_color_frame" />
+  <joint name="right_arm_wrist_camera_color_optical_joint" type="fixed">
+    <origin rpy="-1.5707963267948966 0 -1.5707963267948966" xyz="0 0 0" />
+    <parent link="right_arm_wrist_camera_color_frame" />
+    <child link="right_arm_wrist_camera_color_optical_frame" />
+  </joint>
+  <link name="right_arm_wrist_camera_color_optical_frame" />
+  <link name="right_arm_wrist_camera_accel_frame" />
+  <link name="right_arm_wrist_camera_accel_optical_frame" />
+  <link name="right_arm_wrist_camera_gyro_frame" />
+  <link name="right_arm_wrist_camera_gyro_optical_frame" />
+  <joint name="right_arm_wrist_camera_accel_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="-0.01174 -0.00552 0.0051" />
+    <parent link="right_arm_wrist_camera_link" />
+    <child link="right_arm_wrist_camera_accel_frame" />
+  </joint>
+  <joint name="right_arm_wrist_camera_accel_optical_joint" type="fixed">
+    <origin rpy="-1.5707963267948966 0 -1.5707963267948966" xyz="0 0 0" />
+    <parent link="right_arm_wrist_camera_accel_frame" />
+    <child link="right_arm_wrist_camera_accel_optical_frame" />
+  </joint>
+  <joint name="right_arm_wrist_camera_gyro_joint" type="fixed">
+    <origin rpy="0 0 0" xyz="-0.01174 -0.00552 0.0051" />
+    <parent link="right_arm_wrist_camera_link" />
+    <child link="right_arm_wrist_camera_gyro_frame" />
+  </joint>
+  <joint name="right_arm_wrist_camera_gyro_optical_joint" type="fixed">
+    <origin rpy="-1.5707963267948966 0 -1.5707963267948966" xyz="0 0 0" />
+    <parent link="right_arm_wrist_camera_gyro_frame" />
+    <child link="right_arm_wrist_camera_gyro_optical_frame" />
+  </joint>

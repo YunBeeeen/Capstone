@@ -5,16 +5,18 @@
   → src/description/mjcf/mobile_robot_right_arm.xml  (메쉬는 ../meshes 상대경로)
   python3 -m mujoco.viewer --mjcf=src/description/mjcf/mobile_robot_right_arm.xml   # 단독 보기
 
-URDF 는 그대로 두고 (메쉬 단순화 없음, visual 전부 사용) MuJoCo 용으로만 덧붙인다:
+입력 URDF 기본 = 충돌 단순화 버전 (mobile_robot_right_arm_collision.urdf: 박스·원통 충돌, visual·질량·관성·관절은 원본과 같음).
+  --urdf full 이면 원본 (충돌 메쉬). 어느 쪽이든 접촉은 바퀴 원기둥 ↔ 바닥만이라 동작은 같고, 단순화 쪽이 가벼움.
+URDF 는 그대로 두고 MuJoCo 용으로만 덧붙인다:
   - base_link 에 freejoint (URDF 의 world→base_link 고정을 풂). URDF 의 'world' 링크 = 바닥 기준점
-  - 질량: URDF 값 사용 (이동로봇 링크는 set_urdf_inertia.py 가 부품 무게표로 기록). URDF 에 없는 손가락만 MASS 임시값
-  - 손목 D435 는 DAE → 같은 형상 STL 2개 (d435_0/1.stl, b601_dm 패키지에서 변환해 둔 것)
+  - 질량: URDF 값 사용 (mobile_robot_description, 2026-11-11 질량 수정본). URDF 에 없는 손가락만 MASS 임시값
+  - (옛 모델) 손목 D435 DAE → STL 변환은 그 메쉬가 있을 때만
   - 접촉: 바퀴 원기둥(r 0.0525) ↔ 바닥만. 나머지 메쉬는 보기용 (충돌 메쉬는 그룹 3, 키 '3')
   - 조향: 기구 스토퍼 ±190° (URDF 는 continuous). 조향·구동 = 토크 모터 (시뮬 노드가 PD/PI 계산)
   - 리프트 2단 mimic, 그리퍼 mimic → equality. 리프트·팔·그리퍼 = 위치 액추에이터 (뷰어 Control 슬라이더)
   - 리프트·상판·팔은 중력보상 (자세 유지용 — 그 무게는 바퀴에 안 실림)
   - keyframe 'home' = launch 기본 자세 (joint2 −2, joint3 −1.2, joint4 −1, 그리퍼 0.035)
-  - 카메라: 'wrist_color' (D435 컬러 광학 프레임), 'front' (전방 카메라)
+  - 카메라: 'front' (전방 카메라), 'wrist_color' (손목 D435 광학 프레임 — 그 프레임이 URDF 에 있을 때만. 2026-11-11 모델엔 없음)
 """
 import argparse
 import copy
@@ -28,8 +30,10 @@ import mujoco
 import numpy as np
 
 WS_SRC = Path(__file__).resolve().parents[2]
-PKG = WS_SRC / "description"  # 패키지 이름은 mobile_robot_right_arm_description
-URDF = PKG / "urdf" / "mobile_robot_right_arm.urdf"
+PKG = WS_SRC / "description"  # 패키지 이름은 mobile_robot_description
+URDFS = {"collision": PKG / "urdf" / "mobile_robot_right_arm_collision.urdf",  # 기본 (시뮬·학습용)
+         "full": PKG / "urdf" / "mobile_robot_right_arm.urdf"}
+URDF = URDFS["collision"]
 OUT = PKG / "mjcf" / "mobile_robot_right_arm.xml"
 
 MODULES = ["fr", "rr", "rl", "fl"]  # [1 FR, 2 RR, 3 RL, 4 FL]
@@ -60,7 +64,7 @@ def prepare_urdf(meshdir):
     mj = ET.SubElement(root, "mujoco")
     ET.SubElement(mj, "compiler", meshdir=str(meshdir), strippath="false", fusestatic="false",
                   discardvisual="false", balanceinertia="true")
-    xml = ET.tostring(root, encoding="unicode").replace("package://mobile_robot_right_arm_description/meshes/", "")
+    xml = ET.tostring(root, encoding="unicode").replace("package://mobile_robot_description/meshes/", "")
     return xml, mimic
 
 
@@ -163,7 +167,11 @@ def build():
             a.inheritrange = 1.0
 
     # 8) 카메라
-    spec.body("right_arm_wrist_camera_color_optical_frame").add_camera(name="wrist_color", quat=[0, 1, 0, 0], fovy=60)
+    names = {b.name for b in spec.bodies}
+    if "right_arm_wrist_camera_color_optical_frame" in names:
+        spec.body("right_arm_wrist_camera_color_optical_frame").add_camera(name="wrist_color", quat=[0, 1, 0, 0], fovy=60)
+    else:
+        print("참고: 손목 카메라 프레임 없음 → 'wrist_color' 카메라 생략")
     spec.body("front_camera_link").add_camera(name="front", xyaxes=[0, -1, 0, 0, 0, 1], fovy=70)
 
     # 9) home keyframe
@@ -183,7 +191,10 @@ def build():
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("-o", "--out", default=str(OUT))
+    ap.add_argument("--urdf", choices=sorted(URDFS), default="collision", help="collision(기본, 단순화) / full(원본)")
     a = ap.parse_args()
+    global URDF
+    URDF = URDFS[a.urdf]
     spec = build()
     m = spec.compile()
     out = Path(a.out)
@@ -191,7 +202,7 @@ def main():
     rel = Path(*[".."] * len(out.parent.relative_to(PKG).parts)) / "meshes" if out.parent.is_relative_to(PKG) else PKG / "meshes"
     xml = spec.to_xml()
     xml = re.sub(r'meshdir="[^"]*"', f'meshdir="{rel.as_posix()}"', xml, count=1)
-    header = ("<!-- 자동 생성: src/sim/scripts/build_mjcf.py (원본 urdf/mobile_robot_right_arm.urdf). "
+    header = (f"<!-- 자동 생성: src/sim/scripts/build_mjcf.py (원본 urdf/{URDF.name}). "
               "직접 고치지 말고 URDF/생성기를 고친 뒤 다시 실행. 질량은 추정값. -->\n")
     out.write_text(header + xml)
     # 저장한 파일을 다시 읽어 검증 (상대 메쉬 경로)

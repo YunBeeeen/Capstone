@@ -22,7 +22,7 @@ from launch_ros.actions import Node
 def generate_launch_description():
     swerve_cfg = Path(get_package_share_directory('swerve_controller')) / 'config' / 'swerve_controller.yaml'
     teleop_launch = Path(get_package_share_directory('capstone_teleop')) / 'launch' / 'teleop.launch.py'
-    desc = Path(get_package_share_directory('mobile_robot_right_arm_description'))
+    desc = Path(get_package_share_directory('mobile_robot_description'))
     urdf = (desc / 'urdf' / 'mobile_robot_right_arm.urdf').read_text()  # MJCF 와 같은 원본
     rviz_cfg = Path(get_package_share_directory('capstone_sim')) / 'rviz' / 'sim.rviz'
     return LaunchDescription([
