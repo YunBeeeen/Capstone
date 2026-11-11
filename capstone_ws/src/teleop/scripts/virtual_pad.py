@@ -31,6 +31,12 @@
   PWM 은 --lift-fast / --lift-slow 로. 라파 브리지가 0.3 에서 램프로 올리고, 원점 미등록이면 50 % 까지만 냄
   원점 미등록이면 끝단 보호가 없음 → 보면서 조작. 라파 lift_bridge 를 Ctrl+C 로 끄면 최하단에 내려 놓고 꺼짐
 
+자율주행 (Nav2) — 노트북에서 nav.launch.py cmd_vel_topic:=/nav/cmd_vel 를 띄운 뒤:
+  python3 virtual_pad.py --udp raspberrypi.local --nav-topic /nav/cmd_vel --max-lin 0.2 --max-ang 0.5
+  N (키보드) 또는 게임패드 RT 를 반 넘게 당기고 있는 동안만 Nav2 명령을 보냄 (데드맨). 놓으면 0.
+  N 은 창 포커스가 있어야 읽힘 (잃으면 0). 게임패드는 창 포커스와 상관없이 읽힘.
+  마우스 패드·Q/E·게임패드(RB)를 쓰면 사람 입력이 우선. Nav2 명령도 --max-lin / --max-ang 로 다시 자름.
+
 패드에서 손을 떼도 0 을 계속 보냄 (rate Hz) → swerve_controller 는 ACTIVE 유지(속도 0 = 제자리).
 창을 닫으면 발행이 멈춰서 swerve_controller 가 cmd_timeout 뒤 HOLD.
 
@@ -55,6 +61,8 @@ import udp_packet as up  # noqa: E402
 
 # 게임패드 리프트 버튼 (SHAKS S0, pygame 번호 = jstest 번호: 0 A 1 B 2 X 3 Y 4 LB 5 RB 6 Select 7 Start).
 # 십자키 = 속도 상한 조절 (hat 0, 없으면 axes[6]/[7])
+NAV_AXIS, NAV_AXIS_ON = 5, 0.5  # RT(축 5, pygame 원값: 놓음 −1 → 끝까지 +1) 를 반 넘게 당기는 동안 = Nav2 자율주행 데드맨
+# (LB 는 팔 조작에 쓸 예정이라 피함). 일부 드라이버는 처음 한 번 당기기 전엔 0 을 줌 → 0.5 기준이라 안전 쪽
 LIN_STEP, LIN_MIN, LIN_MAX = 0.05, 0.05, 0.6   # [m/s]  (swerve max_wheel_mps 0.6)
 ANG_STEP, ANG_MIN, ANG_MAX = 0.1, 0.1, 2.0     # [rad/s]
 
@@ -142,6 +150,14 @@ class Gamepad:
                        fast, slow)
         return pwm, flags
 
+    def nav_held(self):
+        """자율주행 데드맨: RT 를 반 넘게 당김 (RB 를 같이 누르면 수동 조종이 우선이라 아님)."""
+        js = self.js
+        if js is None or js.get_numaxes() <= NAV_AXIS:
+            return False
+        rb = 0 <= self.cfg["enable_button"] < js.get_numbuttons() and js.get_button(self.cfg["enable_button"])
+        return bool(js.get_axis(NAV_AXIS) > NAV_AXIS_ON and not rb)
+
     def dpad(self):
         """(dx, dy) 오른쪽·위 = +1."""
         js = self.js
@@ -227,6 +243,44 @@ class RosSink:
             self.rclpy.shutdown()
 
 
+class NavSource:
+    """Nav2 최종 속도(--nav-topic, 예 /nav/cmd_vel) 구독. N 을 누르는 동안만 이 값을 로봇에 보냄 (데드맨).
+    노트북에 ROS(Humble) 가 source 돼 있어야 함. UDP 모드에서도 이 구독만 ROS 를 씀."""
+
+    def __init__(self, topic):
+        import rclpy
+        from geometry_msgs.msg import Twist
+        if not rclpy.ok():
+            try:
+                from rclpy.signals import SignalHandlerOptions
+                rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
+            except (ImportError, TypeError):
+                rclpy.init()
+        self.rclpy = rclpy
+        self.node = rclpy.create_node("virtual_pad_nav")
+        self.last, self.t = (0.0, 0.0, 0.0), 0.0
+        self.node.create_subscription(Twist, topic, self._cb, 10)
+
+    def _cb(self, m):
+        self.last, self.t = (m.linear.x, m.linear.y, m.angular.z), time.monotonic()
+
+    def poll(self):
+        if self.rclpy.ok():
+            self.rclpy.spin_once(self.node, timeout_sec=0.0)
+
+    def latest(self, max_age):
+        """신선한 명령이면 (vx, vy, ω), 아니면 None (Nav2 가 멈췄거나 목표 없음)."""
+        return self.last if time.monotonic() - self.t < max_age else None
+
+    def age(self):
+        return time.monotonic() - self.t if self.t else float("inf")
+
+    def close(self):
+        self.node.destroy_node()
+        if self.rclpy.ok():
+            self.rclpy.shutdown()
+
+
 class UdpSink:
     """노트북 → 라파 udp_teleop_bridge.py. 패킷 udp_packet.py (v2: 속도 + 리프트), 라파가 5 Hz 로 JSON 상태를 돌려줌."""
 
@@ -294,9 +348,14 @@ class UdpSink:
 
 
 def run(args):
+    import os
+    # 창 포커스를 잃어도 게임패드 상태를 계속 갱신 (SDL 기본은 배경에서 조이스틱 이벤트를 버림 →
+    # 버튼을 누른 채 포커스를 잃으면 '눌림' 으로 남아 데드맨이 풀리지 않을 수 있음)
+    os.environ.setdefault("SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS", "1")
     import pygame
 
     sink = UdpSink(args.udp) if args.udp else RosSink(args.topic)
+    nav = NavSource(args.nav_topic) if args.nav_topic else None
     pygame.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption(f"capstone virtual pad → {args.topic}")
@@ -376,6 +435,20 @@ def run(args):
                     vy = lim(nl(gvy, gcfg["scale_linear_y"], args.max_lin), args.max_lin)
                     omega = lim(nl(gw, gcfg["scale_angular"], args.max_ang), args.max_ang)
                     source = "gamepad"
+            # Nav2 (데드맨): N 을 누르고 있고, 사람 입력(마우스 패드·Q/E·게임패드 RB)이 없을 때만. 떼면 즉시 0
+            if nav is not None:
+                nav.poll()
+                manual = left.dragging or right.dragging or keys[pygame.K_q] or keys[pygame.K_e] or source == "gamepad"
+                nav_hold = keys[pygame.K_n] or (gpad is not None and gpad.nav_held())
+                if nav_hold and not manual:
+                    c = nav.latest(args.nav_timeout)
+                    if c is None:
+                        vx = vy = omega = 0.0
+                        source = "nav: no cmd"
+                    else:
+                        lim = lambda v, m: max(-m, min(m, v))  # noqa: E731
+                        vx, vy, omega = lim(c[0], args.max_lin), lim(c[1], args.max_lin), lim(c[2], args.max_ang)
+                        source = "nav"
             if keys[pygame.K_SPACE]:
                 vx = vy = omega = 0.0
 
@@ -407,6 +480,12 @@ def run(args):
                 screen.blit(t, (pad.center[0] - t.get_width() // 2, pad.center[1] + pad.radius + 10))
             screen.blit(font.render(f"vx={vx:+.2f} m/s  vy={vy:+.2f} m/s  omega={omega:+.2f} rad/s   [{source}]",
                                     True, (220, 220, 230)), (16, 16))
+            if nav is not None:
+                a = nav.age()
+                held = keys[pygame.K_n] or (gpad is not None and gpad.nav_held())
+                screen.blit(font.render(f"NAV: hold N or RT = autonomous ({args.nav_topic}, last cmd {a:.1f}s ago)"
+                                        if a < 1e6 else f"NAV: hold N = autonomous ({args.nav_topic}, no cmd yet)",
+                                        True, (120, 230, 120) if held and source == "nav" else (200, 180, 90)), (16, 96))
             gname = gpad.name() if gpad is not None else None
             screen.blit(font.render(f"gamepad: {gname}  (hold RB + sticks)" if gname else "gamepad: none",
                                     True, (120, 200, 230) if gname else (110, 110, 120)), (16, 70))
@@ -431,6 +510,8 @@ def run(args):
             sink.send(0.0, 0.0, 0.0)
             time.sleep(0.02)
         sink.close()
+        if nav is not None:
+            nav.close()
         pygame.quit()
 
 
@@ -439,6 +520,9 @@ def main():
     ap.add_argument("--topic", default="/cmd_vel")
     ap.add_argument("--udp", metavar="HOST[:PORT]", help="ROS 대신 UDP 로 라파 udp_teleop_bridge.py 에 보냄 (기본 포트 5005)")
     ap.add_argument("--no-gamepad", action="store_true", help="게임패드 읽지 않음")
+    ap.add_argument("--nav-topic", metavar="TOPIC",
+                    help="Nav2 속도 토픽 (예 /nav/cmd_vel). 주면 N 또는 게임패드 RT 를 당기는 동안만 그 값을 로봇에 보냄 (ROS source 필요)")
+    ap.add_argument("--nav-timeout", type=float, default=0.5, help="Nav2 명령이 이보다 오래되면 0 [s]")
     ap.add_argument("--rate", type=float, default=20.0, help="발행 주기 [Hz] (swerve cmd_timeout 0.3 s 보다 충분히 빠르게)")
     ap.add_argument("--max-lin", type=float, default=0.3, help="패드 끝 |vx|,|vy| [m/s] (swerve max_wheel_mps 0.6)")
     ap.add_argument("--max-ang", type=float, default=1.0, help="패드 끝 |ω| [rad/s]")

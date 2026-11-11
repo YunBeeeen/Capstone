@@ -9,7 +9,7 @@
   ros2 launch capstone_gazebo world.launch.py odom_noise:=false    # /odom 오차 끔 (기본: 실기 같은 오차 — noisy_odom.py)
 
   조종: ros2 run capstone_teleop virtual_pad.py   (또는 teleop:=true 로 SHAKS 게임패드)
-  카메라: ros2 run rqt_image_view rqt_image_view /zed/zed_node/rgb/image_rect_color
+  카메라: ros2 run rqt_image_view rqt_image_view /zed/zed_node/rgb/color/rect/image
 실기 DDS 망과 섞이지 않게: export ROS_DOMAIN_ID=<다른 번호>
 """
 import os
@@ -61,8 +61,8 @@ def generate_launch_description():
         DeclareLaunchArgument('world', default_value=str(share / 'worlds' / 'school_floor.world')),
         DeclareLaunchArgument('gui', default_value='true'),
         DeclareLaunchArgument('robot', default_value='test_rig', description="test_rig | none | <xacro/urdf 경로>"),
-        DeclareLaunchArgument('cam_z', default_value='1.0', description='시험용 로봇 카메라 높이 [m]'),
-        DeclareLaunchArgument('cam_pitch', default_value='0.26', description='시험용 로봇 카메라 아래로 [rad]'),
+        DeclareLaunchArgument('cam_z', default_value='0.69', description='시험용 로봇 카메라 높이 [m] (실기 리프트 최저 0.69)'),
+        DeclareLaunchArgument('cam_pitch', default_value='0.377', description='시험용 로봇 카메라 아래로 [rad] (실기 IMU 실측 21.6°)'),
         DeclareLaunchArgument('odom_tf', default_value='true',
                               description='false = /odom 의 TF odom→base 를 안 냄 (RTAB-Map 시각 odometry 가 TF 를 낼 때)'),
         DeclareLaunchArgument('odom_noise', default_value='true',

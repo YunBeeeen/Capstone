@@ -30,7 +30,7 @@ export ROS_DOMAIN_ID=77                                          # 실기 DDS �
 
 ros2 launch capstone_gazebo world.launch.py                      # 월드 + 시험용 로봇
 ros2 run capstone_teleop virtual_pad.py                          # 조종 (다른 터미널) — /cmd_vel
-ros2 run rqt_image_view rqt_image_view /zed/zed_node/rgb/image_rect_color
+ros2 run rqt_image_view rqt_image_view /zed/zed_node/rgb/color/rect/image
 
 ros2 launch capstone_gazebo world.launch.py gui:=false           # 창 없이
 ros2 launch capstone_gazebo world.launch.py robot:=none          # 월드만
@@ -58,7 +58,7 @@ GUI: 천장은 **레이어 1** — 왼쪽 패널 **Layers** 탭에서 끄면 위
 ## 토픽 (zed-ros2-wrapper 이름에 맞춤)
 | 토픽 | 타입 | 주기 (확인값) |
 |---|---|---|
-| `/zed/zed_node/rgb/image_rect_color`, `rgb/camera_info` | Image rgb8 640×360 | 15 Hz |
+| `/zed/zed_node/rgb/color/rect/image`, `rgb/color/rect/camera_info` | Image rgb8 640×360 | 15 Hz |
 | `/zed/zed_node/depth/depth_registered`, `depth/camera_info` | Image 32FC1 [m], 0.3~15 m | 15 Hz |
 | `/zed/zed_node/point_cloud/cloud_registered` | PointCloud2 | 15 Hz |
 | `/zed/zed_node/imu/data` | Imu (잡음·바이어스 있음) | ~170 Hz |

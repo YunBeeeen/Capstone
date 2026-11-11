@@ -1,0 +1,25 @@
+# ZED 단독 (바퀴 odom 없음) — slam.launch.py odom_source:=zed 와 같이 씀. zed_override.yaml 과 다른 점: two_d_mode false
+#   ros2 launch zed_wrapper zed_camera.launch.py camera_model:=zed2i camera_name:=zed publish_tf:=false publish_map_tf:=false \
+#     ros_params_override_path:=$(ros2 pkg prefix capstone_navigation)/share/capstone_navigation/config/zed_vio_only.yaml
+# publish_tf:=false → TF 는 slam.launch 의 zed_base_tf.py 가 냄 (카메라 자세를 수평 차체 + 기울기로 나눔)
+# two_d_mode 를 끄는 이유: ZED 의 two_d_mode 는 "카메라(zed_camera_link)" 의 roll·pitch 를 0 으로 고정함.
+#   카메라를 아래로 기울여 달면 depth 가 기울어진 채로 지도에 들어감 → 끄고, 카메라 기울기는 zed_base_tf.py 가 base_footprint→zed_camera_link 에 넣음
+/**:
+    ros__parameters:
+        general:
+            grab_frame_rate: 30
+            pub_frame_rate: 15.0
+            pub_resolution: 'NATIVE'     # 원본(HD720) 그대로 발행 — 물체 인식 등 고해상도가 필요한 노드가 같은 토픽을 씀.
+                                         # 지도 DB 크기는 RTAB-Map Mem/ImagePostDecimation 으로 줄임 (slam.launch.py)
+        depth:
+            min_depth: 0.3
+            max_depth: 10.0
+            depth_confidence: 50         # 기본 95. 낮을수록 신뢰도 낮은 depth 를 더 버림 → 먼 벽·경계의 번짐 ↓ (실측: 손에 들고 매핑 때 벽이 30~50 cm 두께로 번짐)
+            depth_texture_conf: 100      # 기본 그대로 — 낮추면 무늬 없는 흰 벽의 depth 가 사라짐
+        pos_tracking:
+            pos_tracking_mode: 'GEN_3'
+            imu_fusion: true
+            area_memory: false            # 루프 클로저는 RTAB-Map 만 (켜면 odom 이 순간이동)
+            reset_odom_with_loop_closure: false
+            two_d_mode: false
+            set_gravity_as_origin: true   # odom 프레임을 중력 기준으로 → 차체 프레임이 수평

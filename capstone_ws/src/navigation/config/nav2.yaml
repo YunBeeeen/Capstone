@@ -1,0 +1,190 @@
+# Nav2 (Humble) — 스워브 + ZED, 위치는 RTAB-Map(map→odom) + EKF(odom→base_footprint). AMCL·map_server 안 씀.
+# 만든 법: /opt/ros/humble/share/nav2_bringup/params/nav2_params.yaml 을 바탕으로 아래만 바꿈 (2026-11-11)
+#  - bt_navigator: frame map / base_footprint, odom = /odometry/filtered (EKF)
+#  - controller: MPPI, motion_model Omni. 옆 이동 vy ≤ 0.15 (카메라가 앞만 봄 → 옆·뒤는 안 보임), PreferForward
+#      progress_checker movement_time_allowance 15 s (swerve 정렬 게이트로 잠깐 서는 걸 고장으로 안 보게)
+#      goal tolerance 0.10 m / 0.10 rad — 마지막 정렬은 도킹이 맡음
+#  - costmap: 장애물 = /nav/obstacle_cloud (ZED depth → rtabmap_util/point_cloud_xyz, 4 배 추출·5 cm 격자),
+#      높이 0.06~1.9 m (바닥 빼고, 책상 상판 같은 공중 장애물 포함). 전역 정적 지도 = /rtabmap/map
+#      footprint = 실제 차체 (URDF base_link 0.342×0.432 + 1~2 cm) 0.38×0.46. 팔은 차체 안으로 접은 자세 가정
+#        (MJCF home 자세면 팔 끝이 앞 0.59, 오른쪽 0.43 까지 나감 — 주행 자세 정해지면 반영)
+#  - velocity_smoother: 감속 ≤ 0.6 m/s² (보드 vel_ramp 0.66 — 더 세게 서면 넘어짐, sim README 참고)
+# 고칠 땐 이 파일을 직접 고침 (생성기 없음)
+bt_navigator:
+  ros__parameters:
+    use_sim_time: true
+    global_frame: map
+    robot_base_frame: base_footprint
+    odom_topic: /odometry/filtered
+    bt_loop_duration: 10
+    default_server_timeout: 20
+    wait_for_service_timeout: 1000
+    plugin_lib_names: [nav2_compute_path_to_pose_action_bt_node, nav2_compute_path_through_poses_action_bt_node, nav2_smooth_path_action_bt_node,
+      nav2_follow_path_action_bt_node, nav2_spin_action_bt_node, nav2_wait_action_bt_node, nav2_assisted_teleop_action_bt_node,
+      nav2_back_up_action_bt_node, nav2_drive_on_heading_bt_node, nav2_clear_costmap_service_bt_node, nav2_is_stuck_condition_bt_node,
+      nav2_goal_reached_condition_bt_node, nav2_goal_updated_condition_bt_node, nav2_globally_updated_goal_condition_bt_node,
+      nav2_is_path_valid_condition_bt_node, nav2_initial_pose_received_condition_bt_node, nav2_reinitialize_global_localization_service_bt_node,
+      nav2_rate_controller_bt_node, nav2_distance_controller_bt_node, nav2_speed_controller_bt_node, nav2_truncate_path_action_bt_node,
+      nav2_truncate_path_local_action_bt_node, nav2_goal_updater_node_bt_node, nav2_recovery_node_bt_node, nav2_pipeline_sequence_bt_node,
+      nav2_round_robin_node_bt_node, nav2_transform_available_condition_bt_node, nav2_time_expired_condition_bt_node, nav2_path_expiring_timer_condition,
+      nav2_distance_traveled_condition_bt_node, nav2_single_trigger_bt_node, nav2_goal_updated_controller_bt_node, nav2_is_battery_low_condition_bt_node,
+      nav2_navigate_through_poses_action_bt_node, nav2_navigate_to_pose_action_bt_node, nav2_remove_passed_goals_action_bt_node,
+      nav2_planner_selector_bt_node, nav2_controller_selector_bt_node, nav2_goal_checker_selector_bt_node, nav2_controller_cancel_bt_node,
+      nav2_path_longer_on_approach_bt_node, nav2_wait_cancel_bt_node, nav2_spin_cancel_bt_node, nav2_back_up_cancel_bt_node,
+      nav2_assisted_teleop_cancel_bt_node, nav2_drive_on_heading_cancel_bt_node, nav2_is_battery_charging_condition_bt_node]
+bt_navigator_navigate_through_poses_rclcpp_node:
+  ros__parameters: {use_sim_time: true}
+bt_navigator_navigate_to_pose_rclcpp_node:
+  ros__parameters: {use_sim_time: true}
+controller_server:
+  ros__parameters:
+    use_sim_time: true
+    odom_topic: /odometry/filtered   # 속도 피드백 (기본 'odom'). nav.launch odom_topic 인자로 세 곳 같이 바뀜
+    controller_frequency: 20.0
+    min_x_velocity_threshold: 0.001
+    min_y_velocity_threshold: 0.001
+    min_theta_velocity_threshold: 0.001
+    failure_tolerance: 0.3
+    progress_checker_plugin: progress_checker
+    goal_checker_plugins: [general_goal_checker]
+    controller_plugins: [FollowPath]
+    progress_checker: {plugin: 'nav2_controller::SimpleProgressChecker', required_movement_radius: 0.3, movement_time_allowance: 15.0}
+    general_goal_checker: {stateful: true, plugin: 'nav2_controller::SimpleGoalChecker', xy_goal_tolerance: 0.1, yaw_goal_tolerance: 0.1}
+    FollowPath:
+      plugin: nav2_mppi_controller::MPPIController
+      time_steps: 56
+      model_dt: 0.05
+      batch_size: 1000
+      iteration_count: 1
+      vx_std: 0.2
+      vy_std: 0.1
+      wz_std: 0.4
+      vx_max: 0.3
+      vx_min: -0.15
+      vy_max: 0.15
+      wz_max: 0.6
+      temperature: 0.3
+      gamma: 0.015
+      prune_distance: 1.7
+      transform_tolerance: 0.2
+      motion_model: Omni
+      reset_period: 1.0
+      visualize: false
+      critics: [ConstraintCritic, ObstaclesCritic, GoalCritic, GoalAngleCritic, PathAlignCritic, PathFollowCritic, PathAngleCritic,
+        PreferForwardCritic, TwirlingCritic]
+      ConstraintCritic: {enabled: true, cost_power: 1, cost_weight: 4.0}
+      GoalCritic: {enabled: true, cost_power: 1, cost_weight: 5.0, threshold_to_consider: 1.4}
+      GoalAngleCritic: {enabled: true, cost_power: 1, cost_weight: 3.0, threshold_to_consider: 0.5}
+      PreferForwardCritic: {enabled: true, cost_power: 1, cost_weight: 5.0, threshold_to_consider: 0.5}
+      ObstaclesCritic: {enabled: true, cost_power: 1, repulsion_weight: 1.5, critical_weight: 20.0, consider_footprint: true,
+        collision_cost: 10000.0, collision_margin_distance: 0.1, near_goal_distance: 0.5, inflation_radius: 0.45, cost_scaling_factor: 3.0}
+      PathAlignCritic: {enabled: true, cost_power: 1, cost_weight: 14.0, max_path_occupancy_ratio: 0.05, trajectory_point_step: 3,
+        threshold_to_consider: 0.5, offset_from_furthest: 20, use_path_orientations: false}
+      PathFollowCritic: {enabled: true, cost_power: 1, cost_weight: 5.0, offset_from_furthest: 5, threshold_to_consider: 1.4}
+      PathAngleCritic: {enabled: true, cost_power: 1, cost_weight: 2.0, offset_from_furthest: 4, threshold_to_consider: 0.5,
+        max_angle_to_furthest: 1.0, forward_preference: true}
+      TwirlingCritic: {enabled: true, twirling_cost_power: 1, twirling_cost_weight: 10.0}
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      update_frequency: 5.0
+      publish_frequency: 2.0
+      global_frame: odom
+      robot_base_frame: base_footprint
+      resolution: 0.05
+      footprint: '[[0.19, 0.23], [0.19, -0.23], [-0.19, -0.23], [-0.19, 0.23]]'
+      footprint_padding: 0.02
+      inflation_layer: {plugin: 'nav2_costmap_2d::InflationLayer', inflation_radius: 0.45, cost_scaling_factor: 3.0}
+      always_send_full_costmap: true
+      rolling_window: true
+      width: 5
+      height: 5
+      plugins: [voxel_layer, inflation_layer]
+      voxel_layer:
+        plugin: nav2_costmap_2d::VoxelLayer
+        enabled: true
+        publish_voxel_map: false
+        origin_z: 0.0
+        z_resolution: 0.125
+        z_voxels: 16
+        max_obstacle_height: 2.0
+        mark_threshold: 0
+        observation_sources: pointcloud
+        # 실측 2026-11-12 (ZED 2i, 0.675 m·21.6° 장착, 광택 바닥): 바닥 점 높이 표준편차 1~2 m 1.5 cm, 2~3 m 4.5 cm, 3~4 m 7.1 cm
+        #  → 3 m 넘는 바닥이 6 cm 를 자주 넘어 가짜 장애물. 표시 2.5 m·높이 8 cm 부터, 지우기(raytrace)는 3.0 m 까지
+        pointcloud: {topic: /nav/obstacle_cloud, data_type: PointCloud2, marking: true, clearing: true, min_obstacle_height: 0.08,
+          max_obstacle_height: 1.9, obstacle_max_range: 2.5, obstacle_min_range: 0.0, raytrace_max_range: 3.0, raytrace_min_range: 0.0}
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      update_frequency: 1.0
+      publish_frequency: 1.0
+      global_frame: map
+      robot_base_frame: base_footprint
+      resolution: 0.05
+      footprint: '[[0.19, 0.23], [0.19, -0.23], [-0.19, -0.23], [-0.19, 0.23]]'
+      footprint_padding: 0.02
+      inflation_layer: {plugin: 'nav2_costmap_2d::InflationLayer', inflation_radius: 0.45, cost_scaling_factor: 3.0}
+      always_send_full_costmap: true
+      track_unknown_space: true
+      plugins: [static_layer, obstacle_layer, inflation_layer]
+      static_layer: {plugin: 'nav2_costmap_2d::StaticLayer', map_topic: /rtabmap/map, map_subscribe_transient_local: true}
+      obstacle_layer:
+        plugin: nav2_costmap_2d::ObstacleLayer
+        enabled: true
+        observation_sources: pointcloud
+        # 실측 2026-11-12 (ZED 2i, 0.675 m·21.6° 장착, 광택 바닥): 바닥 점 높이 표준편차 1~2 m 1.5 cm, 2~3 m 4.5 cm, 3~4 m 7.1 cm
+        #  → 3 m 넘는 바닥이 6 cm 를 자주 넘어 가짜 장애물. 표시 2.5 m·높이 8 cm 부터, 지우기(raytrace)는 3.0 m 까지
+        pointcloud: {topic: /nav/obstacle_cloud, data_type: PointCloud2, marking: true, clearing: true, min_obstacle_height: 0.08,
+          max_obstacle_height: 1.9, obstacle_max_range: 2.5, obstacle_min_range: 0.0, raytrace_max_range: 3.0, raytrace_min_range: 0.0}
+planner_server:
+  ros__parameters:
+    expected_planner_frequency: 20.0
+    use_sim_time: true
+    planner_plugins: [GridBased]
+    GridBased: {plugin: nav2_navfn_planner/NavfnPlanner, tolerance: 0.3, use_astar: true, allow_unknown: false}
+smoother_server:
+  ros__parameters:
+    use_sim_time: true
+    smoother_plugins: [simple_smoother]
+    simple_smoother: {plugin: 'nav2_smoother::SimpleSmoother', tolerance: 1.0e-10, max_its: 1000, do_refinement: true}
+behavior_server:
+  ros__parameters:
+    costmap_topic: local_costmap/costmap_raw
+    footprint_topic: local_costmap/published_footprint
+    cycle_frequency: 10.0
+    behavior_plugins: [spin, backup, drive_on_heading, assisted_teleop, wait]
+    spin: {plugin: nav2_behaviors/Spin}
+    backup: {plugin: nav2_behaviors/BackUp}
+    drive_on_heading: {plugin: nav2_behaviors/DriveOnHeading}
+    wait: {plugin: nav2_behaviors/Wait}
+    assisted_teleop: {plugin: nav2_behaviors/AssistedTeleop}
+    global_frame: odom
+    robot_base_frame: base_footprint
+    transform_tolerance: 0.1
+    use_sim_time: true
+    simulate_ahead_time: 2.0
+    max_rotational_vel: 1.0
+    min_rotational_vel: 0.4
+    rotational_acc_lim: 3.2
+waypoint_follower:
+  ros__parameters:
+    use_sim_time: true
+    loop_rate: 20
+    stop_on_failure: false
+    waypoint_task_executor_plugin: wait_at_waypoint
+    wait_at_waypoint: {plugin: 'nav2_waypoint_follower::WaitAtWaypoint', enabled: true, waypoint_pause_duration: 200}
+velocity_smoother:
+  ros__parameters:
+    use_sim_time: true
+    smoothing_frequency: 20.0
+    scale_velocities: false
+    feedback: OPEN_LOOP
+    max_velocity: [0.3, 0.15, 0.6]
+    min_velocity: [-0.15, -0.15, -0.6]
+    max_accel: [0.5, 0.5, 1.0]
+    max_decel: [-0.6, -0.6, -1.0]
+    odom_topic: /odometry/filtered
+    odom_duration: 0.1
+    deadband_velocity: [0.0, 0.0, 0.0]
+    velocity_timeout: 1.0

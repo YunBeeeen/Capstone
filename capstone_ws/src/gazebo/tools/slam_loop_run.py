@@ -21,8 +21,35 @@ from tf2_ros import Buffer, TransformListener
 
 OUT = sys.argv[1]
 ODOM = sys.argv[2] if len(sys.argv) > 2 else "odometry/filtered"  # 비교할 odometry 토픽
-# 복도 루프: 남(동쪽으로) → 동(북쪽으로, 흰 벽) → 북(서쪽으로) → 서(남쪽으로) → 남쪽 다시 (루프 클로저)
-WAYPOINTS = [(18.75, 1.25), (18.75, 10.75), (1.25, 10.75), (1.25, 1.25), (9.0, 1.25)]
+import os
+# 경로 (world 좌표, school_floor). SLAM_ROUTE 환경변수로 고름
+ROUTES = {
+    # 복도 루프: 남(동쪽으로) → 동(북쪽으로, 흰 벽) → 북(서쪽으로) → 서(남쪽으로) → 남쪽 다시 (루프 클로저)
+    "loop": [(18.75, 1.25), (18.75, 10.75), (1.25, 10.75), (1.25, 1.25), (9.0, 1.25)],
+    # 1 일차 매핑 흉내: 휴게실(303) 안까지 들어가 책장 쪽을 보고 나온 뒤 복도 루프
+    "loop_lounge": [(15.0, 1.25), (15.0, 3.6), (15.0, 6.6), (14.2, 7.4), (15.0, 6.6), (15.0, 3.6), (15.0, 1.25),
+                    (18.75, 1.25), (18.75, 10.75), (1.25, 10.75), (1.25, 1.25), (9.0, 1.25)],
+    # 세 방 모두: 들어갔다 같은 문으로 나옴 (나올 때 들어갈 때 본 장면을 다시 봄 → 짧은 루프 클로저)
+    #  행정실: 남쪽 문 x5.5, 책상 사이 통로(x 4.9~6.1)로 북쪽 책장 앞까지
+    #  휴게실: 남쪽 문 x15, 원탁(~x15.4)과 조리대(x16.8) 사이 x16.1 로 북쪽 → 서쪽 책장 앞 (Nav2 목표 근처)
+    #  연구실: 북쪽 문 x10.5, 실험대(~x11.6)와 동쪽 선반(x12.35) 사이 x12.0 통로로 남쪽 끝까지
+    "all_rooms": [(5.5, 1.25), (5.5, 3.4), (5.5, 8.4), (5.5, 3.4), (5.5, 1.25),
+                  (15.0, 1.25), (15.0, 3.9), (16.1, 4.5), (16.1, 7.0), (14.3, 7.2), (16.1, 7.0), (16.1, 4.5),
+                  (15.0, 3.9), (15.0, 1.25),
+                  (18.75, 1.25), (18.75, 10.75), (10.5, 10.75), (10.5, 8.3), (12.0, 7.6), (12.0, 3.4),
+                  (12.0, 7.6), (10.5, 8.3), (10.5, 10.75),
+                  (1.25, 10.75), (1.25, 1.25), (9.0, 1.25)],
+}
+# all_rooms + 제자리 360° 회전 ("spin"): 방 안 입구 쪽에서 한 바퀴(방 전체를 봄), 나와서 복도 문 앞에서 한 바퀴
+# (복도 문 앞 회전은 앞서 복도를 지나갈 때 본 방향을 다시 봄 → 루프 클로저 기회)
+ROUTES["all_rooms_spin"] = [
+    (5.5, 1.25), (5.5, 3.4), "spin", (5.5, 8.4), (5.5, 3.4), (5.5, 1.25), "spin",
+    (15.0, 1.25), (15.0, 3.9), "spin", (16.1, 4.5), (16.1, 7.0), (14.3, 7.2), (16.1, 7.0), (16.1, 4.5),
+    (15.0, 3.9), (15.0, 1.25), "spin",
+    (18.75, 1.25), (18.75, 10.75), (10.5, 10.75), (10.5, 8.3), "spin", (12.0, 7.6), (12.0, 3.4),
+    (12.0, 7.6), (10.5, 8.3), (10.5, 10.75), "spin",
+    (1.25, 10.75), (1.25, 1.25), (9.0, 1.25)]
+WAYPOINTS = ROUTES[os.environ.get("SLAM_ROUTE", "loop")]
 V, W_MAX = 0.3, 0.4
 
 
@@ -91,7 +118,22 @@ class Run(Node):
 
     def drive(self):
         last_rec = 0.0
-        for wx, wy in WAYPOINTS:
+        for wp in WAYPOINTS:
+            if wp == "spin":  # 제자리 360° (참값 yaw 누적)
+                self.get_logger().info("spin 360°")
+                rclpy.spin_once(self, timeout_sec=0.05)
+                turned, prev = 0.0, self.gt[2]
+                while turned < 2 * math.pi - 0.05:
+                    rclpy.spin_once(self, timeout_sec=0.05)
+                    turned += abs(wrap(self.gt[2] - prev)); prev = self.gt[2]
+                    cmd = Twist(); cmd.angular.z = W_MAX
+                    self.pub.publish(cmd)
+                    if time.monotonic() - last_rec > 0.2:
+                        last_rec = time.monotonic()
+                        self.record()
+                self.pub.publish(Twist())
+                continue
+            wx, wy = wp
             self.get_logger().info(f"→ ({wx}, {wy})")
             t_start = time.monotonic()
             while time.monotonic() - t_start < 200:
@@ -133,6 +175,14 @@ def main():
         print(f"시작 실패: gt={n.gt is not None} vo={n.vo is not None}")
         return
     n.spin_for(2.0)
+    # 같은 토픽에 발행자가 여럿이면 (이전 시험이 남긴 노드 등) 결과가 오염됨 — 2026-11-11 실제로 겪음
+    dup = {t: n.count_publishers(t) for t in ("/odom", "/zed/zed_node/odom", "/odometry/filtered", "/sim/ground_truth")}
+    bad = {t: c for t, c in dup.items() if c > 1}
+    if bad:
+        print(f"중단: 발행자가 여럿인 토픽 {bad} — 이전 시험의 노드가 남아 있음 (ps 로 확인 후 종료)")
+        rclpy.shutdown()
+        return
+    print(f"발행자 확인: {dup}")
     n.record()
     print("주행 시작")
     t_drive = time.monotonic()

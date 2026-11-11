@@ -3,8 +3,8 @@
   Gazebo Classic 용 센서·이동 매크로 — 실제 로봇 모델(단순화 버전)에도 이걸 붙여 씀.
 
   ZED 2i 흉내: RGB-D 카메라 + IMU. 토픽·프레임 이름을 zed-ros2-wrapper 와 맞춰 둠 → 실기로 갈 때 RTAB-Map/Nav2 launch 그대로.
-    /zed/zed_node/rgb/image_rect_color      sensor_msgs/Image (rgb8)
-    /zed/zed_node/rgb/camera_info
+    /zed/zed_node/rgb/color/rect/image      sensor_msgs/Image (rgb8)
+    /zed/zed_node/rgb/color/rect/camera_info
     /zed/zed_node/depth/depth_registered    sensor_msgs/Image (32FC1, m)
     /zed/zed_node/depth/camera_info
     /zed/zed_node/point_cloud/cloud_registered
@@ -70,8 +70,8 @@
         <plugin name="zed_rgbd_plugin" filename="libgazebo_ros_camera.so">
           <ros>
             <namespace>/zed/zed_node</namespace>
-            <remapping>zed/image_raw:=rgb/image_rect_color</remapping>
-            <remapping>zed/camera_info:=rgb/camera_info</remapping>
+            <remapping>zed/image_raw:=rgb/color/rect/image</remapping>
+            <remapping>zed/camera_info:=rgb/color/rect/camera_info</remapping>
             <remapping>zed/depth/image_raw:=depth/depth_registered</remapping>
             <remapping>zed/depth/camera_info:=depth/camera_info</remapping>
             <remapping>zed/points:=point_cloud/cloud_registered</remapping>

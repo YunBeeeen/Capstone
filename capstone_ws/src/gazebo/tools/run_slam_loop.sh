@@ -12,7 +12,7 @@ sleep 15
 setsid ros2 launch capstone_navigation slam.launch.py use_sim_time:=true new_map:=true database_path:="$OUT/rtabmap.db" "$@" > "$OUT/rtabmap.log" 2>&1 &
 R=$!
 sleep 8
-timeout 900 python3 "$(dirname "$0")/slam_loop_run.py" "$OUT" odometry/filtered
+timeout ${SLAM_TIMEOUT:-900} python3 "$(dirname "$0")/slam_loop_run.py" "$OUT" odometry/filtered
 kill -INT -- -$R -$G 2>/dev/null; sleep 5; kill -KILL -- -$R -$G 2>/dev/null
 sleep 1
 rtabmap-export --poses --output_dir "$OUT" "$OUT/rtabmap.db" > "$OUT/export.log" 2>&1

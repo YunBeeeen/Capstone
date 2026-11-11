@@ -32,7 +32,7 @@ import matplotlib; matplotlib.use("Agg"); import matplotlib.pyplot as plt
 fig, ax = plt.subplots(1, 2, figsize=(15, 5.5))
 T = np.load(f"{OUT}/traj.npy"); gt, od = T[:, 0:3], T[:, 3:6]
 ax[0].plot(og[:, 0], og[:, 1], lw=3, alpha=0.5, label="ground truth")
-ax[0].plot(od[:, 0], od[:, 1], "--", label="wheel odom (noisy)")
+ax[0].plot(od[:, 0], od[:, 1], "--", label="odometry (odometry/filtered)")
 ax[0].plot(oo[:, 0], oo[:, 1], "o-", ms=2, lw=1, label="RTAB-Map optimized")
 ax[0].set_aspect("equal"); ax[0].grid(alpha=.3); ax[0].legend(); ax[0].set_title("trajectory (start-relative)")
 g = np.load(f"{OUT}/grid.npy"); res, ox, oy = np.load(f"{OUT}/grid_info.npy")

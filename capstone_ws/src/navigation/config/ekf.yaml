@@ -26,8 +26,10 @@ ekf_filter_node:
     odom0_differential: false
     odom0_queue_size: 10
 
-    # ZED SDK GEN_3 VIO (시뮬: fake_vio.py). differential = 절대 위치 말고 변화량만 → 원점·드리프트가 바퀴와 달라도 충돌 없음
+    # ZED SDK GEN_3 VIO (시뮬: fake_vio.py). relative = 첫 메시지를 원점으로 한 상대 위치 (x, y, yaw)
     # 공분산을 보고 섞음: 특징점 적은 곳에서 VIO 공분산이 커지면 바퀴 쪽을 더 믿음
+    # ※ differential: true 는 쓰지 말 것 — 2026-11-11 시뮬에서 켜면 매번 시작부터 EKF 가 NaN 으로 발산
+    #   (5 회 중 4 회, 정지 상태 12 s 시험에서도 재현. 공분산을 바꿔도 같음. relative·속도 입력은 0 회)
     # 실기: ZED wrapper publish_tf:=false, area_memory:=false (루프 클로저 때 odom 이 순간이동하면 안 됨)
     odom1: /zed/zed_node/odom
     odom1_config: [true,  true,  false,
@@ -35,7 +37,8 @@ ekf_filter_node:
                    false, false, false,
                    false, false, false,
                    false, false, false]
-    odom1_differential: true
+    odom1_differential: false
+    odom1_relative: true
     odom1_queue_size: 10
 
     imu0: /zed/zed_node/imu/data

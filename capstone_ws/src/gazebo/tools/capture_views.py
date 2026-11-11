@@ -35,7 +35,7 @@ class Cap(Node):
         self.rgb = self.depth = None
         self.count = {"rgb": 0, "depth": 0, "imu": 0, "pc": 0, "odom": 0, "gt": 0}
         ns = "/zed/zed_node/"
-        self.create_subscription(Image, ns + "rgb/image_rect_color", self.on_rgb, 5)
+        self.create_subscription(Image, ns + "rgb/color/rect/image", self.on_rgb, 5)
         self.create_subscription(Image, ns + "depth/depth_registered", self.on_depth, 5)
         self.create_subscription(Imu, ns + "imu/data", lambda m: self.inc("imu"), 50)
         self.create_subscription(PointCloud2, ns + "point_cloud/cloud_registered", lambda m: self.inc("pc"), 5)

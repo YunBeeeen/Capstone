@@ -1,0 +1,30 @@
+# ZED wrapper 덮어쓰기 — EKF + RTAB-Map 구성용 (ZED SDK 5.5.1, zed-ros2-wrapper master 2026-11)
+#   ros2 launch zed_wrapper zed_camera.launch.py camera_model:=zed2i camera_name:=zed \
+#     publish_tf:=false publish_map_tf:=false \
+#     ros_params_override_path:=$(ros2 pkg prefix capstone_navigation)/share/capstone_navigation/config/zed_override.yaml
+# camera_name:=zed → 토픽 /zed/zed_node/... (Gazebo 시뮬 이름과 같음)
+# publish_tf / publish_map_tf 는 launch 인자가 yaml 을 덮으므로 위 명령에서 false 로 (TF 는 EKF·RTAB-Map 이 냄)
+/**:
+    ros__parameters:
+        general:
+            grab_frame_rate: 30          # zed2i 기본 60 → 30 (노트북·Orin 부하. GEN_3 는 30 이면 충분할 것 — 실측으로 확인)
+            pub_frame_rate: 15.0         # 영상·depth 발행 (RTAB-Map 1 Hz, Nav2 장애물 5 Hz 면 충분)
+            pub_resolution: 'NATIVE'     # 원본(HD720) 그대로 발행 — 물체 인식 등 고해상도가 필요한 노드가 같은 토픽을 씀.
+                                         # 지도 DB 크기는 RTAB-Map Mem/ImagePostDecimation 으로 줄임 (slam.launch.py)
+        depth:
+            min_depth: 0.3               # zed2i.yaml 기본 0.01 → ZED 2i 실제 최소 거리
+            max_depth: 10.0              # 멀수록 depth 부정확 — 지도·장애물엔 10 m 면 충분
+            depth_confidence: 50         # 기본 95. 낮을수록 신뢰도 낮은 depth 를 더 버림 → 먼 벽·경계의 번짐 ↓ (실측: 손에 들고 매핑 때 벽이 30~50 cm 두께로 번짐)
+            depth_texture_conf: 100      # 기본 그대로 — 낮추면 무늬 없는 흰 벽의 depth 가 사라짐
+        pos_tracking:
+            pos_tracking_mode: 'GEN_3'   # 기본 'AUTO' (SDK 기본도 GEN_3 지만 명시)
+            imu_fusion: true             # 카메라 + IMU 융합 (GEN_3 의 핵심)
+            area_memory: false           # 루프 클로저는 RTAB-Map 만. 켜면 ZED odom 이 루프 클로저 때 순간이동 → EKF 입력이 튐
+            reset_odom_with_loop_closure: false
+            two_d_mode: true             # 바닥 로봇: z 고정, roll·pitch 0
+            fixed_z_value: 0.0
+            set_gravity_as_origin: true
+# TODO 실기 연결 때 확인:
+#  - /zed/zed_node/odom 의 child_frame_id 가 카메라 프레임이면, EKF 에 넣기 전에 base_footprint 기준으로 바꿔야 함
+#    (카메라가 차체 중심에서 떨어져 있어 제자리 회전이 이동으로 보임). 실제 값 보고 결정
+#  - 우리 URDF 에 ZED 프레임이 있으면 publish_urdf:=false (두 URDF 가 같은 프레임을 내면 충돌)

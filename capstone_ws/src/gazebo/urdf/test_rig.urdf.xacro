@@ -4,8 +4,8 @@
   박스 차체 (스워브 베이스 크기 대략) + 마스트 + ZED 2i 흉내 (높이 cam_z, 아래로 cam_pitch).
 -->
 <robot name="test_rig" xmlns:xacro="http://www.ros.org/wiki/xacro">
-  <xacro:arg name="cam_z" default="1.0"/>      <!-- 바닥에서 카메라 높이 [m] (리프트 최저 ≈ 0.72, 최고 ≈ 1.37) -->
-  <xacro:arg name="cam_pitch" default="0.26"/> <!-- 아래로 [rad] (0.26 ≈ 15°) -->
+  <xacro:arg name="cam_z" default="0.69"/>     <!-- 바닥에서 카메라 높이 [m] (실기 리프트 최저 0.69, 최고 1.32) -->
+  <xacro:arg name="cam_pitch" default="0.377"/> <!-- 아래로 [rad] (실기 IMU 실측 21.6°) -->
   <xacro:include filename="$(find capstone_gazebo)/urdf/sim_sensors.xacro"/>
 
   <link name="base_footprint"/>
