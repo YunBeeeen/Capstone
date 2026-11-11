@@ -95,7 +95,27 @@ URDF 에 MuJoCo 용으로 덧붙인 것 (`build_mjcf.py`):
 - 명령 끊김 → HOLD 로 즉시 정지, 이어서 unwind (144° → −36°, 구동 안 할 때 중앙 쪽으로 되감기)
 - 정렬 게이트: 조향 0→90° 도는 동안 구동 보류
 
+## 오도메트리 검증
+`sim.launch.py` 가 실기와 같은 `swerve_odom` 노드를 같이 띄움 (`odom:=false` 로 끔). 시뮬에선 TF `odom→world` 를 참값이 내므로
+`swerve_odom` 은 `/odom` 토픽만 (`publish_tf:=false`).
+```bash
+ros2 launch capstone_sim sim.launch.py headless:=true
+ros2 run capstone_sim odom_sim_check.py --plot /tmp/odom_check.png   # 자동 시나리오 13 개 (~90 s), 종료코드 0 = 전부 합격
+ros2 run capstone_sim odom_sim_check.py --only 직진 사각형            # 일부만
+
+ros2 launch capstone_sim sim.launch.py pad:=true
+ros2 run capstone_sim odom_compare.py --plot /tmp/odom.png --csv /tmp/odom.csv   # 패드로 몰면서 1 초마다 누적 오차, Ctrl+C 요약
+```
+`odom_sim_check.py` 는 시나리오마다 **① 조향 전환**(명령 ~ 조향이 멈추고 바퀴가 구를 때까지)과 **② 구름**을 나눔.
+판정은 ② 만 — ① 의 차체 회전은 바퀴가 안 구르는 움직임이라 바퀴 odom 이 원리상 못 봄 (따로 보고).
+
+결과 (2026-11-11, headless):
+- ② 직선 이동 ~1 m 마다 위치 오차 **0.06~0.22 cm**, yaw 0.3° 이내 → 계산·부호·기하 맞음
+- ② 제자리 회전 340° 에 yaw +5.4° (1.6 %), 원호 1.9 m·172° 에 3.8 cm·2.4° — 회전 중 바퀴 미끄러짐
+- ① 조향 0→90° 전환 직후 가속이 겹칠 때 차체 2~3° 돎, odom 은 0 (정렬 게이트가 ±10° 에서 구동을 풀어 마지막 몇 도와 가속이 겹침)
+- 전체 11.5 m · 799° 누적: 위치 5.5 cm (0.48 %), yaw +5.1° → 실기에선 EKF 에 IMU 자이로 같이 넣을 것
+
 ## 쓸 데
 - 게임패드 부호 확인 (`capstone_teleop` 의 `scale_*` TODO) — 실기 전에 시뮬에서
 - swerve_controller 파라미터(unwind, 게이트) 바꿔 보기
-- 이후 오도메트리 노드: `sim/ground_truth` 와 비교
+- 오도메트리 검증 (위)

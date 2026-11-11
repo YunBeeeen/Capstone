@@ -11,13 +11,15 @@ find_package(rclcpp REQUIRED)
 find_package(std_srvs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(capstone_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(tf2_ros REQUIRED)
 find_package(Python3 REQUIRED COMPONENTS Interpreter Development)
 find_package(pybind11 CONFIG REQUIRED)
 
-# ---- ROS 무관 기구학 (IK / 가동범위 접기 / 정렬 게이트 / FK) ----
+# ---- ROS 무관 기구학 (IK / 가동범위 접기 / 정렬 게이트 / FK / 오도메트리 적분) ----
 # 다른 C++ 패키지:  find_package(swerve_controller) + target_link_libraries(x swerve_controller::swerve_core)
 #                   #include "swerve_controller/kinematics.hpp"
-add_library(swerve_core STATIC src/kinematics.cpp)
+add_library(swerve_core STATIC src/kinematics.cpp src/odometry.cpp)
 target_include_directories(swerve_core PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include/${PROJECT_NAME}>)
@@ -38,13 +40,19 @@ add_executable(swerve_node src/swerve_node.cpp)
 target_link_libraries(swerve_node swerve_core)
 ament_target_dependencies(swerve_node rclcpp std_srvs geometry_msgs capstone_msgs)
 
-install(TARGETS swerve_node DESTINATION lib/${PROJECT_NAME})
+add_executable(swerve_odom src/swerve_odom_node.cpp)
+target_link_libraries(swerve_odom swerve_core)
+ament_target_dependencies(swerve_odom rclcpp std_srvs nav_msgs geometry_msgs tf2_ros capstone_msgs)
+
+install(TARGETS swerve_node swerve_odom DESTINATION lib/${PROJECT_NAME})
 install(DIRECTORY config launch DESTINATION share/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_cmake_gtest REQUIRED)
   ament_add_gtest(test_kinematics test/test_kinematics.cpp)
   target_link_libraries(test_kinematics swerve_core)
+  ament_add_gtest(test_odometry test/test_odometry.cpp)
+  target_link_libraries(test_odometry swerve_core)
   # 빌드 폴더의 바인딩 모듈을 그대로 import 해서 시험
   add_test(NAME test_bindings
     COMMAND ${Python3_EXECUTABLE} -m unittest -v test_bindings

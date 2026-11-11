@@ -5,6 +5,7 @@
   ros2 launch capstone_sim sim.launch.py teleop:=true       # + SHAKS S0 게임패드 (RB 누른 채 스틱)
   ros2 launch capstone_sim sim.launch.py headless:=true     # MuJoCo 창 없이
   ros2 launch capstone_sim sim.launch.py rviz:=true         # + RViz
+  ros2 launch capstone_sim sim.launch.py odom:=false        # 바퀴 오도메트리(swerve_odom) 빼고
   ros2 topic pub -r 20 /cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.2}, angular: {z: 0.5}}"
 """
 from pathlib import Path
@@ -29,6 +30,8 @@ def generate_launch_description():
         DeclareLaunchArgument('teleop', default_value='false', description='SHAKS S0 게임패드 teleop 같이 띄움'),
         DeclareLaunchArgument('pad', default_value='false', description='화면 가상 패드 같이 띄움'),
         DeclareLaunchArgument('rviz', default_value='false', description='RViz (시뮬 joint_states + TF odom→world)'),
+        DeclareLaunchArgument('odom', default_value='true',
+                              description='swerve_odom (바퀴 오도메트리 → /odom). TF 는 시뮬 참값이 내므로 끔'),
         # RViz: 시뮬이 joint_states 와 TF odom→world 를 내고, 나머지 링크 TF 는 URDF 로 계산
         Node(package='robot_state_publisher', executable='robot_state_publisher', output='screen',
              parameters=[{'robot_description': urdf}]),
@@ -38,6 +41,10 @@ def generate_launch_description():
              parameters=[{'headless': LaunchConfiguration('headless')}]),
         Node(package='swerve_controller', executable='swerve_node', name='swerve_controller', output='screen',
              parameters=[str(swerve_cfg)]),
+        # 실기와 같은 노드·설정. 시뮬에선 TF odom→world 를 참값이 내므로 publish_tf=false (/odom 토픽만)
+        Node(package='swerve_controller', executable='swerve_odom', name='swerve_odom', output='screen',
+             parameters=[str(swerve_cfg), {'publish_tf': False}],
+             condition=IfCondition(LaunchConfiguration('odom'))),
         Node(package='capstone_teleop', executable='virtual_pad.py', name='virtual_pad', output='screen',
              condition=IfCondition(LaunchConfiguration('pad'))),
         IncludeLaunchDescription(PythonLaunchDescriptionSource(str(teleop_launch)),

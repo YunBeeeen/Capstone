@@ -3,7 +3,7 @@
 <package format="3">
   <name>swerve_controller</name>
   <version>0.1.0</version>
-  <description>4모듈 스워브 기구학 (cmd_vel → 조향 RobStride 02 ×4 + 구동 BL41105 ×4). ksrc 로버 펌웨어 IK 포팅</description>
+  <description>4모듈 스워브 기구학 (cmd_vel → 조향 RobStride 02 ×4 + 구동 BL41105 ×4). ksrc 로버 펌웨어 IK 포팅 + 바퀴 오도메트리</description>
   <maintainer email="djadbsqls120@hanyang.ac.kr">eomyunbeen</maintainer>
   <license>MIT</license>
 
@@ -13,6 +13,8 @@
   <depend>std_srvs</depend>
   <depend>geometry_msgs</depend>
   <depend>capstone_msgs</depend>
+  <depend>nav_msgs</depend>
+  <depend>tf2_ros</depend>
   <exec_depend>launch_ros</exec_depend>
   <test_depend>ament_cmake_gtest</test_depend>
 

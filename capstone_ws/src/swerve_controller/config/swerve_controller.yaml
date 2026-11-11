@@ -1,18 +1,37 @@
-# swerve_controller 파라미터. 모듈 순서 = [1 FR, 2 RR, 3 RL, 4 FL] (wheel_cmd / steer_cmd 배열 순서와 같음)
-swerve_controller:
+# swerve_controller + swerve_odom 파라미터. 모듈 순서 = [1 FR, 2 RR, 3 RL, 4 FL] (wheel_cmd / steer_cmd 배열 순서와 같음)
+
+# 공통 기하 — 이 파일을 받는 노드 전부 (swerve_controller, swerve_odom). 한 곳에서만 고칠 것
+/**:
   ros__parameters:
     # 조향축 위치 [m], base_link(회전중심) 기준 x 전진 / y 좌측.
     # mobile_robot_right_arm_description URDF 의 steering_*_joint 위치 (2026-11-07). CAD 바뀌면 같이 갱신
     module_x: [0.0911, -0.0911, -0.0911, 0.0911]
     module_y: [-0.13605, -0.13605, 0.13605, 0.13605]
-    wheel_radius: 0.0525           # [m] BL41105 타이어 외경 105 mm. 지면 하중 실은 뒤 실측 보정
-    max_wheel_mps: 0.6             # [m/s] desaturation 상한. 브리지 vel_max 2 turn/s = 0.66 m/s 보다 약간 아래
+    wheel_radius: 0.0525           # [m] BL41105 타이어 외경 105 mm. 지면 하중 실은 뒤 실측 보정 (odom 거리 오차에 그대로 비례)
+
+swerve_odom:
+  ros__parameters:
+    odom_frame: odom
+    base_frame: world              # 지금 URDF 루트 링크 (바닥 기준점 = base_footprint 역할). URDF 루트 이름 바꾸면 같이
+    # publish_tf (기본 true) 는 여기 두지 말 것 — launch 인자 publish_tf:= 로. 노드 이름 섹션 값이 launch 인자(/** 로 넘어감)를 이김
+    steer_state_timeout: 0.2       # [s] 이보다 오래된 조향각이면 적분 멈춤
+    max_dt: 0.5                    # [s] wheel_state 간격이 이보다 길면 그 구간 버림
+    max_wheel_mps_jump: 1.0        # [m/s] 이보다 빠른 바퀴 변위 = 위치 점프(보드 재부팅 등)로 보고 버림
+    jump_margin_m: 0.02
+    # 분산 (x, y, yaw) — EKF 입력용. TODO 실기 1 m 사각형 / 제자리 회전 시험 뒤 조정
+    pose_covariance_diagonal: [0.001, 0.001, 0.01]
+    twist_covariance_diagonal: [0.001, 0.001, 0.01]
+
+swerve_controller:
+  ros__parameters:
+    max_wheel_mps: 0.6            # [m/s] desaturation 상한. 브리지 vel_max 2 turn/s = 0.66 m/s 보다 약간 아래
     steer_limit_deg: 180.0         # 조향 운용 한계 ±. 기구 스토퍼/케이블 ±190° (URDF steer_limit) 까지 여유 10° (2026-11-07)
     steer_min_mps: 0.03            # [m/s] 바퀴 속도가 이보다 느린 명령은 조향을 안 바꿈 (스틱 놓을 때 잡음 → 조향 튐 방지)
     unwind_deg: 0.0                # 0 = 끔. >0 이면 |조향각| 이 이보다 크고 멈춰 있을 때 반대쪽 등가각으로 미리 180° 돌림
                                    #   (멈춰 있는 동안 명령 없이 바퀴가 돌아서 끔 — 팔 작업/사람 근처에서 위험, 2026-11-07)
     unwind_slow_mps: 0.02          # unwind 의 "거의 안 굴" 기준 [m/s]
-    require_steer_feedback: true   # false = steer_state 없이 시험 (정렬 게이트 끔 — 바퀴 띄우고만!)
+    # require_steer_feedback (기본 true) 는 여기 두지 말 것 — launch 인자 require_steer_feedback:=false 로 (게이트 끔, 바퀴 띄우고만!).
+    # 노드 이름 섹션 값이 launch 인자(/** 로 넘어감)를 이겨서, 여기 있으면 launch 인자가 무시됨 (2026-11-11 확인)
     gate_trigger_deg: 60.0         # 목표 조향각이 이만큼 바뀌면 구동 보류 (ksrc 값)
     gate_release_deg: 10.0         # 전 바퀴 실제각이 목표 ±이 안이면 구동 재개 (ksrc 값)
     gate_max_hold_s: 0.0           # 0 = 정렬될 때까지 무한 보류 (ksrc 는 모래 때문에 1.5 s 후 강제 해제했음)

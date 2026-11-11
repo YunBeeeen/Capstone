@@ -82,8 +82,25 @@ find_package(swerve_controller REQUIRED)
 target_link_libraries(my_target swerve_controller::swerve_core)   # #include "swerve_controller/kinematics.hpp"
 ```
 
+## 오도메트리 (`swerve_odom`)
+`wheel_state.position`(누적 [turn]) + `steer_state.angle` → `/odom` (`nav_msgs/Odometry`, `odom` → `world`) + TF.
+```bash
+ros2 launch swerve_controller swerve_odom.launch.py                    # 실기: 브리지 두 개가 떠 있어야 함
+ros2 launch swerve_controller swerve_odom.launch.py publish_tf:=false  # EKF(robot_localization) 가 TF 를 낼 때
+ros2 service call /swerve_odom/reset std_srvs/srv/Trigger              # 포즈 0 으로
+```
+- 계산 (`odometry.hpp`): 모듈별 이동 = Δposition × 2πr (속도×dt 아님 — Hall 60 cnt/rev 라 저속 velocity 가 거침),
+  구간 조향각 = 앞뒤 샘플 평균, `fk_compute` 최소제곱 → 차체 변위, 중간 방위로 누적. wheel_state 마다 (주행 20 Hz, FREE 5 Hz).
+- 멈춤/버림: 조향각 모름(모터 `alive`·`confirmed` 아님, 0.2 s 넘게 안 옴) 또는 바퀴 heartbeat 없음 → 적분 멈춤 (포즈 유지),
+  샘플 간격 > 0.5 s 또는 바퀴 위치 점프(보드 재부팅) → 그 구간 버림.
+- `base_frame` 기본 `world` = 지금 URDF 루트 링크 (바닥 기준점). Nav2/RTAB-Map 관례는 `base_footprint` — 루트 이름 바꾸면 yaml 도 같이.
+- **못 보는 것**: 바퀴가 안 구르는 차체 움직임. 시뮬에서 조향 전환(0→90°) 직후 가속과 겹칠 때 차체가 2~3° 돎
+  (조향 반작용 + 미끄러짐) — 바퀴 odom 은 0. 그래서 EKF 에 IMU 자이로(ZED 2i) 를 같이 넣을 것.
+- 검증: 시뮬 [`odom_sim_check.py`](../sim/README.md#오도메트리-검증) (자동, 합격/불합격) · `odom_compare.py` (패드로 몰면서 실시간).
+  실기: 아래 TODO.
+
 ## 파라미터
-[config/swerve_controller.yaml](config/swerve_controller.yaml). **`module_x/y` 는 YOR placeholder 값** — 차체 CAD 나오면 교체.
+[config/swerve_controller.yaml](config/swerve_controller.yaml). 기하(`module_x/y`, `wheel_radius`) 는 `/**` 공통 섹션 — swerve_controller 와 swerve_odom 이 같이 읽음. **`module_x/y` 는 YOR placeholder 값** — 차체 CAD 나오면 교체.
 `wheel_radius` 는 지면 하중 실은 뒤 실측(직진 거리 / 회전수)으로 보정.
 
 ## 파일
@@ -94,10 +111,18 @@ target_link_libraries(my_target swerve_controller::swerve_core)   # #include "sw
 | `src/python_bindings.cpp` | pybind11 → `import swerve_kinematics` |
 | `test/test_kinematics.cpp` | ksrc 케이스 + ±170° 3바퀴 감기·unwind·FK 왕복·seed·정지 후 조향·멈춰 있을 때 조향 유지 |
 | `test/test_bindings.py` | Python 바인딩이 C++ 와 같은 값 내는지 |
+| `include/.../odometry.hpp`, `src/odometry.cpp` | ROS 무관: `SwerveOdometry` (위치 차분 → FK → 적분, 거부 조건) |
+| `src/swerve_odom_node.cpp` | ROS 연결: wheel_state + steer_state → `/odom` + TF, `~/reset` |
+| `test/test_odometry.cpp` | 직진 1 바퀴 = 2πr, 횡이동, 제자리 360°, 원호·옆+회전 해석해, 사각형 폐합, 180° 뒤집힌 모듈, 거부 조건 |
 
 시뮬: [`../sim`](../sim/README.md) — `ros2 launch capstone_sim sim.launch.py`
 
 ## TODO
 - ~~조향 브리지~~ → [`steer_can_bridge`](../steer_can_bridge/) (2026-11-07, 실기 미검증). `ready` = 전 축 응답 + 각도 확정 + 고장 없음 (위치 제어 중일 필요 없음 → ACTIVE 진입 때 seed 가 실제각으로 됨)
-- 오도메트리 노드: `fk_compute` + `wheel_state`/`steer_state` → `odom` + TF.
+- ~~오도메트리 노드~~ → `swerve_odom` (2026-11-11, 시뮬 검증, **실기 미검증**). 실기 확인 순서:
+  1. 바퀴 띄우고 FREE 에서 손으로 1 바퀴 → `wheel_state.position` +1.0, 트레드 V 꼭짓점 방향 = + (4 바퀴)
+  2. 조향 손으로 +90° (위에서 반시계) → `steer_state.angle` ≈ +1.57 (`steer_sign` TODO)
+  3. 조향 0° 에서 바퀴 + 방향 = 차체 전방 (+x) 인지 — 다르면 odom 이 통째로 뒤집힘
+  4. 바닥에 1 m 사각형 테이프 → 한 바퀴 돌고 `/odom` 끝점 오차, 제자리 360° → yaw 오차. `wheel_radius` 보정 (직진 거리 / 실측)
+  5. 결과로 yaml `pose/twist_covariance_diagonal` 조정 (EKF 용)
 - X-lock (작업 중 밀림 방지) 모드.
