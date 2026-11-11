@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>capstone_navigation</name>
+  <version>0.1.0</version>
+  <description>위치 추정·매핑 스택 (시뮬·실기 공용): EKF(바퀴 odom + IMU 자이로) → RTAB-Map(RGB-D, odom 은 TF 로). 토픽은 ZED wrapper 이름</description>
+  <maintainer email="djadbsqls120@hanyang.ac.kr">eomyunbeen</maintainer>
+  <license>MIT</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <exec_depend>robot_localization</exec_depend>
+  <exec_depend>rtabmap_slam</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <export><build_type>ament_cmake</build_type></export>
+</package>

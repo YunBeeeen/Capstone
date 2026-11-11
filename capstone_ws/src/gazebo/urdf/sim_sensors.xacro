@@ -1,0 +1,152 @@
+<?xml version="1.0"?>
+<!--
+  Gazebo Classic 용 센서·이동 매크로 — 실제 로봇 모델(단순화 버전)에도 이걸 붙여 씀.
+
+  ZED 2i 흉내: RGB-D 카메라 + IMU. 토픽·프레임 이름을 zed-ros2-wrapper 와 맞춰 둠 → 실기로 갈 때 RTAB-Map/Nav2 launch 그대로.
+    /zed/zed_node/rgb/image_rect_color      sensor_msgs/Image (rgb8)
+    /zed/zed_node/rgb/camera_info
+    /zed/zed_node/depth/depth_registered    sensor_msgs/Image (32FC1, m)
+    /zed/zed_node/depth/camera_info
+    /zed/zed_node/point_cloud/cloud_registered
+    /zed/zed_node/imu/data                  sensor_msgs/Imu
+  ※ 실제 ZED wrapper 버전에 따라 토픽 이름이 다를 수 있음 → ZED 오면 `ros2 topic list` 로 확인하고 아래 remapping 만 고칠 것.
+
+  프레임: <parent> → zed_camera_link → zed_left_camera_frame (+y 0.06, 기선 12 cm 의 왼쪽) → zed_left_camera_optical_frame
+          zed_camera_link → zed_imu_link
+
+  이동: planar_move — cmd_vel 을 받아 차체를 바로 전방향으로 움직임 (스워브 바퀴 물리는 MuJoCo 쪽에서).
+        planar_move 의 odom 은 잡음이 없어서 sim/planar_odom 으로만 내고 TF 는 안 냄 →
+        scripts/noisy_odom.py (world.launch.py 가 띄움) 가 실기 같은 오차를 넣어 /odom + TF odom → base 를 냄.
+-->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- ZED 2i: parent 링크 기준 xyz/rpy 에 zed_camera_link -->
+  <xacro:macro name="zed2i_sim" params="parent xyz rpy rate:=15 width:=640 height:=360 hfov:=1.9">
+    <joint name="zed_camera_joint" type="fixed">
+      <parent link="${parent}"/>
+      <child link="zed_camera_link"/>
+      <origin xyz="${xyz}" rpy="${rpy}"/>
+    </joint>
+    <link name="zed_camera_link">
+      <visual>
+        <geometry><box size="0.03 0.175 0.03"/></geometry>
+        <material name="zed_grey"><color rgba="0.2 0.2 0.22 1"/></material>
+      </visual>
+      <inertial>
+        <mass value="0.166"/>
+        <inertia ixx="1e-4" ixy="0" ixz="0" iyy="1e-4" iyz="0" izz="1e-4"/>
+      </inertial>
+    </link>
+    <joint name="zed_left_camera_joint" type="fixed">
+      <parent link="zed_camera_link"/>
+      <child link="zed_left_camera_frame"/>
+      <origin xyz="0 0.06 0" rpy="0 0 0"/>
+    </joint>
+    <link name="zed_left_camera_frame"/>
+    <joint name="zed_left_camera_optical_joint" type="fixed">
+      <parent link="zed_left_camera_frame"/>
+      <child link="zed_left_camera_optical_frame"/>
+      <origin xyz="0 0 0" rpy="${-pi/2} 0 ${-pi/2}"/>
+    </joint>
+    <link name="zed_left_camera_optical_frame"/>
+    <joint name="zed_imu_joint" type="fixed">
+      <parent link="zed_camera_link"/>
+      <child link="zed_imu_link"/>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+    </joint>
+    <link name="zed_imu_link"/>
+
+    <gazebo reference="zed_left_camera_frame">
+      <sensor type="depth" name="zed_rgbd">
+        <always_on>true</always_on>
+        <update_rate>${rate}</update_rate>
+        <visualize>false</visualize>
+        <camera name="zed">
+          <horizontal_fov>${hfov}</horizontal_fov>
+          <image><width>${width}</width><height>${height}</height><format>R8G8B8</format></image>
+          <clip><near>0.1</near><far>25.0</far></clip>
+          <noise><type>gaussian</type><mean>0.0</mean><stddev>0.005</stddev></noise>
+        </camera>
+        <plugin name="zed_rgbd_plugin" filename="libgazebo_ros_camera.so">
+          <ros>
+            <namespace>/zed/zed_node</namespace>
+            <remapping>zed/image_raw:=rgb/image_rect_color</remapping>
+            <remapping>zed/camera_info:=rgb/camera_info</remapping>
+            <remapping>zed/depth/image_raw:=depth/depth_registered</remapping>
+            <remapping>zed/depth/camera_info:=depth/camera_info</remapping>
+            <remapping>zed/points:=point_cloud/cloud_registered</remapping>
+          </ros>
+          <camera_name>zed</camera_name>
+          <frame_name>zed_left_camera_optical_frame</frame_name>
+          <min_depth>0.3</min_depth>   <!-- ZED 2i 최소 거리 -->
+          <max_depth>15.0</max_depth>
+        </plugin>
+      </sensor>
+    </gazebo>
+
+    <gazebo reference="zed_imu_link">
+      <sensor type="imu" name="zed_imu">
+        <always_on>true</always_on>
+        <update_rate>200</update_rate>
+        <imu>
+          <angular_velocity>
+            <x><noise type="gaussian"><mean>0</mean><stddev>0.002</stddev><bias_mean>0.0005</bias_mean></noise></x>
+            <y><noise type="gaussian"><mean>0</mean><stddev>0.002</stddev><bias_mean>0.0005</bias_mean></noise></y>
+            <z><noise type="gaussian"><mean>0</mean><stddev>0.002</stddev><bias_mean>0.0005</bias_mean></noise></z>
+          </angular_velocity>
+          <linear_acceleration>
+            <x><noise type="gaussian"><mean>0</mean><stddev>0.02</stddev></noise></x>
+            <y><noise type="gaussian"><mean>0</mean><stddev>0.02</stddev></noise></y>
+            <z><noise type="gaussian"><mean>0</mean><stddev>0.02</stddev></noise></z>
+          </linear_acceleration>
+        </imu>
+        <plugin name="zed_imu_plugin" filename="libgazebo_ros_imu_sensor.so">
+          <ros>
+            <namespace>/zed/zed_node</namespace>
+            <remapping>~/out:=imu/data</remapping>
+          </ros>
+          <frame_name>zed_imu_link</frame_name>
+          <initial_orientation_as_reference>false</initial_orientation_as_reference>
+        </plugin>
+      </sensor>
+    </gazebo>
+  </xacro:macro>
+
+  <!-- 전방향 이동: cmd_vel → 차체 속도. odom 은 odom_topic (기본 sim/planar_odom, TF 없음 — /odom 은 noisy_odom.py 가 냄) -->
+  <xacro:macro name="planar_move_sim" params="base odom_topic:=sim/planar_odom odom_tf:=false rate:=50">
+    <gazebo>
+      <plugin name="planar_move" filename="libgazebo_ros_planar_move.so">
+        <ros>
+          <remapping>cmd_vel:=cmd_vel</remapping>
+          <remapping>odom:=${odom_topic}</remapping>
+        </ros>
+        <update_rate>${rate}</update_rate>
+        <publish_rate>${rate}</publish_rate>
+        <publish_odom>true</publish_odom>
+        <publish_odom_tf>${str(odom_tf).lower()}</publish_odom_tf>
+        <odometry_frame>odom</odometry_frame>
+        <robot_base_frame>${base}</robot_base_frame>
+        <covariance_x>0.0001</covariance_x>
+        <covariance_y>0.0001</covariance_y>
+        <covariance_yaw>0.001</covariance_yaw>
+      </plugin>
+    </gazebo>
+  </xacro:macro>
+
+  <!-- 참값 포즈 → nav_msgs/Odometry sim/ground_truth (MuJoCo 시뮬과 같은 이름 — capstone_sim 의 odom_compare.py 로 비교 가능) -->
+  <xacro:macro name="ground_truth_sim" params="body rate:=50">
+    <gazebo>
+      <plugin name="ground_truth" filename="libgazebo_ros_p3d.so">
+        <ros><remapping>odom:=sim/ground_truth</remapping></ros>
+        <body_name>${body}</body_name>
+        <frame_name>world</frame_name>
+        <update_rate>${rate}</update_rate>
+        <gaussian_noise>0.0</gaussian_noise>
+      </plugin>
+    </gazebo>
+  </xacro:macro>
+
+  <xacro:macro name="no_gravity" params="link">
+    <gazebo reference="${link}"><gravity>false</gravity></gazebo>
+  </xacro:macro>
+</robot>

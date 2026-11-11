@@ -1,0 +1,49 @@
+# robot_localization EKF — 바퀴 odom(속도) + ZED VIO(위치 변화량) + IMU 자이로(회전 속도) → TF odom → base_footprint, /odometry/filtered
+# 시뮬·실기 공용. 바퀴 odom 을 내는 노드(실기 swerve_odom / 시뮬 noisy_odom)는 TF 를 끌 것 (publish_tf:=false / odom_tf:=false)
+#
+# 왜 이렇게 나눴나:
+#  - 바퀴: 병진(vx, vy) 은 잘 맞음. 회전은 미끄러짐·조향 전환 때 틀림 (MuJoCo 시험: 조향 전환 때 2~3°) → yaw rate 는 덜 믿음
+#  - IMU: 자이로 z 만. 방향(orientation) 은 안 씀 — 시뮬 Gazebo IMU 방향은 참값이라 반칙, 실기 ZED 방향은 yaw 기준이 따로 없음
+#  - 위치(x, y, yaw) 를 직접 넣지 않고 속도만 → 적분은 EKF 가 (센서끼리 위치 기준이 달라도 충돌 없음)
+ekf_filter_node:
+  ros__parameters:
+    frequency: 50.0
+    sensor_timeout: 0.2
+    two_d_mode: true                 # 평면 로봇: z, roll, pitch 무시
+    publish_tf: true
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_footprint
+    world_frame: odom
+
+    # [x y z | roll pitch yaw | vx vy vz | vroll vpitch vyaw | ax ay az]
+    odom0: /odom
+    odom0_config: [false, false, false,
+                   false, false, false,
+                   true,  true,  false,
+                   false, false, true,
+                   false, false, false]
+    odom0_differential: false
+    odom0_queue_size: 10
+
+    # ZED SDK GEN_3 VIO (시뮬: fake_vio.py). differential = 절대 위치 말고 변화량만 → 원점·드리프트가 바퀴와 달라도 충돌 없음
+    # 공분산을 보고 섞음: 특징점 적은 곳에서 VIO 공분산이 커지면 바퀴 쪽을 더 믿음
+    # 실기: ZED wrapper publish_tf:=false, area_memory:=false (루프 클로저 때 odom 이 순간이동하면 안 됨)
+    odom1: /zed/zed_node/odom
+    odom1_config: [true,  true,  false,
+                   false, false, true,
+                   false, false, false,
+                   false, false, false,
+                   false, false, false]
+    odom1_differential: true
+    odom1_queue_size: 10
+
+    imu0: /zed/zed_node/imu/data
+    imu0_config: [false, false, false,
+                  false, false, false,
+                  false, false, false,
+                  false, false, true,
+                  false, false, false]
+    imu0_differential: false
+    imu0_remove_gravitational_acceleration: true
+    imu0_queue_size: 50

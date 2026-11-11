@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.8)
+project(capstone_gazebo)
+find_package(ament_cmake REQUIRED)
+install(DIRECTORY launch worlds models urdf DESTINATION share/${PROJECT_NAME})
+install(PROGRAMS scripts/noisy_odom.py scripts/fake_vio.py DESTINATION lib/${PROJECT_NAME})
+ament_package()

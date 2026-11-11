@@ -1,0 +1,1425 @@
+// make_world.py 가 생성 — 직접 고치지 말 것
+material Capstone/wall_corridor_a
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture wall_corridor_a.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/wall_corridor_b
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture wall_corridor_b.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/wall_room_admin
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture wall_room_admin.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/wall_room_lab
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture wall_room_lab.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/wall_room_lounge
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture wall_room_lounge.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/wall_white
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture wall_white.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/floor_corridor_0
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture floor_corridor_0.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/floor_corridor_1
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture floor_corridor_1.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/floor_corridor_2
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture floor_corridor_2.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/floor_corridor_3
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture floor_corridor_3.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/floor_corridor_4
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture floor_corridor_4.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/floor_corridor_5
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture floor_corridor_5.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/floor_lab_0
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture floor_lab_0.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/floor_lab_1
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture floor_lab_1.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/floor_lab_2
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture floor_lab_2.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/floor_admin
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture floor_admin.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/poster_0
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture poster_0.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/poster_1
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture poster_1.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/poster_2
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture poster_2.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/poster_3
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture poster_3.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/poster_4
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture poster_4.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/poster_5
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture poster_5.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/poster_6
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture poster_6.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/poster_7
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture poster_7.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/poster_8
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture poster_8.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/poster_9
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture poster_9.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/poster_10
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture poster_10.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/poster_11
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture poster_11.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/notice_0
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture notice_0.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/notice_1
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture notice_1.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/notice_2
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture notice_2.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/books_0
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture books_0.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/books_1
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture books_1.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/books_2
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture books_2.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/books_3
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture books_3.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/whiteboard_0
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture whiteboard_0.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/whiteboard_1
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture whiteboard_1.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/cabinet
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture cabinet.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/cabinet_beige
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture cabinet_beige.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/locker_0
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture locker_0.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/locker_1
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture locker_1.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/locker_2
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture locker_2.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/locker_3
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture locker_3.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/locker_4
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture locker_4.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/locker_5
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture locker_5.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/vending
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture vending.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/metal
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture metal.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/metal_plain
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture metal_plain.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/elevator_panel
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture elevator_panel.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/window_0
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture window_0.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/window_1
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture window_1.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/window_2
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture window_2.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/window_3
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture window_3.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/window_4
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture window_4.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/window_5
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture window_5.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/window_6
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture window_6.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/window_7
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture window_7.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/door_admin
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture door_admin.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/door_lab
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture door_lab.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/door_lounge
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture door_lounge.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/plate_301
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture plate_301.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/plate_302
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture plate_302.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/plate_303
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture plate_303.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/sign_exit
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture sign_exit.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/sign_fire
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture sign_fire.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/sign_elevator
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture sign_elevator.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/screen_0
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture screen_0.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/screen_1
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture screen_1.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/screen_2
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture screen_2.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/screen_3
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture screen_3.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/screen_4
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture screen_4.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/screen_5
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture screen_5.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/paper_0
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture paper_0.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/paper_1
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture paper_1.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
+
+material Capstone/paper_2
+{
+  technique
+  {
+    pass
+    {
+      ambient 0.9 0.9 0.9 1.0
+      diffuse 1.0 1.0 1.0 1.0
+      specular 0.05 0.05 0.05 1.0 10
+      texture_unit
+      {
+        texture paper_2.png
+        filtering anisotropic
+        max_anisotropy 8
+      }
+    }
+  }
+}
