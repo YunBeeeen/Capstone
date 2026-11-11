@@ -6,6 +6,7 @@
 //              enter 시작 이후의 heartbeat 로 전 축 CLOSED_LOOP 확인 → ACTIVE, enter_timeout 넘기면 FAULT
 //   ACTIVE   : 매 틱 속도 송신 (DRIVE = 명령, HOLD 또는 명령 끊김(cmd_timeout) = 0). 한 축이라도 폐루프 이탈 → FAULT
 //   FAULT    : 원인 래치, 전 축 속도 0 + IDLE. clear_errors() 로만 해제 → FREE (새 명령 필요)
+//              (브리지를 다시 켜도 됨: 켤 때 보드에 남은 에러를 한 번 지움, clear_on_start)
 //
 // 고장 조건: heartbeat 끊김(hb_timeout) / axis_error ≠ 0 / 폐루프 이탈 / 진입 실패.
 // 스워브는 바퀴 하나만 서도 차체가 끌리므로 한 축 고장 = 전 축 정지.
@@ -38,10 +39,13 @@ struct SupervisorConfig {
   // 복구하는 동안 전 축 속도 0 (한 바퀴만 힘 빠진 채 끌리지 않게). 다른 에러 비트·heartbeat 끊김은 그대로 FAULT.
   // recover_timeout 안에 폐루프로 못 돌아오거나, recover_window 안에 recover_max 번을 넘으면 진짜 고장으로 보고 FAULT.
   bool encoder_recover = true;
-  int recover_max = 3;
+  int recover_max = 10;
   double recover_window = 10.0;  // [s]
   double recover_timeout = 1.0;  // [s]
   double recover_retry = 0.2;    // [s] 복구 중 CLOSED_LOOP 재요청 주기
+  // 브리지를 켤 때 보드에 남아 있는 에러(이전 실행에서 FAULT 난 채 꺼진 것) 를 한 번 지움 → 다시 켜기만 하면 됨.
+  // 축마다 첫 heartbeat 에서 한 번만. 지운 뒤에도 에러가 다시 오면 평소처럼 FAULT.
+  bool clear_on_start = true;
 };
 
 struct WheelData {
@@ -95,6 +99,9 @@ class Supervisor {
   int recoveries() const { return n_recover_; }
   const std::string& last_recovery() const { return last_recovery_; }
   bool recovering() const;
+  // 켤 때 지운 에러 (누적 횟수 / 마지막 설명) — 노드 로그용
+  int start_clears() const { return n_start_clear_; }
+  const std::string& last_start_clear() const { return last_start_clear_; }
 
  private:
   void latch(const std::string& why, double now, std::vector<cs::Frame>& out);
@@ -122,6 +129,10 @@ class Supervisor {
   std::deque<double> rec_times_;   // recover_window 안의 복구 시작 시각들
   int n_recover_ = 0;
   std::string last_recovery_;
+  // 켤 때 에러 지우기
+  std::vector<bool> start_clear_;  // 첫 heartbeat 에 에러 → 다음 step 에서 클리어
+  int n_start_clear_ = 0;
+  std::string last_start_clear_;
 };
 
 }  // namespace wheel_can

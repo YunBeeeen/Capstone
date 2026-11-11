@@ -18,8 +18,10 @@ wheel_can_bridge:
     # FAULT 대신 그 축만 클리어 + CLOSED_LOOP 재진입 (그동안 전 축 속도 0). 4번 FL 의 순간 ILLEGAL_HALL_STATE 대응.
     # 다른 에러 비트 / heartbeat 끊김 / 아래 한도 초과는 그대로 FAULT
     encoder_recover: true
-    recover_max: 3                   # recover_window 안에서 허용 횟수 (넘으면 진짜 고장으로 보고 FAULT)
+    recover_max: 10                  # recover_window 안에서 허용 횟수 (넘으면 진짜 고장으로 보고 FAULT)
+                                     # 2026-11-11 실측: 최대 10 s 4번 / 30 s 6번 / 60 s 8번 (3 일 때 FAULT 남)
     recover_window: 10.0             # [s]
     recover_timeout: 1.0             # [s] 이 안에 폐루프로 못 돌아오면 FAULT
     recover_retry: 0.2               # [s] 복구 중 클리어 + CLOSED_LOOP 재요청 주기
+    clear_on_start: true             # 켤 때 보드에 남은 에러(이전 실행 FAULT) 한 번 클리어 → 브리지 다시 켜기만 하면 됨
     vbus_warn: 22.5                  # [V] 배터리 7S 3.2 V/셀 — 이하면 "충전 필요" 경고 (보드 트립 21 V)

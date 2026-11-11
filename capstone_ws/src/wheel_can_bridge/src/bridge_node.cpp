@@ -57,10 +57,11 @@ class BridgeNode : public rclcpp::Node {
     cfg.enter_timeout = declare_parameter<double>("enter_timeout", 3.0);
     cfg.retry_period = declare_parameter<double>("retry_period", 0.5);
     cfg.encoder_recover = declare_parameter<bool>("encoder_recover", true);
-    cfg.recover_max = static_cast<int>(declare_parameter<int64_t>("recover_max", 3));
+    cfg.recover_max = static_cast<int>(declare_parameter<int64_t>("recover_max", 10));
     cfg.recover_window = declare_parameter<double>("recover_window", 10.0);
     cfg.recover_timeout = declare_parameter<double>("recover_timeout", 1.0);
     cfg.recover_retry = declare_parameter<double>("recover_retry", 0.2);
+    cfg.clear_on_start = declare_parameter<bool>("clear_on_start", true);
     const double control_hz = declare_parameter<double>("control_rate_hz", 50.0);
     feedback_period_ = 1.0 / declare_parameter<double>("feedback_rate_hz", 20.0);
     feedback_free_period_ = 1.0 / declare_parameter<double>("feedback_rate_free_hz", 5.0);
@@ -112,6 +113,10 @@ class BridgeNode : public rclcpp::Node {
     const auto ctrl = sup_->step(now);
     send_all(ctrl);
     const Phase after = sup_->phase();
+    if (sup_->start_clears() != last_start_clears_) {
+      last_start_clears_ = sup_->start_clears();
+      RCLCPP_WARN(get_logger(), "%s", sup_->last_start_clear().c_str());
+    }
     if (sup_->recoveries() != last_recoveries_) {
       last_recoveries_ = sup_->recoveries();
       rec_start_ = now;
@@ -215,6 +220,7 @@ class BridgeNode : public rclcpp::Node {
   double next_feedback_ = 0.0;
   bool was_ready_ = false;
   int last_recoveries_ = 0;
+  int last_start_clears_ = 0;
   bool was_recovering_ = false;
   double rec_start_ = 0.0;
   Mode last_mode_ = Mode::FREE;

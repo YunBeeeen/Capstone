@@ -34,6 +34,7 @@ Supervisor::Supervisor(SupervisorConfig cfg) : cfg_(std::move(cfg)) {
   rec_.assign(wheels_.size(), false);
   rec_start_.assign(wheels_.size(), 0.0);
   rec_req_.assign(wheels_.size(), 0.0);
+  start_clear_.assign(wheels_.size(), false);
 }
 
 bool Supervisor::recovering() const {
@@ -91,7 +92,9 @@ void Supervisor::on_frame(const cs::Frame& f, double now) {
   switch (cs::cmd_of(f.id)) {
     case cs::HEARTBEAT: {
       const auto hb = cs::dec_heartbeat(f);
+      const bool first = !w.seen;
       w.seen = true;
+      if (first && cfg_.clear_on_start && phase_ == Phase::FREE && hb.axis_error != 0) start_clear_[i] = true;
       w.hb_time = now;
       w.axis_state = hb.axis_state;
       // 클리어 직후 grace 안의 heartbeat 는 클리어 전에 찍혔을 수 있음 → 에러만 무시
@@ -152,6 +155,19 @@ void Supervisor::latch(const std::string& why, double now, std::vector<cs::Frame
 
 std::vector<cs::Frame> Supervisor::step(double now) {
   std::vector<cs::Frame> out;
+
+  // 0) 켤 때 보드에 남아 있던 에러 지우기 (축마다 한 번)
+  for (size_t i = 0; i < wheels_.size(); ++i) {
+    if (!start_clear_[i]) continue;
+    start_clear_[i] = false;
+    auto& w = wheels_[i];
+    ++n_start_clear_;
+    last_start_clear_ = "id" + std::to_string(w.can_id) + " 보드에 남은 에러 axis_error " + hex(w.axis_error) +
+                        " (이전 실행) → 켤 때 클리어";
+    w.axis_error = 0;
+    clear_time_ = now;
+    out.push_back(cs::clear_errors(w.can_id));
+  }
 
   // 1) 고장 감지
   if (phase_ != Phase::FAULT) {

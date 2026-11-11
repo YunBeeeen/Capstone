@@ -45,6 +45,7 @@ class SupTest : public ::testing::Test {
     SupervisorConfig c;
     c.can_ids = {1, 2, 3, 4};
     c.sign = {1.0, -1.0, 1.0, 1.0};
+    c.recover_max = 3;  // 아래 횟수 시험 기준
     return c;
   }
   void beat_all(uint32_t state, double now) {
@@ -412,4 +413,54 @@ TEST(SupConfig, RejectsBadSign) {
   SupervisorConfig c;
   c.sign = {1.0, 1.0, 0.5, 1.0};
   EXPECT_THROW(Supervisor{c}, std::invalid_argument);
+}
+
+// 켤 때 보드에 남은 에러 (이전 실행에서 FAULT 난 채 꺼짐) → 한 번 클리어, FAULT 아님
+TEST_F(SupTest, StartupLeftoverErrorClearedOnce) {
+  for (int id : {1, 2, 3}) sup.on_frame(hb(id, cs::IDLE), 0.0);
+  sup.on_frame(hb(4, cs::IDLE, 0x100), 0.0);
+  const auto s = parse(sup.step(0.0));
+  EXPECT_EQ(s.clears, 1);
+  EXPECT_EQ(sup.phase(), Phase::FREE);
+  EXPECT_EQ(sup.start_clears(), 1);
+  EXPECT_NE(sup.last_start_clear().find("id4"), std::string::npos);
+  sup.on_frame(hb(4, cs::IDLE, 0x100), 0.02);  // grace 안 옛 값 → 무시
+  sup.step(0.02);
+  EXPECT_EQ(sup.phase(), Phase::FREE);
+  beat_all(cs::IDLE, 0.1);  // 지워짐
+  EXPECT_EQ(parse(sup.step(0.1)).clears, 0);  // 한 번만
+  sup.set_command(Mode::DRIVE, {0.5, 0.5, 0.5, 0.5}, 0.1);
+  sup.step(0.1);
+  EXPECT_EQ(sup.phase(), Phase::ENTERING);
+}
+
+TEST_F(SupTest, StartupErrorThatPersistsFaults) {
+  for (int id : {1, 3, 4}) sup.on_frame(hb(id, cs::IDLE), 0.0);
+  sup.on_frame(hb(2, cs::IDLE, 0x800), 0.0);  // 0x100 아닌 에러도 켤 때는 한 번 지워 봄
+  sup.step(0.0);
+  EXPECT_EQ(sup.phase(), Phase::FREE);
+  sup.on_frame(hb(2, cs::IDLE, 0x800), 0.2);  // 지운 뒤(grace 지나)에도 다시 → 진짜 고장
+  sup.step(0.2);
+  EXPECT_EQ(sup.phase(), Phase::FAULT);
+  EXPECT_EQ(sup.start_clears(), 1);
+}
+
+TEST_F(SupTest, ErrorAfterFirstHeartbeatIsNotStartupCleared) {
+  beat_all(cs::IDLE, 0.0);
+  sup.step(0.0);
+  sup.on_frame(hb(3, cs::IDLE, 0x100), 0.1);  // 켠 뒤 생긴 에러 → 평소대로 FAULT
+  const auto s = parse(sup.step(0.1));
+  EXPECT_EQ(sup.phase(), Phase::FAULT);
+  EXPECT_EQ(sup.start_clears(), 0);
+  EXPECT_EQ(s.clears, 0);
+}
+
+TEST_F(SupTest, ClearOnStartDisabledFaults) {
+  auto c = make_cfg();
+  c.clear_on_start = false;
+  sup = Supervisor(c);
+  for (int id : {1, 2, 3}) sup.on_frame(hb(id, cs::IDLE), 0.0);
+  sup.on_frame(hb(4, cs::IDLE, 0x100), 0.0);
+  sup.step(0.0);
+  EXPECT_EQ(sup.phase(), Phase::FAULT);
 }
