@@ -35,12 +35,12 @@ source /opt/ros/humble/setup.bash && source ~/zed_ws/install/setup.bash && sourc
 
 **T1 — ZED**
 ```bash
-ros2 launch zed_wrapper zed_camera.launch.py camera_model:=zed2i camera_name:=zed publish_tf:=false publish_map_tf:=false ros_params_override_path:=$HOME/capstone/capstone_ws/install/capstone_navigation/share/capstone_navigation/config/zed_vio_only.yaml
+ros2 launch capstone_navigation zed.launch.py
 ```
 
 **T4 — 가상 패드** (RB = 수동, RT = 자율주행)
 ```bash
-python3 ~/capstone/capstone_ws/src/teleop/scripts/virtual_pad.py --udp raspberrypi.local --nav-topic /nav/cmd_vel --max-lin 0.15 --max-ang 0.4
+~/capstone/capstone_ws/src/navigation/tools/pad.sh
 ```
 
 - [ ] 리프트 **최저**, 팔 전부 0 (접힌 자세)
@@ -51,14 +51,14 @@ python3 ~/capstone/capstone_ws/src/teleop/scripts/virtual_pad.py --udp raspberry
 
 **T2 — 매핑**
 ```bash
-ros2 launch capstone_navigation slam.launch.py odom_source:=zed new_map:=true database_path:=$HOME/maps/venue.db cam_x:=0.167 cam_z:=0.675 cam_pitch_offset:=1.3 cam_roll_offset:=0.7
+ros2 launch capstone_navigation map.launch.py map:=venue new_map:=true
 ```
 
 **T3 — 바닥 확인** (앞 바닥이 2 m 이상 빈 곳에서)
 ```bash
 python3 ~/capstone/capstone_ws/src/navigation/tools/zed_floor_level.py
 ```
-- [ ] "평평함" 이 나옴. 보정값이 나오면 T2 를 끄고 그 값을 `cam_pitch_offset` / `cam_roll_offset` 에 **더해서** 다시 켬
+- [ ] "평평함" 이 나옴. 보정값이 나오면 T2 를 끄고 기본값(1.3 / 0.7)에 그 값을 **더해서** 다시 켬 — 예: `map.launch.py map:=venue new_map:=true cam_pitch_offset:=1.8`
 
 **T3 — 녹화 시작**
 ```bash
@@ -99,12 +99,12 @@ ros2 service call /zed/zed_node/stop_svo_rec std_srvs/srv/Trigger
 
 **T2 — 재위치**
 ```bash
-ros2 launch capstone_navigation slam.launch.py odom_source:=zed localization:=true database_path:=$HOME/maps/venue.db cam_x:=0.167 cam_z:=0.675 cam_pitch_offset:=1.3 cam_roll_offset:=0.7
+ros2 launch capstone_navigation loc.launch.py map:=venue
 ```
 
 **T3 — Nav2** (`Managed nodes are active` 까지 기다림)
 ```bash
-ros2 launch capstone_navigation nav.launch.py odom_topic:=/zed_base_tf/odom cmd_vel_topic:=/nav/cmd_vel
+ros2 launch capstone_navigation drive.launch.py
 ```
 
 **T5 — RViz**
@@ -137,7 +137,7 @@ python3 ~/capstone/capstone_ws/src/navigation/tools/nav_goal_ahead.py --name she
 | "목표 거절됨" · 바로 "실패" | 목표 자리가 장애물에 너무 가까움. RViz 에서 목표 주변 색 확인, 패드로 근처까지 옮긴 뒤 다시 |
 | 빈 곳인데 막힌 것처럼 머뭇거림 | 잠시 기다리면 회복 동작이 costmap 을 지움. 안 풀리면 RB 로 그 구간만 수동 통과 후 RT |
 | 회복 동작으로 후진함 | 뒤는 카메라가 못 봄 — 뒤에 뭐가 있으면 RT 떼기 |
-| RT 를 눌러도 안 움직임 | 패드를 `--nav-topic /nav/cmd_vel` 로 켰는지, Nav2 가 `cmd_vel_topic:=/nav/cmd_vel` 인지, 패드 창이 초록인지 |
+| RT 를 눌러도 안 움직임 | 패드를 `pad.sh` 로 켰는지 (`--nav-topic /nav/cmd_vel`), Nav2 를 `drive.launch.py` 로 켰는지, 패드 창이 초록인지 |
 | 수동(RB)도 안 움직임 | 라파: `ros2 topic echo --once /wheel_state` (alive·ready), `ip -details link show can_drive` (ERROR-ACTIVE 가 정상) → `can_up.sh` 다시, 구동 브리지 재시작, 그래도 안 되면 구동 CAN 커넥터를 뺐다 다시 꽂음 (11/13 에 이걸로 복구), 전원 확인 |
 | 경로가 벽 쪽으로 붙거나 지도와 어긋남 | 위치가 틀어진 것 — RT 떼고, 제자리에서 돌려 "위치 찾음" 다시 |
 | 노트북이 느려지고 끊김 | RViz 부터 끔 |

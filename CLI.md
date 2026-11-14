@@ -314,19 +314,19 @@ source /opt/ros/humble/setup.bash && source ~/zed_ws/install/setup.bash && sourc
 
 **T1 — ZED** (첫 실행은 모델 최적화로 수 분 걸릴 수 있음)
 ```bash
-ros2 launch zed_wrapper zed_camera.launch.py camera_model:=zed2i camera_name:=zed publish_tf:=false publish_map_tf:=false ros_params_override_path:=$HOME/capstone/capstone_ws/install/capstone_navigation/share/capstone_navigation/config/zed_vio_only.yaml
+ros2 launch capstone_navigation zed.launch.py
 ```
 
 **T4 — 가상 패드** (10번의 PC 명령 대신 이걸로. RB = 수동, **RT = Nav2 데드맨**)
 ```bash
-python3 ~/capstone/capstone_ws/src/teleop/scripts/virtual_pad.py --udp raspberrypi.local --nav-topic /nav/cmd_vel --max-lin 0.15 --max-ang 0.4
+~/capstone/capstone_ws/src/navigation/tools/pad.sh
 ```
 
 ### 매핑
 
 **T2 — 매핑** (`X` = 지도 이름. 기존 지도에 이어서 하려면 `new_map:=true` 를 뺌)
 ```bash
-ros2 launch capstone_navigation slam.launch.py odom_source:=zed new_map:=true database_path:=$HOME/maps/X.db cam_x:=0.167 cam_z:=0.675 cam_pitch_offset:=1.3 cam_roll_offset:=0.7
+ros2 launch capstone_navigation map.launch.py map:=X new_map:=true
 ```
 
 **T3 — 확인 · 녹화 · 장소 저장**
@@ -356,12 +356,12 @@ ros2 service call /zed/zed_node/stop_svo_rec std_srvs/srv/Trigger
 
 **T2 — 재위치** (지도 고정)
 ```bash
-ros2 launch capstone_navigation slam.launch.py odom_source:=zed localization:=true database_path:=$HOME/maps/X.db cam_x:=0.167 cam_z:=0.675 cam_pitch_offset:=1.3 cam_roll_offset:=0.7
+ros2 launch capstone_navigation loc.launch.py map:=X
 ```
 
 **T3 — Nav2** (`Managed nodes are active` 가 나올 때까지 기다림)
 ```bash
-ros2 launch capstone_navigation nav.launch.py odom_topic:=/zed_base_tf/odom cmd_vel_topic:=/nav/cmd_vel
+ros2 launch capstone_navigation drive.launch.py
 ```
 
 **T5 — RViz** (선택. 핑크 = 장애물, 하늘색 = 못 감, 빨강~파랑 = 갈 수 있지만 꺼림)
@@ -413,6 +413,11 @@ python3 ~/capstone/capstone_ws/src/navigation/tools/nav_goal_ahead.py --abs 3.2 
 
 ### 옵션
 
+실기용 짧은 launch (`zed` · `map` · `loc` · `drive`) 와 `tools/pad.sh` 는 이 로봇 값이 기본으로 들어 있음 — 바꿀 것만 뒤에 붙임
+(예: `map.launch.py map:=X cam_roll_offset:=-0.9`, `drive.launch.py inflation_radius:=0.30`, `pad.sh --max-lin 0.3`).
+기본값 자체를 바꾸려면 `launch/map.launch.py` 의 `ROBOT` 을 고치고 `colcon build --packages-select capstone_navigation`.
+시뮬은 원래 것 (`slam.launch.py` · `nav.launch.py`) 을 씀. 아래 표의 기본은 원래 launch 기준.
+
 | 인자 | 어디 | 기본 | 뜻 |
 |---|---|---|---|
 | `cam_x` `cam_y` `cam_z` | slam.launch | 0 / 0 / 1.0 | 차체 중심 → ZED 밑면 나사 [m]. 이 로봇 0.167 / 0 / 0.675 (리프트 최저) |
@@ -429,5 +434,12 @@ python3 ~/capstone/capstone_ws/src/navigation/tools/zed_check.py --vio-only     
 python3 ~/capstone/capstone_ws/src/navigation/tools/zed_mount_check.py --cam-z 0.675 --pitch 21.6   # 높이·IMU 각·바닥 잡음
 python3 ~/capstone/capstone_ws/src/navigation/tools/zed_motion_check.py            # 줄자 거리·제자리 회전과 비교
 ```
+
+바퀴 오도메트리가 얼마나 맞는지 (EKF 에 넣기 전에). 라파에서 `ros2 launch swerve_controller swerve_odom.launch.py publish_tf:=false` 를 먼저 켬:
+```bash
+python3 ~/capstone/capstone_ws/src/navigation/tools/odom_check.py line    # Enter → 똑바로 5 m → Enter → 줄자 거리 입력
+python3 ~/capstone/capstone_ws/src/navigation/tools/odom_check.py spin    # Enter → 제자리 한 바퀴, 처음 방향에 맞춤 → Enter
+```
+바퀴와 ZED VIO 값을 나란히 보여 줌. 기준: 거리 2 %, 한 바퀴 5°.
 
 끄기: T6 → T3 (Nav2) → T2 (재위치·매핑, 저장 기다림) → T1 (ZED) → 패드 Esc → 라파 (10번 순서).
