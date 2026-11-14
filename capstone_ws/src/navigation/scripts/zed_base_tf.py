@@ -45,6 +45,11 @@ class ZedBaseTf(Node):
         self.cx = self.declare_parameter("cam_x", 0.0).value   # 차체 중심 → 카메라 (앞 +) [m]
         self.cy = self.declare_parameter("cam_y", 0.0).value   # (왼 +)
         self.cz = self.declare_parameter("cam_z", 1.0).value   # 바닥 → zed_camera_link 높이
+        # ZED 가 추정한 숙임·옆 기울기에 더할 보정 [deg]. 실측 2026-11-12: ZED pose 의 숙임 20.9° 로는 바닥이 1 m 당 1.9 cm 씩
+        #  떠 보임 (2.5 m 에서 +5 cm → 8 cm 기준에 가까워져 가짜 장애물). tools/zed_floor_level.py 가 권장값을 알려 줌.
+        #  매 콜백마다 읽으므로 ros2 param set /zed_base_tf pitch_offset_deg 1.1 로 켠 채 바꿀 수 있음
+        self.declare_parameter("pitch_offset_deg", 0.0)   # + = 더 숙임
+        self.declare_parameter("roll_offset_deg", 0.0)
         self.odom_frame = self.declare_parameter("odom_frame", "odom").value
         self.base_frame = self.declare_parameter("base_frame", "base_footprint").value
         self.cam_frame = self.declare_parameter("camera_frame", "zed_camera_link").value
@@ -65,6 +70,8 @@ class ZedBaseTf(Node):
         roll, pitch, yaw = rpy_from_q(q.x, q.y, q.z, q.w)
         c, s = math.cos(yaw), math.sin(yaw)
         bx, by = p.x - (c * self.cx - s * self.cy), p.y - (s * self.cx + c * self.cy)
+        roll += math.radians(self.get_parameter("roll_offset_deg").value)
+        pitch += math.radians(self.get_parameter("pitch_offset_deg").value)
         qb, qc = q_from_rpy(0.0, 0.0, yaw), q_from_rpy(roll, pitch, 0.0)
 
         t1 = TransformStamped()

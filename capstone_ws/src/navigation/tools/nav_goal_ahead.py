@@ -4,11 +4,15 @@
   python3 src/navigation/tools/nav_goal_ahead.py 1.5            # 앞 1.5 m (방향 그대로)
   python3 src/navigation/tools/nav_goal_ahead.py 1.0 0.5 90     # 앞 1.0, 왼 0.5 m, 왼쪽으로 90° 돈 방향
   python3 src/navigation/tools/nav_goal_ahead.py --abs 3.2 -1.0 180   # map 좌표 (x, y, yaw°) 그대로
+  python3 src/navigation/tools/nav_goal_ahead.py --name shelf_A       # place_mark.py 로 기억한 자리 (지도 옆 places.yaml)
+  python3 src/navigation/tools/nav_goal_ahead.py --name shelf_A --dry # 목표만 계산해 보여 주고 안 보냄
 진행 중 남은 거리를 1 초마다 출력. Ctrl+C = 목표 취소 (로봇은 가상 패드 N 을 떼면 바로 멈춤).
 """
 import argparse
 import math
+import sys
 import time
+from pathlib import Path
 
 import rclpy
 from geometry_msgs.msg import PoseStamped
@@ -17,14 +21,23 @@ from rclpy.action import ActionClient
 from rclpy.node import Node
 from tf2_ros import Buffer, TransformListener
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import places  # noqa: E402
+
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("x", type=float, help="앞 [m] (--abs 면 map x)")
+    ap.add_argument("x", type=float, nargs="?", help="앞 [m] (--abs 면 map x)")
     ap.add_argument("y", type=float, nargs="?", default=0.0, help="왼 [m] (--abs 면 map y)")
     ap.add_argument("yaw", type=float, nargs="?", default=0.0, help="회전 [deg] (--abs 면 map yaw)")
     ap.add_argument("--abs", action="store_true", help="map 좌표로 직접")
+    ap.add_argument("--name", help="place_mark.py 로 기억한 장소 이름")
+    ap.add_argument("--places", help="places.yaml 경로 (기본: RTAB-Map 지도 옆)")
+    ap.add_argument("--dry", action="store_true", help="목표만 출력하고 보내지 않음")
+    ap.add_argument("--force", action="store_true", help="기준 노드가 지도에 없어도 저장 좌표로 보냄")
     a = ap.parse_args()
+    if a.name is None and a.x is None:
+        ap.error("x 또는 --name 이 필요")
     rclpy.init()
     n = Node("nav_goal_ahead")
     tf = Buffer()
@@ -35,18 +48,43 @@ def main():
         rclpy.spin_once(n, timeout_sec=0.1)
         try:
             tr = tf.lookup_transform("map", "base_footprint", rclpy.time.Time()).transform
-            cur = (tr.translation.x, tr.translation.y, 2 * math.atan2(tr.rotation.z, tr.rotation.w))
+            cur = (tr.translation.x, tr.translation.y, places.yaw_q(tr.rotation))
         except Exception:
             pass
     if cur is None:
         print("TF map→base_footprint 없음 — slam.launch(재위치)가 떠 있나?")
         return
-    if a.abs:
+    if a.name:
+        mc = places.MapClient(n)
+        path = Path(a.places).expanduser() if a.places else None
+        if path is None:
+            db = mc.db_path()
+            if not db:
+                print("RTAB-Map 에서 지도 경로를 못 얻음 — slam.launch 가 떠 있나? (또는 --places 로 지정)")
+                return
+            path = places.places_path(db)
+        pl = places.load(path)
+        if a.name not in pl:
+            print(f"'{a.name}' 이 {path} 에 없음. 있는 것: {', '.join(pl) or '(없음)'}")
+            return
+        (gx, gy, gyaw), how = places.resolve(pl[a.name], mc.graph())
+        print(f"'{a.name}' ({pl[a.name].get('kind', '?')}) — {how}")
+        if pl[a.name].get("anchors") and "기준 노드 없음" in how and not a.force:
+            # 이어서 매핑한 새 세션이 아직 옛 지도와 안 이어졌거나 다른 지도를 띄운 경우: 저장 좌표는 지금 지도와 기준이 다를 수 있음
+            print("  기준 노드가 지금 지도에 없음 → 보내지 않음. 옛 지도와 아직 안 이어졌거나(이어서 매핑 중) 다른 지도일 수 있음."
+                  " 그래도 저장 좌표로 보내려면 --force")
+            return
+        if not pl[a.name].get("static", True):
+            print("  주의: 옮겨질 수 있는 물체로 표시됨 — 도착 후 실제로 있는지 확인 필요")
+    elif a.abs:
         gx, gy, gyaw = a.x, a.y, math.radians(a.yaw)
     else:
         c, s = math.cos(cur[2]), math.sin(cur[2])
         gx, gy, gyaw = cur[0] + c * a.x - s * a.y, cur[1] + s * a.x + c * a.y, cur[2] + math.radians(a.yaw)
-    print(f"지금 map ({cur[0]:.2f}, {cur[1]:.2f}, {math.degrees(cur[2]):.0f}°) → 목표 ({gx:.2f}, {gy:.2f}, {math.degrees(gyaw):.0f}°)")
+    print(f"지금 map ({cur[0]:.2f}, {cur[1]:.2f}, {math.degrees(cur[2]):.0f}°) → 목표 ({gx:.2f}, {gy:.2f}, {math.degrees(gyaw):.0f}°)"
+          f"  직선 {math.hypot(gx - cur[0], gy - cur[1]):.2f} m")
+    if a.dry:
+        return
     cli = ActionClient(n, NavigateToPose, "navigate_to_pose")
     if not cli.wait_for_server(timeout_sec=10.0):
         print("navigate_to_pose 액션 없음 — nav.launch 가 떠 있나?")
@@ -58,13 +96,11 @@ def main():
     g.pose.pose.position.x, g.pose.pose.position.y = gx, gy
     g.pose.pose.orientation.z, g.pose.pose.orientation.w = math.sin(gyaw / 2), math.cos(gyaw / 2)
     fb = {}
-    fut = cli.send_goal_async(g, feedback_callback=lambda m: fb.__setitem__("d", m.feedback.distance_remaining))
-    rclpy.spin_until_future_complete(n, fut)
-    h = fut.result()
-    if not h.accepted:
+    h = places.send_goal(n, cli, g, lambda m: fb.__setitem__("d", m.feedback.distance_remaining))
+    if h is None or not h.accepted:
         print("목표 거절됨")
         return
-    print("목표 수락 — 가상 패드 창에서 N 을 누르고 있어야 움직임")
+    print("목표 수락 — 가상 패드 창에서 N (게임패드 RT) 을 누르고 있어야 움직임")
     res = h.get_result_async()
     last = 0.0
     try:

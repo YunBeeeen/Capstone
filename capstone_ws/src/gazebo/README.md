@@ -93,6 +93,10 @@ GUI: 천장은 **레이어 1** — 왼쪽 패널 **Layers** 탭에서 끄면 위
 | `scripts/noisy_odom.py` | 가짜 바퀴 odom (`/odom` + TF). 파라미터로 오차 크기 조절 |
 | `scripts/fake_vio.py` | 가짜 ZED VIO (`/zed/zed_node/odom`). `degraded_zones` 에서 오차 크게 |
 | `tools/run_slam_loop.sh`, `slam_loop_run.py`, `slam_eval_db.py` | SLAM 자동 시험: 루프 주행 → 실시간 기록 → DB 최적화 포즈로 최종 지도 오차 |
+| `tools/make_shelf.py`, `models/ladder_shelf*/`, `person_box/`, `spectator_cam/` | 사다리형 선반 (연구실 실물 흉내, 0.6 × 0.33 × 1.5 m) + 물건 바뀐 것(`_alt`)·빈 것(`_empty`), 서 있는 사람 흉내, 녹화용 고정 카메라. 월드에 안 넣고 따로 스폰 |
+| `tools/run_shelf_test.sh <출력> [run\|run2] [record]`, `shelf_test.py` | 선반 기억 2 단계 시험: 매핑 + 저장 → 재위치 → `place_go.py`, 참값으로 선반 기준 정지 오차. `run` = 옮기기·치우기, `run2` = 물건 바뀜·사람 가림·접근 중 끼어듦, `run3` = 정면이 막혔을 때 옆면으로, `run4` = 다른 복도·방으로 옮겨진 선반 찾기 (`SHELF_MAP=wide SIM_ODOM=perfect` 로 매핑부터) (`SHELF_CASES=2,3` 으로 일부만). `record` = `<출력>/<모드>.mp4` |
+| `tools/make_sim_robot.py`, `urdf/mobile_robot_sim.urdf.xacro` | 팔 달린 실제 로봇 URDF → 시험용 로봇 (관절 0 고정, ZED 높이 0.675 m·숙임 22.2°·옆 기울기 0.7°). 시험 스크립트 기본 로봇. 예전 상자 로봇은 `SIM_ROBOT=test_rig` |
+| `tools/record_view.py` | 구경 카메라 + 로봇 카메라(작게) + 자막(`/test/caption`) 녹화 |
 | `tools/capture_views.py` | 여러 지점 순간이동해서 카메라 RGB/depth 저장 |
 
 ## 주의

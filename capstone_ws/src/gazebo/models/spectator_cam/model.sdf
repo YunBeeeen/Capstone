@@ -1,0 +1,6 @@
+<?xml version="1.0"?><sdf version="1.6"><model name="spectator_cam"><static>true</static><link name="link">
+<sensor type="camera" name="cam"><update_rate>10</update_rate><camera><horizontal_fov>1.5</horizontal_fov>
+<image><width>960</width><height>540</height><format>R8G8B8</format></image><clip><near>0.05</near><far>40</far></clip></camera>
+<plugin name="spectator" filename="libgazebo_ros_camera.so"><ros><namespace>/spectator</namespace></ros>
+<camera_name>cam</camera_name><frame_name>spectator_link</frame_name></plugin></sensor>
+</link></model></sdf>

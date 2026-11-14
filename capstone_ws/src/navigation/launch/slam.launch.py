@@ -106,7 +106,13 @@ def nodes(context):
         cx, cy, cz = (float(get(k)) for k in ("cam_x", "cam_y", "cam_z"))
         out.append(LogInfo(msg=f"[slam] odom = ZED 단독 (EKF 없음). 카메라 위치 (차체 기준) x {cx} y {cy} z {cz} m"))
         out.append(Node(package="capstone_navigation", executable="zed_base_tf.py", name="zed_base_tf", output="log",
-                        parameters=[{"use_sim_time": sim, "cam_x": cx, "cam_y": cy, "cam_z": cz}]))
+                        parameters=[{"use_sim_time": sim, "cam_x": cx, "cam_y": cy, "cam_z": cz,
+                                     "pitch_offset_deg": float(get("cam_pitch_offset")),
+                                     "roll_offset_deg": float(get("cam_roll_offset"))}]))
+    elif get("odom_source") == "external":
+        # TF odom→base_footprint 를 다른 곳에서 냄 (시뮬: world.launch odom_tf:=true odom_noise:=false = 참값 odom).
+        # 긴 루프 시뮬에서 EKF 가 가짜 자이로 바이어스로 틀어질 때, 위치 추정 말고 다른 것(선반 찾기 등)을 시험하려고 씀
+        out.append(LogInfo(msg="[slam] odom = 외부 TF (EKF·zed_base_tf 안 띄움)"))
     else:
         out.append(Node(package="robot_localization", executable="ekf_node", name="ekf_filter_node", output="screen",
                         parameters=[str(ekf_cfg), {"use_sim_time": sim}]))
@@ -133,11 +139,14 @@ def generate_launch_description():
         DeclareLaunchArgument("odom_linear_variance", default_value="0.0001", description="[m²] 노드 사이 odom 위치 분산"),
         DeclareLaunchArgument("odom_angular_variance", default_value="0.0001", description="[rad²] 노드 사이 odom yaw 분산"),
         DeclareLaunchArgument("viz", default_value="false", description="rtabmap_viz 창"),
-        DeclareLaunchArgument("odom_source", default_value="ekf", choices=["ekf", "zed"],
-                              description="ekf = 바퀴+VIO+자이로 EKF / zed = ZED 단독 (바퀴 odom 없을 때, ZED publish_tf:=false)"),
+        DeclareLaunchArgument("odom_source", default_value="ekf", choices=["ekf", "zed", "external"],
+                              description="ekf = 바퀴+VIO+자이로 EKF / zed = ZED 단독 (바퀴 odom 없을 때, ZED publish_tf:=false) / external = odom TF 를 다른 곳에서 냄"),
         DeclareLaunchArgument("ground_height", default_value="0.20", description="[m] 평평한 면을 바닥으로 볼 최대 높이 (depth 잡음 흡수)"),
         DeclareLaunchArgument("cam_x", default_value="0.0", description="[odom_source:=zed] 차체 중심→카메라 앞쪽 [m]"),
         DeclareLaunchArgument("cam_y", default_value="0.0", description="[odom_source:=zed] 왼쪽 [m]"),
+        DeclareLaunchArgument("cam_pitch_offset", default_value="0.0",
+                              description="[odom_source:=zed] ZED 가 추정한 숙임에 더할 보정 [deg] (tools/zed_floor_level.py 권장값)"),
+        DeclareLaunchArgument("cam_roll_offset", default_value="0.0", description="[odom_source:=zed] 옆 기울기 보정 [deg]"),
         DeclareLaunchArgument("cam_z", default_value="1.0", description="[odom_source:=zed] 바닥→zed_camera_link 높이 [m] (줄자로)"),
         OpaqueFunction(function=nodes),
     ])
