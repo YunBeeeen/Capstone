@@ -108,6 +108,9 @@ scp jetson:maps/X.db ~/maps/X_jetson.db && source /opt/ros/humble/setup.bash && 
 ### RViz (선택)
 - Jetson 모니터 앞: `rviz2 -d ~/capstone_ws/install/capstone_navigation/share/capstone_navigation/config/nav.rviz`
 - 노트북 (랜선으로 iDLE): `export ROS_DOMAIN_ID=21 && source /opt/ros/humble/setup.bash && rviz2 -d ~/capstone/capstone_ws/install/capstone_navigation/share/capstone_navigation/config/nav.rviz`
+  - Jetson 은 인터넷이 없어 시계가 안 맞음 (2026-11-17: 노트북보다 3.06 s 늦음) → 노트북 RViz 에서 일부가 '너무 오래된 데이터' 로 빠지면
+    한 번 맞추기 (노트북 터미널): `ssh -t jetson "sudo date -s @$(date +%s.%N)"`
+  - 저장된 지도를 이 화면으로 보려면 Jetson 에서 J1 (ZED) + J2 `loc.launch.py map:=X` 를 켜 두면 됨
 
 ---
 
