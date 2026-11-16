@@ -9,6 +9,9 @@
   python3 play_plan.py --pose                              # 현재 모터 1~6 [도] 출력. 토크를 켜서 읽고, 받친 뒤 ENTER 로 해제
   python3 play_plan.py plan.json --stop-at approach        # 접근점까지만 (기본 속도 0.5)
   python3 play_plan.py plan.json --speed 1.0               # 끝까지, 계획 속도
+  python3 play_plan.py --gripper open                      # 그리퍼만 열기 (팔은 지금 자세 유지), close 는 닫기
+  python3 play_plan.py plan.json --grip-before open --grip-after close   # 열고 다가가서 → 끝에서 잡기
+  python3 play_plan.py plan.json --grip-after open         # 들고 와서 → 끝에서 놓기
 
 동작:
   - config.env 와 같은 팔로워 설정 (중력 보상 roll 45°, MIT, 100 Hz, 30°/s·120°/s², 명령 끊김 0.25 s, 끌림 15°).
@@ -23,7 +26,12 @@
   - 리프트는 움직이지 않는다: plan 이 lift_fixed (ik_sim_run --zed-height) 가 아니면 실행 거부.
   - ik_sim_run 의 MuJoCo 검증을 통과한 plan (validated) 만 실행. 팔로워가 실제로 쓰는 관절 한계 밖 점이 있으면 거부.
   - 삽입 단계는 더 작은 지연(--insert-lag, 기본 5°)에서 멈춘다. 끝에서 --settle 초 안에 2° 안으로 못 들어오면 정지로 본다.
-  - 끝나면 자세 유지 → ENTER 로 같은 길 거꾸로 돌아가기, q 로 그대로 종료.
+  - 그리퍼 (--grip-before: 재생 전, --grip-after: 끝에 도착했을 때만, 부딪혀 멈췄으면 안 함): 팔은 그 자리 목표를
+    계속 보내며 그리퍼만 움직이고, 목표에 닿거나 멈출 때까지 기다린다. 팀 팔로워 그리퍼는 힘 제한 위치 모드라
+    닫기(0°)를 보내면 물체에 막혀 멈춘다 → 멈춘 각도가 --grip-empty-deg (기본 −15°) 보다 열려 있으면 '잡힘',
+    끝까지 닫히면 '빈손' 경고. 공개 각도 −270° = 완전 열림, 0° = 닫힘.
+  - 끝나면 자세 유지 → ENTER 로 같은 길 거꾸로 돌아가기, q 로 그대로 종료. 그리퍼는 마지막 명령 그대로
+    (잡았으면 쥔 채로 돌아감 — 삽입 구간을 거꾸로 빠지므로 면 위 물체는 끌린다. 들어 올리고 빠지는 길은 아직 없음).
   - 종료(또는 Ctrl+C)는 팀 팔로워의 disconnect: 자세 유지한 채 '팔을 받친 뒤 ENTER' 를 기다렸다가 토크 해제.
 """
 import argparse
@@ -131,6 +139,57 @@ class Stalled(RuntimeError):
         self.t_plan, self.lag, self.q_meas = t_plan, lag, q_meas
 
 
+GRIP_OPEN_DEG, GRIP_CLOSE_DEG = -270.0, 0.0
+
+
+def grip(robot, q_hold, target, rate_hz=50.0, timeout_s=4.0, tol_deg=2.0, still_deg=1.0, still_s=0.4,
+         lag_stop_deg=10.0, label="[그리퍼] ", t_plan=0.0):
+    """팔은 q_hold 목표를 계속 보내 그 자리에 두고, 그리퍼만 target [공개 도] 으로. 반환 (멈춘 각도, 이유).
+    이유: 'reached' (목표 tol 안), 'blocked' (still_s 동안 still_deg 넘게 안 움직임 = 물체에 막힘), 'timeout'.
+    팔이 lag_stop_deg 넘게 밀리면 (잡다가 물체·가구를 미는 경우) hold 후 Stalled."""
+    period = 1.0 / rate_hz
+    t0 = next_tick = time.perf_counter()
+    hist = []                                       # (시각, 각도)
+    while True:
+        robot.send_action(action(q_hold, target))
+        q_meas, g = measured(robot)
+        now = time.perf_counter()
+        lag = float(np.max(np.abs(np.asarray(q_hold) - q_meas)))
+        if lag > lag_stop_deg:
+            robot.hold()
+            raise Stalled(t_plan, lag, q_meas)
+        hist.append((now, g))
+        if abs(g - target) <= tol_deg:
+            why = "reached"
+        else:
+            old = [v for t, v in hist if now - t >= still_s]
+            why = "blocked" if old and now - t0 > still_s and abs(g - old[-1]) < still_deg else None
+            if why is None and now - t0 > timeout_s:
+                why = "timeout"
+        if why:
+            print(f"{label}{target:.0f}° 명령 → {g:.1f}° 에서 {dict(reached='도착', blocked='막혀 멈춤', timeout='시간 초과')[why]}"
+                  f" ({now - t0:.1f}s)", flush=True)
+            return g, why
+        next_tick += period
+        if time.perf_counter() - next_tick > period:
+            next_tick = time.perf_counter()
+        time.sleep(max(0.0, next_tick - time.perf_counter()))
+
+
+def do_grip(robot, q_hold, how, args, t_plan=0.0):
+    """how = open/close. 반환 새 그리퍼 명령 [도]. 닫기면 잡힘/빈손을 알린다. t_plan = 지금 경로 시각 (멈췄을 때 복귀 기준)."""
+    target = args.grip_open_deg if how == "open" else args.grip_close_deg
+    g, why = grip(robot, q_hold, target, rate_hz=args.rate, timeout_s=args.grip_timeout, t_plan=t_plan)
+    if how == "close":
+        if g < args.grip_empty_deg:
+            print(f"  잡힘: 손가락이 {g:.1f}° 에서 멈춤 (빈손이면 {args.grip_close_deg:.0f}° 근처까지 닫힘)")
+        else:
+            print(f"  ⚠ 빈손 추정: {g:.1f}° 까지 닫힘 (--grip-empty-deg {args.grip_empty_deg:.0f}° 보다 닫힘)")
+    elif why != "reached":
+        print(f"  ⚠ 다 안 열림: {g:.1f}° (목표 {target:.0f}°) — 손가락이 무언가에 걸렸는지 확인")
+    return target
+
+
 def play(robot, tl, gripper, rate_hz, lag_pause_deg, t_end=None, label="", stall_s=1.0,
          insert_lag_deg=None, settle_s=2.0, settle_deg=2.0, ramp_s=0.3, stats=None):
     """tl 을 rate_hz 로 재생. 끝 시각 반환.
@@ -202,6 +261,14 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("plan", nargs="?", type=Path)
     ap.add_argument("--pose", action="store_true", help="현재 모터 1~6 [도] 만 출력")
+    ap.add_argument("--gripper", choices=["open", "close"], help="경로 없이 그리퍼만 열기/닫기 (팔은 지금 자세 유지)")
+    ap.add_argument("--grip-before", choices=["open", "close", "keep"], default="keep", help="경로 재생 전 그리퍼")
+    ap.add_argument("--grip-after", choices=["open", "close", "keep"], default="keep",
+                    help="경로 끝에 도착하면 그리퍼 (close = 잡기, open = 놓기). 부딪혀 멈췄으면 하지 않음")
+    ap.add_argument("--grip-open-deg", type=float, default=GRIP_OPEN_DEG, help="열기 목표 [공개 도], 기본 −270 = 완전 열림")
+    ap.add_argument("--grip-close-deg", type=float, default=GRIP_CLOSE_DEG, help="닫기 목표 [공개 도], 기본 0 (힘 제한이라 물체에서 멈춤)")
+    ap.add_argument("--grip-empty-deg", type=float, default=-15.0, help="닫은 뒤 이보다 더 닫혔으면 빈손으로 봄 [도]")
+    ap.add_argument("--grip-timeout", type=float, default=4.0, help="그리퍼 동작 최대 시간 [s]")
     ap.add_argument("--dry-run", action="store_true", help="팔 연결 없이 재생 내용 출력")
     ap.add_argument("--speed", type=float, default=0.5, help="계획 속도 배율 (0~1], 기본 0.5")
     ap.add_argument("--stop-at", choices=["lift", "approach", "insert"], help="이 단계 끝에서 멈춤")
@@ -216,9 +283,11 @@ def main():
     ap.add_argument("--gravity-scale", default="wrist_flex=0.85", help="관절별 중력 배율, 예 'wrist_flex=0.85' 또는 '4=0.85', 빈 값이면 안 검")
     args = ap.parse_args()
 
-    if not args.pose:
+    if not (-270.0 <= args.grip_open_deg < args.grip_close_deg <= 0.0):
+        ap.error("그리퍼 각도: −270 ≤ --grip-open-deg < --grip-close-deg ≤ 0")
+    if not (args.pose or args.gripper):
         if args.plan is None:
-            ap.error("plan.json 이 필요 (또는 --pose)")
+            ap.error("plan.json 이 필요 (또는 --pose / --gripper)")
         plan = json.loads(args.plan.read_text())
         T = load_timeline_module()
         v_limit = float(plan.get("v_limit_deg", 30.0))
@@ -242,9 +311,13 @@ def main():
                 print("  거부:", msg)
             return 2
         if args.dry_run:
+            if args.grip_before != "keep":
+                print(f"  재생 전 그리퍼 {args.grip_before}")
             for t in np.arange(0.0, t_end + 1e-9, 0.5):
                 q, ph = tl.sample(t)
                 print(f"  {t:6.2f}s {ph:10s} " + " ".join(f"{i}:{v:7.1f}" for i, v in enumerate(q, start=1)))
+            if args.grip_after != "keep":
+                print(f"  끝에서 그리퍼 {args.grip_after}")
             return 0
 
     robot, cfg = make_robot(args)
@@ -257,6 +330,10 @@ def main():
         q0, gripper = measured(robot)
         print("현재 모터 1~6 [도]:", ",".join(f"{v:.2f}" for v in q0), f"  그리퍼 {gripper:.1f}")
         if args.pose:
+            return 0
+        if args.gripper:
+            do_grip(robot, q0, args.gripper, args)
+            robot.hold()
             return 0
         bad = check_limits(robot, tl, t_end)
         if bad:
@@ -277,6 +354,9 @@ def main():
             play(robot, align, gripper, args.rate, args.lag_pause, label="[시작 맞춤] ", stall_s=args.stall,
                  settle_s=args.settle, settle_deg=args.settle_deg)
             robot.hold()          # ENTER 를 기다리는 동안 명령 끊김(0.25 s) 오류가 걸리지 않게 측정 자세 고정
+        if args.grip_before != "keep":
+            gripper = do_grip(robot, start, args.grip_before, args)
+            robot.hold()
         input("\n경로 재생 시작: ENTER (멈추려면 Ctrl+C — 자세 유지)\n")
         t_back_from = t_end
         try:
@@ -284,6 +364,8 @@ def main():
                  insert_lag_deg=args.insert_lag, settle_s=args.settle, settle_deg=args.settle_deg)
             q_end, _ = measured(robot)
             print("도착. 측정 모터 1~6:", ",".join(f"{v:.1f}" for v in q_end))
+            if args.grip_after != "keep":
+                gripper = do_grip(robot, tl.sample(t_end)[0], args.grip_after, args, t_plan=t_end)
             robot.hold()
         except Stalled as e:
             t_back_from = closest_time(tl, e.q_meas, e.t_plan)

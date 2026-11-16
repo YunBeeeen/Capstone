@@ -75,8 +75,10 @@ class FakeFollower:
     first-order lag, optional stalled joint, optional steady offset, 0.25 s command timeout that latches
     an error unless hold() was called (team behaviour), effective joint limits, connect/disconnect."""
 
-    def __init__(self, q0, tau=0.15, stall=None, offset=None, limits=None, timeout=0.25):
+    def __init__(self, q0, tau=0.15, stall=None, offset=None, limits=None, timeout=0.25, grip_object=None):
+        """grip_object: 손가락 사이 물체가 막는 각도 [공개 도] (닫기가 거기서 멈춤). None 이면 빈손."""
         import time
+        self.g, self.g_target, self.grip_object = -10.0, -10.0, grip_object
         self.q = np.array(q0, float)
         self.target = self.q.copy()
         self.tau, self.stall, self.sent, self.held = tau, stall, 0, False
@@ -103,6 +105,11 @@ class FakeFollower:
         self.t_last, self.held = now, False
         self.target = np.array([action[f"{n}.pos"] for n in play_plan.NAMES])
         self.q += (self.target + self.offset - self.q) * min(1.0, dt / self.tau)
+        self.g_target = float(action["gripper.pos"])
+        step = float(np.clip(self.g_target - self.g, -300.0 * dt, 300.0 * dt))   # 그리퍼 300°/s
+        self.g += step
+        if self.grip_object is not None and step > 0 and self.g > self.grip_object:
+            self.g = self.grip_object                                            # 물체에 막힘 (힘 제한)
         if self.stall is not None and self.sent < self.stall[1]:
             self.q[self.stall[0]] = 0.0       # joint held back for the first N commands
         self.sent += 1
@@ -117,7 +124,7 @@ class FakeFollower:
 
     def get_observation(self):
         obs = {f"{n}.pos": float(v) for n, v in zip(play_plan.NAMES, self.q)}
-        obs["gripper.pos"] = -10.0
+        obs["gripper.pos"] = self.g
         return obs
 
 
@@ -241,6 +248,50 @@ class PlayerMainTests(unittest.TestCase):
         self.assertIsNone(robot.error)                                # align 뒤 hold 덕분에 명령 끊김 오류 없음
         self.assertTrue(robot.disconnected)
         np.testing.assert_allclose(robot.q, np.zeros(6), atol=1.5)   # 같은 길로 시작까지 복귀
+
+    def test_grip_open_then_close_on_object_and_return_holding(self):
+        import contextlib
+        import io
+        import tempfile
+        out = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(out):
+            robot = FakeFollower([0.0] * 6, grip_object=-120.0)
+            rc = self._run(self._plan(tmp), robot, ["", ""], ["--grip-before", "open", "--grip-after", "close"])
+        self.assertEqual(rc, 0)
+        self.assertIsNone(robot.error)
+        self.assertIn("잡힘", out.getvalue())
+        self.assertAlmostEqual(robot.g, -120.0, delta=1.0)               # 물체에서 멈춤
+        self.assertEqual(robot.g_target, 0.0)                            # 돌아오는 동안에도 쥔 채
+        np.testing.assert_allclose(robot.q, np.zeros(6), atol=1.5)
+
+    def test_close_without_object_warns_empty(self):
+        import contextlib
+        import io
+        import tempfile
+        out = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(out):
+            robot = FakeFollower([0.0] * 6)
+            rc = self._run(self._plan(tmp), robot, ["", "q"], ["--grip-before", "open", "--grip-after", "close"])
+        self.assertEqual(rc, 0)
+        self.assertIn("빈손", out.getvalue())
+        self.assertGreater(robot.g, -3.0)
+
+    def test_gripper_only_command_holds_arm(self):
+        import contextlib
+        import io
+        from types import SimpleNamespace
+        from unittest import mock
+        robot = FakeFollower([5.0, -30.0, -20.0, 10.0, 0.0, 0.0])
+        q_before = robot.q.copy()
+        argv = ["play_plan.py", "--gripper", "open"]
+        with mock.patch.object(play_plan, "make_robot", lambda a: (robot, SimpleNamespace(port="fake", max_relative_target=15.0))), \
+                mock.patch.object(sys, "argv", argv), mock.patch.object(play_plan, "apply_gravity_scales", lambda r, s: {}), \
+                contextlib.redirect_stdout(io.StringIO()):
+            rc = play_plan.main()
+        self.assertEqual(rc, 0)
+        self.assertAlmostEqual(robot.g, -270.0, delta=2.0)
+        np.testing.assert_allclose(robot.q, q_before, atol=0.1)          # 팔은 그대로
+        self.assertTrue(robot.disconnected)
 
     def test_refuses_unvalidated_or_moving_lift_plans_before_connecting(self):
         import tempfile

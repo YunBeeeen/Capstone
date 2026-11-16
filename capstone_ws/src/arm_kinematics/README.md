@@ -220,7 +220,17 @@ python3 play_plan.py plan_free.json --dry-run                 # 팔 없이 내�
 python3 play_plan.py --pose                                    # 현재 모터 1~6 (쉬는 자세면 0점 5° 안)
 python3 play_plan.py plan_free.json --stop-at approach         # 접근점까지, 속도 0.5
 python3 play_plan.py plan_free.json                            # 끝까지 → ENTER 로 같은 길 복귀
+python3 play_plan.py --gripper open                            # 그리퍼만 (팔은 지금 자세 유지), close = 닫기
+python3 play_plan.py plan_desk.json --grip-before open --grip-after close   # 열고 다가가 → 끝에서 잡기
+python3 play_plan.py plan_basket.json --grip-after open        # 들고 와서 → 끝에서 놓기
 ```
+
+그리퍼: 팀 팔로워의 공개 각도 **−270° = 완전 열림 (손가락 관절 0.05 m), 0° = 닫힘**, 힘 제한 위치 모드라 닫기를 보내면
+물체에 막혀 멈춘다. 그리퍼를 움직이는 동안 팔은 그 자리 목표를 계속 보낸다 (명령 끊김 방지). 목표에 닿거나 0.4 s 동안
+1° 넘게 안 움직이면(막힘) 끝, 최대 4 s. 닫은 뒤 −15° (`--grip-empty-deg`) 보다 열린 채 멈췄으면 '잡힘', 끝까지 닫혔으면
+'빈손' 경고. 잡다가 팔이 10° 넘게 밀리면 고정·정지. `--grip-after` 는 끝에 제대로 도착했을 때만 하고, 복귀 길에서도
+그리퍼는 마지막 명령 그대로 (쥔 채 돌아옴). 아직 없음: 잡은 뒤 들어 올리고 빠지는 길 (지금 복귀는 삽입 구간을 거꾸로 →
+면 위 물체가 끌림, 시뮬 `mission.py` 에는 있음), 실기 빈손 판정 각도 보정 (실제 과일·바구니 손잡이로 재야 함).
 
 안전 (2026-11-16 검토 반영):
 - **계획 쪽** (`ik_sim_run.py`): 손가락 닫힘·완전 벌림(0.05 m) 둘 다 충돌 검사, 가구 상자 사방 2 cm 여유 (`--margin`),
