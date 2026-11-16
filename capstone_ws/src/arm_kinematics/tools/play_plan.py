@@ -38,9 +38,12 @@
     계속 보내며 그리퍼만 움직이고, 목표에 닿거나 멈출 때까지 기다린다. 팀 팔로워 그리퍼는 힘 제한 위치 모드라
     닫기(0°)를 보내면 물체에 막혀 멈춘다 → 멈춘 각도가 --grip-empty-deg (기본 −15°) 보다 열려 있으면 '잡힘',
     끝까지 닫히면 '빈손' 경고. 공개 각도 −270° = 완전 열림, 0° = 닫힘.
-  - 끝나면 자세 유지 → ENTER 로 같은 길 거꾸로 돌아가기, q 로 그대로 종료. 그리퍼는 마지막 명령 그대로
+  - 끝나면 자세 유지 → Ctrl+C 또는 ENTER 로 같은 길 거꾸로 시작 자세 복귀, q 로 복귀 없이 종료. 그리퍼는 마지막 명령 그대로
     (잡았으면 쥔 채로 돌아감 — 삽입 구간을 거꾸로 빠지므로 면 위 물체는 끌린다. 들어 올리고 빠지는 길은 아직 없음).
-  - 종료(또는 Ctrl+C)는 팀 팔로워의 disconnect: 자세 유지한 채 '팔을 받친 뒤 ENTER' 를 기다렸다가 토크 해제.
+  - 재생 중 Ctrl+C 는 재생한 구간만 거꾸로 복귀 (기본 시작 0° = home). 복귀 중 다시 Ctrl+C 는 hold·종료.
+  - 복귀 시간: 지나온 구간을 원래 시간 그대로 거꾸로 (속도 배율·5차 곡선 여유를 다시 곱하지 않음).
+  - 움직이기 직전마다 (시작 맞춤·그리퍼·재생·복귀) 모터 7 개가 0.2 s 동안 계속 켜짐인지 확인 (wait_enabled).
+  - 종료는 팀 팔로워의 disconnect: 자세 유지한 채 '팔을 받친 뒤 ENTER' 를 기다렸다가 토크 해제.
 """
 import argparse
 import importlib.util
@@ -242,7 +245,8 @@ def preflight(robot, hold_s=1.0, drift_deg=1.0):
 
 
 def recheck(robot, what):
-    """움직이기 직전: 켜짐·오류만 다시 (기다리지 않음). 문제면 hold 후 RuntimeError."""
+    """움직이기 직전: 7 개가 0.2 s 계속 켜짐인지 (wait_enabled) + 온도·제어 오류. 문제면 hold 후 RuntimeError."""
+    wait_enabled(robot)
     _, bad = motor_status(robot)
     if bad:
         try:
@@ -315,7 +319,7 @@ def play(robot, tl, gripper, rate_hz, lag_pause_deg, t_end=None, label="", stall
     max_step = 1.5 * period
     t_end = tl.duration if t_end is None else t_end
     stats = {} if stats is None else stats
-    stats.update(max_gap_s=0.0, late_ticks=0, ticks=0)
+    stats.update(max_gap_s=0.0, late_ticks=0, ticks=0, t_plan=0.0)
     t_plan, rate, paused, stuck, settle = 0.0, 1.0, 0.0, 0.0, 0.0
     last_wall = next_tick = time.perf_counter()
     next_log = 0.0
@@ -330,6 +334,7 @@ def play(robot, tl, gripper, rate_hz, lag_pause_deg, t_end=None, label="", stall
                 stats["late_ticks"] += 1
                 rate = 0.0                            # 끊겼다: 그 사이 팔로워는 마지막 목표에서 멈춤 → 천천히 재출발
             q_cmd, phase = tl.sample(t_plan)
+            stats["t_plan"] = t_plan  # Ctrl+C 복귀는 실제 보낸 구간 안에서만 찾는다
             robot.send_action(action(q_cmd, gripper))
             q_meas, _ = measured(robot)
             lag = float(np.max(np.abs(q_cmd - q_meas)))
@@ -452,6 +457,7 @@ def main():
             print("시작 점검 실패 — 아무것도 움직이지 않고 끝냅니다 (팔은 지금 자세 유지).")
             return 2
         if args.gripper:
+            recheck(robot, "그리퍼")
             do_grip(robot, q0, args.gripper, args)
             robot.hold()
             return 0
@@ -471,39 +477,45 @@ def main():
             align = T.Timeline([{"phase": "align", "motors_deg": {str(i): q0[i - 1] for i in range(1, 7)}},
                                 {"phase": "align", "motors_deg": {str(i): start[i - 1] for i in range(1, 7)}}],
                                v_limit_deg=10.0, a_limit_deg=a_limit)
+            recheck(robot, "시작 맞춤")
             play(robot, align, gripper, args.rate, args.lag_pause, label="[시작 맞춤] ", stall_s=args.stall,
                  settle_s=args.settle, settle_deg=args.settle_deg)
             robot.hold()          # ENTER 를 기다리는 동안 명령 끊김(0.25 s) 오류가 걸리지 않게 측정 자세 고정
         if args.grip_before != "keep":
+            recheck(robot, "그리퍼")
             gripper = do_grip(robot, start, args.grip_before, args)
             robot.hold()
-        input("\n경로 재생 시작: ENTER (멈추려면 Ctrl+C — 자세 유지)\n")
+        input("\n경로 재생 시작: ENTER (재생 중 Ctrl+C = 같은 경로로 시작 자세 복귀)\n")
         recheck(robot, "경로 재생")
+        progress = {"t_plan": 0.0}
         t_back_from = t_end
         try:
             play(robot, tl, gripper, args.rate, args.lag_pause, t_end=t_end, stall_s=args.stall,
-                 insert_lag_deg=args.insert_lag, settle_s=args.settle, settle_deg=args.settle_deg)
+                 insert_lag_deg=args.insert_lag, settle_s=args.settle, settle_deg=args.settle_deg, stats=progress)
             q_end, _ = measured(robot)
             print("도착. 측정 모터 1~6:", ",".join(f"{v:.1f}" for v in q_end))
             if args.grip_after != "keep":
+                gripper = args.grip_open_deg if args.grip_after == "open" else args.grip_close_deg
                 gripper = do_grip(robot, tl.sample(t_end)[0], args.grip_after, args, t_plan=t_end)
             robot.hold()
+        except KeyboardInterrupt:
+            robot.hold()
+            q_now, _ = measured(robot)
+            t_back_from = closest_time(tl, q_now, progress["t_plan"])
+            print("\nCtrl+C — 이동을 멈추고 같은 경로로 시작 자세에 복귀합니다.")
+            return_to_start(robot, T, tl, t_back_from, gripper, v_limit, a_limit, args)
+            return 0
         except Stalled as e:
             t_back_from = closest_time(tl, e.q_meas, e.t_plan)
-            print(f"\n⚠ 멈춤: {e} — 부딪힘 추정, 측정 자세로 고정함. 측정 모터 1~6:",
-                  ",".join(f"{v:.1f}" for v in e.q_meas), f"(경로 {t_back_from:.2f}s 지점과 가장 가까움)")
-        ans = input("\nENTER = 같은 길로 시작 자세까지 되돌아가기, q = 여기서 유지한 채 종료: ").strip().lower()
+            print(f"\n⚠ 멈춤: {e} — 측정 자세로 고정함. Ctrl+C 또는 ENTER 로 같은 경로 복귀.")
+        else:
+            print("목표 자세 유지 중. Ctrl+C 또는 ENTER = 같은 경로로 시작 자세 복귀.")
+        try:
+            ans = input("\nCtrl+C / ENTER = 복귀, q = 복귀 없이 종료 (이후 받침 확인·토크 해제): ").strip().lower()
+        except KeyboardInterrupt:
+            ans = ""
         if ans != "q":
-            recheck(robot, "복귀")
-            q_now, _ = measured(robot)
-            back = T.Timeline(return_waypoints(tl, t_back_from, q_now), v_limit_deg=v_limit, speed=1.0,
-                              a_limit_deg=a_limit)
-            try:
-                play(robot, back, gripper, args.rate, args.lag_pause, label="[복귀] ", stall_s=args.stall,
-                     insert_lag_deg=args.insert_lag, settle_s=args.settle, settle_deg=args.settle_deg)
-            except Stalled as e:
-                print(f"\n⚠ 복귀 중에도 멈춤: {e} — 고정한 채 종료합니다. 팔을 받치고 직접 빼 주세요.")
-            robot.hold()
+            return_to_start(robot, T, tl, t_back_from, gripper, v_limit, a_limit, args)
     except Stalled as e:
         print(f"\n⚠ 멈춤: {e} — 측정 자세로 고정한 채 종료합니다.")
         robot.hold()
@@ -516,11 +528,90 @@ def main():
         except Exception as e2:  # 이미 오류 상태면 hold 도 거부될 수 있음
             print("  hold 실패:", e2)
     except KeyboardInterrupt:
-        print("\n중지 — 현재 자세 유지")
+        print("\n중지 — 현재 자세 유지 (재생 전이거나 복귀가 중단됨)")
         robot.hold()
     finally:
         robot.disconnect()   # 팀 코드: 자세 유지 → '팔을 받친 뒤 ENTER' → 토크 해제
     return 0
+
+
+def return_to_start(robot, T, tl, t_from, gripper, v_limit, a_limit, args):
+    """측정 자세에서 출발해 재생한 구간만 거꾸로. 복귀 중 Ctrl+C 는 hold·종료."""
+    robot.hold()
+    recheck(robot, "복귀")
+    q_now, _ = measured(robot)
+    t_from = closest_time(tl, q_now, t_from)
+    back = build_return_timeline(T, tl, t_from, q_now, v_limit, a_limit, args.speed)
+    print(f"[복귀] 계획 시작 자세로 이동합니다 ({back.duration:.1f} s, 기본 계획은 0° home). 다시 Ctrl+C = 복귀 중지.")
+    try:
+        play(robot, back, gripper, args.rate, args.lag_pause, label="[복귀] ", stall_s=args.stall,
+             insert_lag_deg=args.insert_lag, settle_s=args.settle, settle_deg=args.settle_deg)
+    except Stalled as e:
+        print(f"\n⚠ 복귀 중 멈춤: {e} — 현재 자세 유지. 팔을 받치고 확인하세요.")
+    else:
+        print("[복귀] 시작 자세 도착.")
+    finally:
+        robot.hold()
+
+
+def build_return_timeline(T, tl, t_from, q_now, v_limit, a_limit, speed, min_s=0.5):
+    """복귀 경로: 측정 자세 q_now → 경로의 t_from 지점 (짧은 맞춤) → 지나온 구간을 거꾸로 → 시작 자세.
+    지나온 단계는 원래 시간 그대로 거꾸로 붙인다 (tl 에 이미 들어간 속도 배율·5차 곡선 여유를 다시 곱하지 않음).
+    t_from 이 걸친 단계만 남은 길이로 새로 시간을 잡되, 원래 그 길이에 쓰던 시간보다 빠르게 하지 않는다 (삽입 3 cm/s 유지)."""
+    t_from = min(max(float(t_from), 0.0), tl.duration)
+    q_at = tl.sample(t_from)[0]
+
+    def seg(phase, pts, floor=0.0):
+        pts = np.asarray(pts, float)
+        step = np.max(np.abs(np.diff(pts, axis=0)), axis=1) if len(pts) > 1 else np.zeros(0)
+        arc = np.concatenate([[0.0], np.cumsum(step)])
+        dur = max(min_s / speed, floor, (T.PEAK * arc[-1] / v_limit) / speed,
+                  ((T.ACC_PEAK * arc[-1] / a_limit) ** 0.5) / speed)
+        return (phase, pts, arc, dur)
+
+    segs = [seg("back_align", [np.asarray(q_now, float), q_at])]
+    k = min(int(np.searchsorted(tl.starts, t_from, side="right")) - 1, len(tl.segments) - 1)
+    phase, pts, arc, dur = tl.segments[k]
+    tau = min(max((t_from - tl.starts[k]) / dur, 0.0), 1.0)
+    s = T._quintic(tau) * arc[-1]
+    if s > 1e-9:
+        j = min(int(np.searchsorted(arc, s, side="right")) - 1, len(arc) - 1)
+        part = [q_at] + [pts[i] for i in range(j, -1, -1)]
+        segs.append(seg(f"back_{phase}", part, floor=dur * s / max(arc[-1], 1e-12)))
+    for p_, pts_, arc_, dur_ in reversed(tl.segments[:k]):
+        segs.append((f"back_{p_}", pts_[::-1].copy(), arc_[-1] - arc_[::-1], dur_))
+    back = T.Timeline.__new__(T.Timeline)
+    back.segments = segs
+    back.starts = np.concatenate([[0.0], np.cumsum([x[3] for x in segs])])
+    back.duration = float(back.starts[-1])
+    back.v_limit, back.a_limit = v_limit, a_limit
+    return back
+
+
+def wait_enabled(robot, stable_s=0.2, timeout_s=2.0, period_s=0.02):
+    """모터 1~6 + 그리퍼가 stable_s 동안 계속 켜짐(상태 1)으로 응답하는지. timeout_s 안에 안 되면 hold 후 RuntimeError.
+    팔로워 _read_feedback() (백그라운드 루프가 있으면 잠금 안에서 마지막 상태 사본) 을 쓴다. 제어 오류는 그대로 올린다."""
+    read = getattr(robot, "_read_feedback", None)
+    if read is None:
+        return
+    names = NAMES + ["gripper"]
+    t0 = time.perf_counter()
+    since = None
+    while True:
+        states = read()
+        now = time.perf_counter()
+        off = [n for n in names if states.get(n) is None or int(getattr(states[n], "status_code", -1)) != 1]
+        if not off:
+            since = now if since is None else since
+            if now - since >= stable_s:
+                return
+        else:
+            since = None
+            if now - t0 >= timeout_s:
+                robot.hold()
+                raise RuntimeError("enable 확인 실패: " + ", ".join(
+                    f"{n} 상태 {getattr(states.get(n), 'status_code', '응답 없음')}" for n in off))
+        time.sleep(period_s)
 
 
 def check_limits(robot, tl, t_end, step=0.05, tol=0.2):

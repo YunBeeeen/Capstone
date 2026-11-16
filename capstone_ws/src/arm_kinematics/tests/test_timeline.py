@@ -80,10 +80,10 @@ class FakeFollower:
         status: 모터 이름 → 상태 코드 (기본 모두 1 = 켜짐, 0 = 꺼짐)."""
         import time
         from types import SimpleNamespace
-        codes = {n: 1 for n in [*play_plan.NAMES, "gripper"]}
-        codes.update(status or {})
-        self.motors = {n: SimpleNamespace(get_state=lambda c=c: SimpleNamespace(status_code=c, t_mos=35.0, t_rotor=35.0))
-                       for n, c in codes.items()}
+        self._codes = {n: 1 for n in [*play_plan.NAMES, "gripper"]}
+        self._codes.update(status or {})
+        self.motors = {n: SimpleNamespace(get_state=lambda n=n: SimpleNamespace(
+            status_code=self._codes[n], t_mos=35.0, t_rotor=35.0)) for n in self._codes}
         self.config = SimpleNamespace(max_temperature_c=75.0)
         self._control_error = None
         self.g, self.g_target, self.grip_object = -10.0, -10.0, grip_object
@@ -97,6 +97,10 @@ class FakeFollower:
 
     def connect(self):
         pass
+
+    def _read_feedback(self):
+        from types import SimpleNamespace
+        return {n: SimpleNamespace(status_code=c) for n, c in self._codes.items()}
 
     def _check_timeout(self):
         import time
@@ -334,6 +338,130 @@ class PlayerMainTests(unittest.TestCase):
         self.assertEqual(rc, 2)
         self.assertEqual(robot.sent, 0)
         self.assertTrue(robot.disconnected)
+
+
+class CtrlCReturnTests(unittest.TestCase):
+    _plan = PlayerMainTests._plan
+    def test_ctrl_c_during_motion_returns_only_travelled_path(self):
+        self._interrupt_case("moving")
+
+    def test_ctrl_c_at_target_returns(self):
+        self._interrupt_case("target")
+
+    def test_second_ctrl_c_stops_return(self):
+        self._interrupt_case("return")
+
+    def test_ctrl_c_before_play_does_not_start_return(self):
+        self._interrupt_case("before")
+
+    def _interrupt_case(self, where):
+        import tempfile
+        from types import SimpleNamespace
+        from unittest import mock
+        robot = FakeFollower([0.0] * 6)
+        calls = []
+        prompts = []
+        travelled = None
+
+        def fake_play(r, tl, gripper, *a, **kw):
+            nonlocal travelled
+            is_back = kw.get("label") == "[복귀] "
+            calls.append((tl, is_back))
+            if is_back:
+                self.assertTrue(all(ph.startswith("back_") for ph, *_ in tl.segments))
+                if where == "moving":
+                    # Never visit a later part of the outgoing trajectory.
+                    self.assertLessEqual(max(abs(pts[:, 0]).max() for _, pts, *_ in tl.segments), abs(travelled[0]) + 1e-8)
+                if where == "return":
+                    raise KeyboardInterrupt
+                r.q = tl.sample(tl.duration)[0]
+            else:
+                t = tl.phase_end("approach") * 0.8 if where == "moving" else kw["t_end"]
+                r.q = tl.sample(t)[0]
+                travelled = r.q.copy()
+                kw["stats"]["t_plan"] = t
+                if where == "moving":
+                    raise KeyboardInterrupt
+
+        def fake_input(prompt=""):
+            prompts.append(prompt)
+            if len(prompts) == 1 and where == "before":
+                raise KeyboardInterrupt
+            if len(prompts) == 2:
+                # The worker holds while waiting at the goal.
+                self.assertTrue(robot.held)
+                raise KeyboardInterrupt
+            return ""
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = self._plan(tmp)
+            argv = ["play_plan.py", str(path)]
+            with mock.patch.object(play_plan, "make_robot", lambda a: (robot, SimpleNamespace(port="fake", max_relative_target=15.0))), mock.patch.object(play_plan, "apply_gravity_scales", lambda r, s: {}), mock.patch.object(play_plan, "play", fake_play), mock.patch("builtins.input", fake_input), mock.patch.object(sys, "argv", argv):
+                self.assertEqual(play_plan.main(), 0)
+        self.assertTrue(robot.disconnected)
+        if where == "before":
+            self.assertEqual(calls, [])
+        else:
+            self.assertEqual(len(calls), 2)
+            self.assertTrue(calls[-1][1])
+            if where != "return":
+                np.testing.assert_allclose(robot.q, np.zeros(6), atol=1e-8)
+
+
+class ReturnTimingAndEnableTests(unittest.TestCase):
+    def test_return_does_not_apply_speed_and_quintic_factors_twice(self):
+        T = play_plan.load_timeline_module()
+        for speed in (0.5, 1.0):
+            tl = Timeline(WAYPOINTS, v_limit_deg=30.0, speed=speed)
+            q = tl.sample(tl.duration)[0]
+            back = play_plan.build_return_timeline(T, tl, tl.duration, q, 30.0, 120.0, speed)
+            self.assertLess(back.duration, tl.duration + 3.0)
+            self.assertGreater(back.duration, tl.duration - 0.2)
+            ts = np.linspace(0, back.duration, 20001)
+            qs = np.array([back.sample(t)[0] for t in ts])
+            self.assertLessEqual(np.max(np.abs(np.diff(qs, axis=0))) / (ts[1] - ts[0]), 30.0 * speed * 1.01)
+            np.testing.assert_allclose(back.sample(0)[0], q)
+            np.testing.assert_allclose(back.sample(back.duration)[0], np.zeros(6))
+
+    def test_partial_return_preserves_measured_start_and_home(self):
+        T = play_plan.load_timeline_module()
+        tl = Timeline(WAYPOINTS, speed=0.5)
+        t_from = tl.duration * 0.4
+        q = tl.sample(t_from)[0] + 0.3
+        back = play_plan.build_return_timeline(T, tl, t_from, q, 30.0, 120.0, 0.5)
+        np.testing.assert_allclose(back.sample(0)[0], q)
+        np.testing.assert_allclose(back.sample(back.duration)[0], np.zeros(6))
+
+    def test_disabled_motor_refuses_before_any_motion(self):
+        from types import SimpleNamespace
+        robot = FakeFollower([0] * 6)
+        robot._read_feedback = lambda: {n: SimpleNamespace(status_code=0 if n == "elbow_flex" else 1) for n in [*play_plan.NAMES, "gripper"]}
+        with self.assertRaisesRegex(RuntimeError, "enable 확인 실패"):
+            play_plan.wait_enabled(robot, stable_s=0.0, timeout_s=0.0)
+        self.assertEqual(robot.sent, 0)
+        self.assertTrue(robot.held)
+
+    def test_all_motors_must_remain_enabled_for_confirmation(self):
+        from types import SimpleNamespace
+        from unittest import mock
+        robot = FakeFollower([0] * 6)
+        snapshots = [True, False, True, True, True]
+        def feedback():
+            enabled = snapshots.pop(0)
+            return {n: SimpleNamespace(status_code=1 if enabled else 0) for n in [*play_plan.NAMES, "gripper"]}
+        robot._read_feedback = feedback
+        with mock.patch.object(play_plan.time, "perf_counter", side_effect=[0.0, 0.0, 0.1, 0.2, 0.3, 0.41]), mock.patch.object(play_plan.time, "sleep"):
+            play_plan.wait_enabled(robot, stable_s=0.2, timeout_s=2.0)
+        self.assertEqual(snapshots, [])
+        self.assertEqual(robot.sent, 0)
+
+    def test_control_error_is_not_ignored_by_enable_check(self):
+        from unittest import mock
+        robot = FakeFollower([0] * 6)
+        with mock.patch.object(robot, "_read_feedback", side_effect=RuntimeError("control stopped")):
+            with self.assertRaisesRegex(RuntimeError, "control stopped"):
+                play_plan.wait_enabled(robot)
+        self.assertEqual(robot.sent, 0)
 
 
 if __name__ == "__main__":
