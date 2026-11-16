@@ -116,3 +116,49 @@ def estimate_object(depth, K, T, box, mask=None, min_above=0.01, step=1) -> Obje
     yaw = (yaw + np.pi / 2) % np.pi - np.pi / 2
     return ObjectEstimate(np.array([c_xy[0], c_xy[1], (base + top) / 2]), top, sup,
                           (float(hi_a - lo_a), float(hi_b - lo_b), float(top - base)), yaw, len(p))
+
+
+def level_to_floor(depth, K, T, step=3):
+    """보이는 바닥으로 카메라 자세 T 의 기울기·높이를 바로잡음 → (고친 T, (숙임 보정°, 옆 보정°, 높이 보정 m)) 또는 (T, None).
+    navigation/tools/shelf_check.level_to_floor 와 같은 방법 (ROS 없이 쓰려고 옮김): 로봇 앞 0.45~2.5 m, 좌우 0.7 m,
+    높이 ±0.15 m 점들에 평면을 맞춰 (튀는 점을 빼 가며) 그 법선을 +z, 높이를 0 으로. 바닥이 충분히 안 보이면 그대로."""
+    vs, us = np.mgrid[0:depth.shape[0]:step, 0:depth.shape[1]:step]
+    p = pixels_to_points(depth, K, T, us.ravel(), vs.ravel())
+    f = p[(np.abs(p[:, 1]) < 0.7) & (np.abs(p[:, 2]) < 0.15) & (p[:, 0] > 0.45) & (p[:, 0] < 2.5)]
+    if len(f) < 3000 or f[:, 0].max() - f[:, 0].min() < 0.6:
+        return T, None
+    A = np.c_[f[:, 0], f[:, 1], np.ones(len(f))]
+    z = f[:, 2]
+    for tol in (0.05, 0.03, 0.02):
+        co = np.linalg.lstsq(A, z, rcond=None)[0]
+        keep = np.abs(z - A @ co) < tol
+        if keep.sum() < 2000:
+            return T, None
+        A, z = A[keep], z[keep]
+    co = np.linalg.lstsq(A, z, rcond=None)[0]
+    if np.std(z - A @ co) > 0.012 or abs(co[0]) > 0.052 or abs(co[1]) > 0.052:
+        return T, None
+    nrm = np.array([-co[0], -co[1], 1.0])
+    nrm /= np.linalg.norm(nrm)
+    v = np.cross(nrm, [0.0, 0.0, 1.0])
+    s_, c_ = np.linalg.norm(v), float(nrm[2])
+    R = np.eye(3)
+    if s_ > 1e-9:
+        vx = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
+        R = np.eye(3) + vx + vx @ vx * ((1 - c_) / s_ ** 2)
+    M = np.eye(4)
+    M[:3, :3] = R
+    M[2, 3] = -co[2]
+    return M @ np.asarray(T), (float(np.degrees(np.arctan(co[0]))), float(-np.degrees(np.arctan(co[1]))), float(-co[2]))
+
+
+def camera_pose(roll, pitch, cam_xyz):
+    """로봇 ← 카메라 광학 4×4. roll·pitch = 카메라 몸체 (x 앞, y 왼쪽, z 위) 의 중력 기준 기울기 [rad] (pitch + = 아래로 숙임)."""
+    cr, sr, cp, sp = np.cos(roll), np.sin(roll), np.cos(pitch), np.sin(pitch)
+    Ry = np.array([[cp, 0, sp], [0, 1, 0], [-sp, 0, cp]])
+    Rx = np.array([[1, 0, 0], [0, cr, -sr], [0, sr, cr]])
+    body_opt = np.array([[0.0, 0.0, 1.0], [-1.0, 0.0, 0.0], [0.0, -1.0, 0.0]])     # 광학 x·y·z 축을 몸체 좌표로 (열)
+    T = np.eye(4)
+    T[:3, :3] = Ry @ Rx @ body_opt
+    T[:3, 3] = cam_xyz
+    return T

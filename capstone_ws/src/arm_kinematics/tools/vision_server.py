@@ -112,6 +112,9 @@ def main():
             except Exception as e:                        # 그림이 깨졌거나 GPU 메모리 부족 등
                 self._send(500, {"error": f"{type(e).__name__}: {e}"})
                 return
+            finally:
+                if dev == "cuda":                          # 캐시를 놓아 줌 — 노트북 4 GB 에서 ZED 깊이(NEURAL)와 같이 쓰려고
+                    torch.cuda.empty_cache()
             print(f"  {len(boxes)} 개, OWLv2 {t_owl:.2f} s" + (f" + SAM {time.time() - t - t_owl:.2f} s" if want_sam else "")
                   + (f" — 1 등 {boxes[0][5]} {boxes[0][4]:.2f}" if boxes else ""), flush=True)
             self._send(200, {"boxes": boxes, "masks": masks})
