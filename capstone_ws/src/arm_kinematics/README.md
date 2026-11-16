@@ -163,7 +163,7 @@ python3 tools/ik_rviz.py    --target shelf4 --approach free               # RViz
 
 ## 임무 시뮬 (`arm_kinematics/mission.py`, `tools/mission_sim.py`)
 
-책상에서 과일 집기 → 바구니에 넣기 → 바구니 손잡이 잡기 → 3 m 뒤 선반으로 주행 → 3층에 두기 → 팔 빼기. ROS·Nav2 없이
+책상에서 과일 집기 → 바구니에 넣기 → 바구니 테두리 잡기 → 3 m 뒤 선반으로 주행 → 3층에 두기 → 팔 빼기. ROS·Nav2 없이
 임무 순서·IK·충돌·정지 오차 강건성을 본다.
 
 ```bash
@@ -186,8 +186,8 @@ python3 tools/mission_sim.py --nav-sigma 0.04,0.04,4 --nav-max 0.06,0.06,6 --per
 - 판정: 과일이 바구니 안 (벽 안, 바닥 위), 바구니 바닥이 3층 판 위 ±2 cm 이고 판 안, 선반에 둔 뒤에도 과일이 바구니 안,
   집지 않은 채소가 1 cm 넘게 안 움직임.
 - 책상 위 물체 (`arm_kinematics/objects.py`, 형상·자리·계획용 상자를 한 곳에): 오렌지(`fruit`, 지름 6 cm), 바구니
-  (21 × 13 × 10 cm 실측, 손잡이 높이 13 cm 는 가정), 가지·바나나·당근·옥수수·고추·피망 (장난감 크기 추정, 기본형 조합).
-  집지 않는 채소는 계획 때 장애물로 넣는다. 실물을 재면 `objects.py` 만 고치면 된다.
+  (21 × 13 × 10 cm 실측, 손잡이 없음), 가지·바나나·당근·옥수수·고추·피망 (장난감 크기 추정, 기본형 조합).
+  옥수수는 바나나 길이의 약 절반(약 10 cm)이다. 집지 않는 채소는 계획 때 장애물로 넣는다. 실물을 재면 `objects.py` 만 고치면 된다.
 
 장면 파일 (`tools/export_scene.py`): 로봇 + 책상 + 선반 + 물체를 MJCF 로 저장. keyframe `home` = 처음 상태
 (책상 앞, 리프트 210 mm, 팔 0점, 그리퍼 열림). 치수를 고치면 다시 내보낸다.
@@ -231,6 +231,7 @@ sudo ~/capstone/capstone_ws/can/can_up.sh                      # CAN 올리기
 cd ~/arm_play
 PY=~/rebot_env/venv/bin/python
 $PY play_plan.py --check-only                                  # 팔로워 설정만 (모터 연결 안 함)
+$PY arm_watch.py --zed-height 1.2                              # 읽기 전용: 모터 1~6·그리퍼 각도 + 모델상 손끝 (토크 안 켬)
 $PY play_plan.py plan_free.json --dry-run                      # 팔 없이 내용 확인
 $PY play_plan.py --pose                                        # 현재 모터 1~6 (쉬는 자세면 0점 5° 안)
 $PY play_plan.py plan_free.json --stop-at approach             # 접근점까지, 속도 0.5
@@ -244,6 +245,11 @@ python3 play_plan.py plan_basket.json --grip-after open        # 들고 와서 �
 
 손끝 (`right_arm_tool0`, IK 가 맞추는 점) = **두 손가락 끝의 가운데** (손가락 몸통은 그 뒤 0~9 cm). 0점 자세·리프트 210 mm
 에서 (앞 25.5, 오른쪽 21.8, 바닥에서 96.9 cm).
+
+시작 점검: 연결할 때마다 모터 1~6 + 그리퍼가 모두 응답·켜짐(상태 1)·온도 정상(75℃ − 10)이고 붙잡은 뒤 1 s 동안 1° 넘게
+안 움직이는지 표로 보여 주고, 하나라도 아니면 아무것도 안 움직이고 끝낸다. 경로 재생·복귀 직전에도 다시 본다.
+켜기(enable)는 따로 없다 — `--pose`·`--gripper`·경로 재생이 연결할 때 7 개를 켜서 지금 자세로 붙잡고, 끝날 때 팔을 받친 뒤
+ENTER 로 토크를 끈다.
 
 팔로워 설정 `--setup mobile` (기본) = 라파 `~/rebot_env/arm_follow_test.py` 와 같은 값 (2026-11-15 결정): `can_arm_r`
 (socketcan), id `arm_r`, 그리퍼 열림 340, 중력 보상 1.0·roll 45°·wrist_flex 0.85, 중력 URDF `~/rebot_env/` 수정본

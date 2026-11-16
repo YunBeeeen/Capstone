@@ -75,9 +75,17 @@ class FakeFollower:
     first-order lag, optional stalled joint, optional steady offset, 0.25 s command timeout that latches
     an error unless hold() was called (team behaviour), effective joint limits, connect/disconnect."""
 
-    def __init__(self, q0, tau=0.15, stall=None, offset=None, limits=None, timeout=0.25, grip_object=None):
-        """grip_object: 손가락 사이 물체가 막는 각도 [공개 도] (닫기가 거기서 멈춤). None 이면 빈손."""
+    def __init__(self, q0, tau=0.15, stall=None, offset=None, limits=None, timeout=0.25, grip_object=None, status=None):
+        """grip_object: 손가락 사이 물체가 막는 각도 [공개 도] (닫기가 거기서 멈춤). None 이면 빈손.
+        status: 모터 이름 → 상태 코드 (기본 모두 1 = 켜짐, 0 = 꺼짐)."""
         import time
+        from types import SimpleNamespace
+        codes = {n: 1 for n in [*play_plan.NAMES, "gripper"]}
+        codes.update(status or {})
+        self.motors = {n: SimpleNamespace(get_state=lambda c=c: SimpleNamespace(status_code=c, t_mos=35.0, t_rotor=35.0))
+                       for n, c in codes.items()}
+        self.config = SimpleNamespace(max_temperature_c=75.0)
+        self._control_error = None
         self.g, self.g_target, self.grip_object = -10.0, -10.0, grip_object
         self.q = np.array(q0, float)
         self.target = self.q.copy()
@@ -275,6 +283,19 @@ class PlayerMainTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIn("빈손", out.getvalue())
         self.assertGreater(robot.g, -3.0)
+
+    def test_disabled_gripper_blocks_any_motion(self):
+        import contextlib
+        import io
+        import tempfile
+        out = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(out):
+            robot = FakeFollower([0.0] * 6, status={"gripper": 0})
+            rc = self._run(self._plan(tmp), robot, ["", ""], ["--grip-before", "open"])
+        self.assertEqual(rc, 2)
+        self.assertEqual(robot.sent, 0)                                  # 명령을 하나도 안 보냄
+        self.assertIn("그리퍼 꺼짐", out.getvalue())
+        self.assertTrue(robot.disconnected)
 
     def test_gripper_only_command_holds_arm(self):
         import contextlib

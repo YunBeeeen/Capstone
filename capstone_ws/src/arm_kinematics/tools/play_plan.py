@@ -22,6 +22,9 @@
     둘 다 중력 보상 roll 45°, MIT, 100 Hz, 30°/s·120°/s², 명령 끊김 0.25 s, 끌림 15°,
     comm_loss_action 'hold' (경로 재생 중 끊겼을 때 home 으로 가면 선반에 부딪힐 수 있음).
   - 관절별 중력 배율 (--gravity-scale, 기본 wrist_flex=0.85) 을 collector 와 같은 방식으로 건다.
+  - 시작 점검 (연결할 때마다): 모터 1~6 + 그리퍼 7 개가 모두 응답·켜짐(상태 1)·온도 정상이고, 1 초 동안 자세가 1° 넘게
+    움직이지 않는지 (제대로 붙잡혔는지) 표로 보여 준다. 하나라도 아니면 아무것도 움직이지 않고 끝낸다.
+    경로 재생 직전·복귀 직전에도 켜짐·오류를 다시 본다.
   - 현재 자세가 경로 시작과 --start-tol (기본 5°) 안이면 천천히 시작 자세로 맞춘 뒤 재생, 넘으면 중단.
   - 목표를 50 Hz 로 보낸다. 루프가 늦으면 경로 시각을 건너뛰지 않고 끊긴 데서 이어 간다 (재출발은 0.3 s 동안 서서히).
     끝나면 루프 타이밍 (최대 간격, 늦은 주기 수) 을 출력. 0.25 s 넘게 끊기면 팔로워가 정지하므로 이유를 알리고 종료.
@@ -188,6 +191,64 @@ class Stalled(RuntimeError):
 
 
 GRIP_OPEN_DEG, GRIP_CLOSE_DEG = -270.0, 0.0
+TEMP_MARGIN_C = 10.0          # 팔로워 max_temperature_c (75℃) 보다 이만큼 낮아야 시작
+
+
+def motor_status(robot):
+    """모터 1~6 + 그리퍼 상태표와 문제 목록. 상태 코드 (팀 DM 팔로워): 0 꺼짐, 1 켜짐, 그 밖 = 오류."""
+    motors = getattr(robot, "motors", None)
+    if not motors:
+        return ["  (이 팔로워는 모터 상태를 주지 않음)"], []
+    t_max = float(getattr(getattr(robot, "config", None), "max_temperature_c", 75.0))
+    rows, bad = [], []
+    for n in NAMES + ["gripper"]:
+        label = f"모터 {NAMES.index(n) + 1}" if n in NAMES else "그리퍼"
+        m = motors.get(n)
+        st = m.get_state() if m is not None else None
+        if st is None:
+            rows.append(f"  {label:6s} {n:13s}  응답 없음")
+            bad.append(f"{label} 응답 없음")
+            continue
+        code, temp = int(st.status_code), max(st.t_mos, st.t_rotor)
+        word = {0: "꺼짐", 1: "켜짐"}.get(code, f"오류({code})")
+        if code != 1:
+            bad.append(f"{label} {word}")
+        if temp >= t_max - TEMP_MARGIN_C:
+            bad.append(f"{label} 온도 {temp:.0f}℃ (한도 {t_max:.0f}℃)")
+        rows.append(f"  {label:6s} {n:13s}  {word:6s} {temp:3.0f}℃")
+    err = getattr(robot, "_control_error", None)
+    if err is not None:
+        bad.append(f"팔로워 제어 오류: {err}")
+    return rows, bad
+
+
+def preflight(robot, hold_s=1.0, drift_deg=1.0):
+    """연결 직후: 지금 자세로 붙잡고 hold_s 동안 움직임을 본 뒤 상태표를 출력. 반환 문제 목록 (비면 통과)."""
+    robot.hold()
+    q0, g0 = measured(robot)
+    drift, t0 = 0.0, time.perf_counter()
+    while time.perf_counter() - t0 < hold_s:
+        q, g = measured(robot)
+        drift = max(drift, float(np.max(np.abs(q - q0))), abs(g - g0))
+        time.sleep(0.05)
+    rows, bad = motor_status(robot)
+    if drift > drift_deg:
+        bad.append(f"붙잡은 뒤 {hold_s:.0f} s 동안 {drift:.1f}° 움직임 (제대로 안 붙잡힘)")
+    print("시작 점검 (모터 1~6 + 그리퍼):")
+    print("\n".join(rows))
+    print(f"  붙잡은 뒤 {hold_s:.0f} s 움직임 최대 {drift:.2f}°")
+    print("  → 통과" if not bad else "  → 문제: " + "; ".join(bad))
+    return bad
+
+
+def recheck(robot, what):
+    """움직이기 직전: 켜짐·오류만 다시 (기다리지 않음). 문제면 hold 후 RuntimeError."""
+    _, bad = motor_status(robot)
+    if bad:
+        try:
+            robot.hold()
+        finally:
+            raise RuntimeError(f"{what} 전 점검 실패: {'; '.join(bad)}")
 
 
 def grip(robot, q_hold, target, rate_hz=50.0, timeout_s=4.0, tol_deg=2.0, still_deg=1.0, still_s=0.4,
@@ -382,10 +443,14 @@ def main():
         scales = apply_gravity_scales(robot, args.gravity_scale)
         if scales:
             print("중력 배율:", scales)
+        bad = preflight(robot)
         q0, gripper = measured(robot)
         print("현재 모터 1~6 [도]:", ",".join(f"{v:.2f}" for v in q0), f"  그리퍼 {gripper:.1f}")
         if args.pose:
-            return 0
+            return 0 if not bad else 2
+        if bad:
+            print("시작 점검 실패 — 아무것도 움직이지 않고 끝냅니다 (팔은 지금 자세 유지).")
+            return 2
         if args.gripper:
             do_grip(robot, q0, args.gripper, args)
             robot.hold()
@@ -413,6 +478,7 @@ def main():
             gripper = do_grip(robot, start, args.grip_before, args)
             robot.hold()
         input("\n경로 재생 시작: ENTER (멈추려면 Ctrl+C — 자세 유지)\n")
+        recheck(robot, "경로 재생")
         t_back_from = t_end
         try:
             play(robot, tl, gripper, args.rate, args.lag_pause, t_end=t_end, stall_s=args.stall,
@@ -428,6 +494,7 @@ def main():
                   ",".join(f"{v:.1f}" for v in e.q_meas), f"(경로 {t_back_from:.2f}s 지점과 가장 가까움)")
         ans = input("\nENTER = 같은 길로 시작 자세까지 되돌아가기, q = 여기서 유지한 채 종료: ").strip().lower()
         if ans != "q":
+            recheck(robot, "복귀")
             q_now, _ = measured(robot)
             back = T.Timeline(return_waypoints(tl, t_back_from, q_now), v_limit_deg=v_limit, speed=1.0,
                               a_limit_deg=a_limit)
@@ -442,7 +509,7 @@ def main():
         robot.hold()
     except RuntimeError as e:
         why = ("명령이 끊긴 시간이 팔로워 한도(0.25 s)를 넘어 팔로워가 정지함 — 루프 타이밍(위 '최대 간격')을 확인하세요"
-               if "timeout" in str(e) else "팔로워 오류")
+               if "timeout" in str(e) else "점검 실패" if "점검 실패" in str(e) else "팔로워 오류")
         print(f"\n⚠ {why}: {e}. 팔로워는 자세를 유지합니다 (comm_loss_action=hold).")
         try:
             robot.hold()
