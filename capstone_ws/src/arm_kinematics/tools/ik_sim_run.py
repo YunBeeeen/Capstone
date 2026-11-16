@@ -124,6 +124,11 @@ def main():
         print("실행 가능한 후보 없음")
         return 1
     print("선택:", describe(plan.candidate))
+    tterms = " + ".join(f"{k} {v:.2f}" for k, v in plan.trajectory_terms.items())
+    print(f"      경로 비용 {plan.trajectory_cost:.3f} = {tterms}  → 합 {plan.total_cost:.3f}")
+    print(f"      경로 측정: {plan.trajectory_meas}")
+    print("      비교한 경로 (합 / 자세 / 경로 / 리프트):",
+          ", ".join(f"{a:.2f}/{b:.2f}/{c:.2f}/{2000 * d:.0f}mm" for a, b, c, d in plan.alternatives))
     wp_dicts = [{"t": round(w.t, 3), "phase": w.phase, "lift_total_mm": round(2000 * w.lift_stage_m, 1),
                  "motors_deg": {str(k): round(v, 3) for k, v in w.motors_deg.items()}} for w in plan.waypoints]
     lift_from, lift_to = plan.waypoints[0].lift_stage_m, plan.waypoints[-1].lift_stage_m
@@ -308,7 +313,9 @@ def write_plan(args, validated, validation, target, approach, plan, kin, checker
         "collision": {"margin_m": args.margin, "finger_openings_m": list(checker.finger_openings),
                       "env": "none" if args.no_env else args.target},
         "candidate": {"cost": plan.candidate.cost, "terms": plan.candidate.cost_terms,
-                      "sigma_min": plan.candidate.sigma_min, "load": plan.candidate.load},
+                      "sigma_min": plan.candidate.sigma_min, "load": plan.candidate.load,
+                      "trajectory_cost": plan.trajectory_cost, "trajectory_terms": plan.trajectory_terms,
+                      "trajectory": plan.trajectory_meas, "total_cost": plan.total_cost},
         "validated": True, "validation": validation,
         "waypoints": wp_dicts,
     }, indent=1, ensure_ascii=False))

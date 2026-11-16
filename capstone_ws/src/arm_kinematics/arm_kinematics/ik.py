@@ -20,7 +20,7 @@ from .gravity import ArmGravity
 
 DEFAULT_WEIGHTS = {
     "singular": 1.0,   # 0.02 / σmin  (σmin = 0.02 이면 1)
-    "load": 1.0,       # 중력 부하 0~1 (최대 |τ|/상한)
+    "load": 1.0,       # 중력 보상 포화: 부하(최대 |τ|/보상 상한) 0.8 까지 0, 0.8→1.0 에서 0→1 (뻗는 것 자체는 벌점 없음)
     "limit": 1.0,      # 한계 여유 10° 미만부터 0→1
     "move": 0.3,       # 시작 자세에서 움직인 양 [rad 합] / π
 }
@@ -48,6 +48,14 @@ class IKCandidate:
 
     def arm(self) -> dict[int, float]:
         return dict(self.motors_deg)
+
+
+LOAD_FREE = 0.8   # 팀 중력 보상기 상한(1~3번 10 N·m, 4~6번 3 N·m)의 80% 까지는 벌점 없음
+
+
+def load_penalty(load: float) -> float:
+    """보상 토크가 상한에서 잘리면 팔이 처져 정확도가 떨어진다. 그 근처(80~100%)만 0→1 로 벌점."""
+    return float(np.clip((load - LOAD_FREE) / (1.0 - LOAD_FREE), 0.0, 1.0))
 
 
 def _limit_margin_deg(q, lo, hi) -> float:
@@ -184,7 +192,7 @@ class B601IK:
         move = float(np.sum(np.abs(q - q_seed))) if q_seed is not None else 0.0
         terms = {
             "singular": w["singular"] * 0.02 / max(mm["sigma_min"], 1e-4),
-            "load": w["load"] * load,
+            "load": w["load"] * load_penalty(load),
             "limit": w["limit"] * float(np.clip((10.0 - margin) / 10.0, 0.0, 1.0)),
             "move": w["move"] * move / np.pi,
         }

@@ -12,7 +12,15 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from .b601 import ARM_JOINTS, MOTORS, public_to_q
-from .ik import B601IK, IKCandidate
+from .ik import B601IK, IKCandidate, load_penalty
+from .timeline import Timeline
+
+TRAJ_WEIGHTS = {
+    "time": 1.0,            # 재생 시간 / 20 s
+    "load_path": 1.0,       # 경로 중 최대 중력 부하의 포화 벌점 (0.8 까지 0)
+    "singular_path": 1.0,   # 0.02 / 정밀 구간(접근점 → 목표) 최소 σmin
+    "clearance": 1.0,       # 이동 구간 팔↔환경 여유 5 cm 미만부터 0→1 (상자 margin 위에서)
+}
 
 
 @dataclass
@@ -83,10 +91,44 @@ class MotionPlanner:
                 return f"이동 중 {why}"
         return None
 
+    def trajectory_cost(self, plan: "Plan", n: int = 30) -> tuple[float, dict[str, float], dict[str, float]]:
+        """경로 비용 (합, 항목, 측정값). 자세 비용(후보 cost)과 더해 후보를 고른다.
+
+        구간을 나눠 본다:
+          load_path     리프트 뒤 경로 전체의 최대 중력 부하 (보상 포화 벌점, 0.8 까지 0)
+          clearance     이동 구간(시작 → 접근점)의 팔↔환경 최소 여유 — 기둥·판에 붙어 지나가는 것.
+                        삽입 구간은 목표가 판 바로 위라 원래 가까우므로 보지 않는다.
+          singular_path 정밀 구간(접근점 → 목표)의 최소 σmin. 출발(접힌 자세)은 모든 경로가 같아 빼다.
+          time          재생 시간 / 20 s
+        """
+        wps = [{"t": w.t, "phase": w.phase, "motors_deg": {str(k): v for k, v in w.motors_deg.items()}}
+               for w in plan.waypoints]
+        tl = Timeline(wps, v_limit_deg=float(np.degrees(self.vmax)))
+        lift = plan.waypoints[-1].lift_stage_m
+        t0, t_app, t_end = tl.phase_end("lift"), tl.phase_end("approach"), tl.duration
+        transit = [list(tl.sample(float(t))[0]) for t in np.linspace(t0, t_app, n)]
+        precise = [list(tl.sample(float(t))[0]) for t in np.linspace(t_app, t_end, max(n // 3, 5))]
+        loads = [self.ik.gravity.load(q) for q in transit + precise]
+        sigmas = [self.kin.manipulability(q, lift)["sigma_min"] for q in precise]
+        clears = [self.checker.clearance(q, lift) for q in transit] if self.checker is not None else []
+        clr = min(clears) if clears else float("inf")
+        meas = {"duration_s": round(t_end, 2), "max_load": round(max(loads), 3),
+                "min_sigma_insert": round(min(sigmas), 5),
+                "min_clearance_transit_m": None if clr == float("inf") else clr}
+        terms = {
+            "time": TRAJ_WEIGHTS["time"] * t_end / 20.0,
+            "load_path": TRAJ_WEIGHTS["load_path"] * load_penalty(max(loads)),
+            "singular_path": TRAJ_WEIGHTS["singular_path"] * 0.02 / max(min(sigmas), 1e-4),
+            "clearance": 0.0 if clr == float("inf") else TRAJ_WEIGHTS["clearance"] * float(np.clip((0.05 - clr) / 0.05, 0, 1)),
+        }
+        terms = {k: round(v, 4) for k, v in terms.items()}
+        return round(sum(terms.values()), 4), terms, meas
+
     def plan(self, start_deg, target, candidates: list[IKCandidate], approach=None, heading=None,
              start_lift_stage_m: float = 0.0,
-             standoffs: tuple[float, ...] = (0.10, 0.07, 0.05),
-             insert_step: float = 0.01, max_tries: int = 10, start_clip_deg: float = 2.0) -> Plan | None:
+             standoffs: tuple[float, ...] = (0.15, 0.12, 0.10, 0.07, 0.05),
+             insert_step: float = 0.01, max_tries: int = 10, start_clip_deg: float = 2.0,
+             select_top_k: int = 4) -> Plan | None:
         """standoffs: 접근점 거리 후보 [m] — 앞에서부터 시도 (가구 앞이 몸에 가까우면 짧게).
 
         heading 을 주면 (IK 도 heading 으로 푼 후보): 접근점은 목표에서 heading 반대로 수평으로 물러난 곳,
@@ -102,8 +144,10 @@ class MotionPlanner:
             heading = np.array(heading, float)
             heading[2] = 0.0
             heading /= np.linalg.norm(heading)
-        tried = []
+        tried, feasible = [], []
         for c in [c for c in candidates if c.ok][:max_tries]:
+            if len(feasible) >= select_top_k:
+                break
             lift = c.lift_stage_m
             q_goal = public_to_q(c.motors_deg)
             label = f"cost {c.cost:.2f} 리프트 {2000 * lift:.0f}mm"
@@ -173,8 +217,21 @@ class MotionPlanner:
                 prev = qn
             plan = Plan(c, _deg_dict(q_pre), wps, tried)
             plan.standoff = standoff
-            return plan
-        return Plan(None, {}, [], tried) if tried else None
+            feasible.append(plan)
+        if not feasible:
+            return Plan(None, {}, [], tried) if tried else None
+        # 충돌 없는 경로 (최대 select_top_k 개) 중 자세 비용 + 경로 비용 이 가장 작은 것
+        scored = []
+        for p in feasible:
+            tc, terms, meas = self.trajectory_cost(p)
+            p.trajectory_cost, p.trajectory_terms, p.trajectory_meas = tc, terms, meas
+            p.total_cost = round(p.candidate.cost + tc, 4)
+            scored.append(p)
+        scored.sort(key=lambda p: p.total_cost)
+        best = scored[0]
+        best.tried = tried
+        best.alternatives = [(p.total_cost, p.candidate.cost, p.trajectory_cost, p.candidate.lift_stage_m) for p in scored]
+        return best
 
 
 def sample(plan: Plan, t: float) -> tuple[np.ndarray, float, str]:

@@ -142,6 +142,45 @@ class MotionTests(unittest.TestCase):
         self.assertEqual(times, sorted(times))
 
 
+class TrajectoryCostTests(unittest.TestCase):
+    def test_load_penalty_allows_reaching_until_80_percent(self):
+        from arm_kinematics.ik import load_penalty
+        self.assertEqual(load_penalty(0.5), 0.0)
+        self.assertEqual(load_penalty(0.8), 0.0)
+        self.assertAlmostEqual(load_penalty(0.9), 0.5)
+        self.assertEqual(load_penalty(1.0), 1.0)
+
+    def test_clearance_levels_agree_with_exact_distance(self):
+        kin = B601Kinematics()
+        checker = CollisionChecker(kin, env_for("shelf3"))
+        rng = np.random.default_rng(4)
+        lo, hi = np.degrees(kin.arm_lower), np.degrees(kin.arm_upper)
+        n = 0
+        while n < 15:
+            arm = list(rng.uniform(lo, hi))
+            if checker.in_collision(arm, 0.105):
+                continue
+            n += 1
+            level = checker.clearance(arm, 0.105)
+            exact, _ = checker.min_distance(arm, 0.105)
+            self.assertLessEqual(level, exact + 1e-6)                    # 단계는 실제 여유를 넘지 않는다
+            nxt = [lv for lv in checker.CLEARANCE_LEVELS if lv > level]
+            if nxt:
+                self.assertLess(exact, nxt[0] + 1e-6)                    # 다음 단계보다는 작다
+
+    def test_plan_picks_lowest_total_cost_among_feasible(self):
+        from arm_kinematics.motion import MotionPlanner
+        kin = B601Kinematics()
+        target, into, _ = preset_target("shelf3")
+        ik = B601IK(kin, collision=CollisionChecker(kin, env_for("shelf3")))
+        plan = MotionPlanner(ik).plan({i: 0.0 for i in range(1, 7)}, target,
+                                      ik.solve(target, [0.105], heading=into, n_random=24), heading=into)
+        totals = [a[0] for a in plan.alternatives]
+        self.assertEqual(plan.total_cost, min(totals))
+        self.assertAlmostEqual(plan.total_cost, plan.candidate.cost + plan.trajectory_cost, places=3)
+        self.assertGreaterEqual(plan.trajectory_meas["min_clearance_transit_m"], 0.01)   # 접근점이 선반 밖
+
+
 class KinematicValidationTests(unittest.TestCase):
     def test_no_sim_check_passes_clean_path_and_catches_obstacle(self):
         import importlib.util
