@@ -5,6 +5,8 @@ s(τ) = 10τ³ − 15τ⁴ + 6τ⁵ 로 진행한다. 단계 경계에서 속도
 (직선 삽입의 1 cm 걸음에서 덜컥거리지 않게). 단계 시간은 최고 관절 속도가 v_limit 을 넘지 않게 정한다
 (5차 곡선 최고 속도 = 평균 × 1.875). 경로점에 계획 시각 "t" 가 있으면 단계마다 계획 시간 × 1.875 보다 짧게 하지 않는다
 (계획기가 정한 리프트 50 mm/s·삽입 3 cm/s 같은 제한을 최고 속도 기준으로 지킨다).
+최고 가속도(= 5.77 × 거리 / 시간²) 도 a_limit 을 넘지 않게 시간을 늘린다 (팔로워 120°/s² 제한기에 기대지 않게).
+단계 안 경로점의 꺾임(직선 삽입 1 cm 걸음)은 속도 방향이 순간 바뀌지만 그 크기가 0.2°/s 수준이라 팔로워 제한기가 흡수한다.
 
 waypoints: [{"t": 초, "phase": str, "motors_deg": {"1": 도, ... "6": 도}, ...}]  (plan.json 과 같은 모양)
 """
@@ -13,6 +15,7 @@ from __future__ import annotations
 import numpy as np
 
 PEAK = 1.875  # max ds/dτ of the quintic
+ACC_PEAK = 10.0 / 3 ** 0.5  # max d²s/dτ² of the quintic (≈ 5.774)
 
 
 def _quintic(tau):
@@ -27,7 +30,7 @@ def _motors(w) -> np.ndarray:
 
 class Timeline:
     def __init__(self, waypoints, v_limit_deg: float = 30.0, speed: float = 1.0, min_phase_s: float = 0.5,
-                 phase_min_s: dict | None = None):
+                 phase_min_s: dict | None = None, a_limit_deg: float = 120.0):
         """phase_min_s: 단계별 최소 시간 (예: 리프트가 움직이는 'lift' 단계)."""
         if not waypoints:
             raise ValueError("no waypoints")
@@ -47,12 +50,14 @@ class Timeline:
                 floor = max(min_phase_s, (phase_min_s or {}).get(phases[start], 0.0))
                 if times[i - 1] is not None and times[max(start - 1, 0)] is not None:
                     floor = max(floor, PEAK * (float(times[i - 1]) - float(times[max(start - 1, 0)])))
-                dur = max(floor, PEAK * float(arc[-1]) / v_limit_deg) / speed
+                dur = max(floor, PEAK * float(arc[-1]) / v_limit_deg,
+                          (ACC_PEAK * float(arc[-1]) / a_limit_deg) ** 0.5) / speed
                 self.segments.append((phases[start], pts, arc, dur))
                 start = i
         self.starts = np.concatenate([[0.0], np.cumsum([s[3] for s in self.segments])])
         self.duration = float(self.starts[-1])
         self.v_limit = v_limit_deg
+        self.a_limit = a_limit_deg
 
     def phase_end(self, name: str) -> float:
         """name 단계가 (마지막으로) 끝나는 시각."""
@@ -81,4 +86,5 @@ class Timeline:
         rev.starts = np.concatenate([[0.0], np.cumsum([s[3] for s in rev.segments])])
         rev.duration = self.duration
         rev.v_limit = self.v_limit
+        rev.a_limit = self.a_limit
         return rev

@@ -52,6 +52,7 @@ def main():
     ap.add_argument("--height", type=float, default=0.05)
     ap.add_argument("--lifts", default="0,210,420,630")
     ap.add_argument("--speed", type=float, default=30.0, help="관절 최대 속도 [°/s] (실기 팔로워 제한 30)")
+    ap.add_argument("--accel", type=float, default=120.0, help="관절 최대 가속도 [°/s²] (실기 팔로워 제한 120)")
     ap.add_argument("--start", help="시작 자세 모터 1~6 [도], 쉼표 (기본 0점). 음수로 시작하면 --start=-1,...")
     ap.add_argument("--zed-height", type=float, help="바닥 → ZED 삼각대 나사 높이 실측 [m]. 주면 리프트를 그 높이로 고정 "
                                                      "(리프트 최저에서 0.675 m)")
@@ -121,7 +122,7 @@ def main():
                  "motors_deg": {str(k): round(v, 3) for k, v in w.motors_deg.items()}} for w in plan.waypoints]
     lift_from, lift_to = plan.waypoints[0].lift_stage_m, plan.waypoints[-1].lift_stage_m
     lift_dur = abs(2 * (lift_to - lift_from)) / planner.lift_speed + 0.5
-    tl = Timeline(wp_dicts, v_limit_deg=args.speed, phase_min_s={"lift": lift_dur})
+    tl = Timeline(wp_dicts, v_limit_deg=args.speed, phase_min_s={"lift": lift_dur}, a_limit_deg=args.accel)
     print(f"경로 {len(plan.waypoints)} 점, 재생 {tl.duration:.1f}s (5차 곡선, 최고 {args.speed:.0f}°/s), "
           f"접근 거리 {100 * plan.standoff:.0f} cm")
 
@@ -252,7 +253,7 @@ def main():
             "approach": None if approach is None else np.round(approach, 4).tolist(),
             "start_deg": {str(k): round(float(v), 3) for k, v in plan.waypoints[0].motors_deg.items()},
             "lift_fixed": args.zed_height is not None, "lift_total_mm": round(2000 * lift_to, 1),
-            "zed_height_m": args.zed_height, "v_limit_deg": args.speed,
+            "zed_height_m": args.zed_height, "v_limit_deg": args.speed, "a_limit_deg": args.accel,
             "limits": args.limits, "limits_deg": {str(n): v for n, v in kin.motor_limits_deg().items()},
             "collision": {"margin_m": args.margin, "finger_openings_m": list(checker.finger_openings),
                           "env": "none" if args.no_env else args.target},

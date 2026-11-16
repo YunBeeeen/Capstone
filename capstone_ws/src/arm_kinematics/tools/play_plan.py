@@ -193,12 +193,14 @@ def main():
         plan = json.loads(args.plan.read_text())
         T = load_timeline_module()
         v_limit = float(plan.get("v_limit_deg", 30.0))
-        tl = T.Timeline(plan["waypoints"], v_limit_deg=v_limit, speed=args.speed)
+        # 가속도: plan 값과 팔로워 설정(MAX_TARGET_ACCELERATION_DEG_S2) 중 작은 것
+        a_limit = min(float(plan.get("a_limit_deg", 120.0)), float(env("MAX_TARGET_ACCELERATION_DEG_S2", "120")))
+        tl = T.Timeline(plan["waypoints"], v_limit_deg=v_limit, speed=args.speed, a_limit_deg=a_limit)
         t_end = tl.phase_end(args.stop_at) if args.stop_at else tl.duration
         start = np.array([float(plan["waypoints"][0]["motors_deg"][str(i)]) for i in range(1, 7)])
         lift_mm = {w["lift_total_mm"] for w in plan["waypoints"]}
         print(f"경로 {args.plan}: 경로점 {len(plan['waypoints'])}, 재생 {t_end:.1f}s / 전체 {tl.duration:.1f}s "
-              f"(속도 {args.speed}, 최고 {v_limit * args.speed:.0f}°/s), 목표 {plan.get('target_xyz')}")
+              f"(속도 {args.speed}, 최고 {v_limit * args.speed:.0f}°/s·{a_limit:.0f}°/s²), 목표 {plan.get('target_xyz')}")
         print(f"  시작 자세 {np.round(start, 1).tolist()}, 리프트 {sorted(lift_mm)} mm, 한계 {plan.get('limits')}, "
               f"충돌 여유 {plan.get('collision', {}).get('margin_m')} m, 검증 {plan.get('validation')}")
         problems = []
@@ -242,7 +244,7 @@ def main():
         if diff > 0.5:
             align = T.Timeline([{"phase": "align", "motors_deg": {str(i): q0[i - 1] for i in range(1, 7)}},
                                 {"phase": "align", "motors_deg": {str(i): start[i - 1] for i in range(1, 7)}}],
-                               v_limit_deg=10.0)
+                               v_limit_deg=10.0, a_limit_deg=a_limit)
             play(robot, align, gripper, args.rate, args.lag_pause, label="[시작 맞춤] ", stall_s=args.stall,
                  settle_s=args.settle)
             robot.hold()          # ENTER 를 기다리는 동안 명령 끊김(0.25 s) 오류가 걸리지 않게 측정 자세 고정
@@ -261,7 +263,8 @@ def main():
         ans = input("\nENTER = 같은 길로 시작 자세까지 되돌아가기, q = 여기서 유지한 채 종료: ").strip().lower()
         if ans != "q":
             q_now, _ = measured(robot)
-            back = T.Timeline(return_waypoints(tl, t_back_from, q_now), v_limit_deg=v_limit, speed=1.0)
+            back = T.Timeline(return_waypoints(tl, t_back_from, q_now), v_limit_deg=v_limit, speed=1.0,
+                              a_limit_deg=a_limit)
             try:
                 play(robot, back, gripper, args.rate, args.lag_pause, label="[복귀] ", stall_s=args.stall,
                      insert_lag_deg=args.insert_lag, settle_s=args.settle)

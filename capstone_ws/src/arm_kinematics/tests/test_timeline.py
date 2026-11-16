@@ -38,6 +38,21 @@ class TimelineTests(unittest.TestCase):
         v = np.max(np.abs(np.diff(q, axis=0)), axis=1) / np.diff(ts)
         self.assertLessEqual(v.max(), 30.0 * 1.01)
 
+    def test_short_moves_respect_acceleration_limit(self):
+        # 10° 이동: 속도만 보면 0.625 s → 최고 가속도 ≈ 148°/s² (> 120). 가속도 하한으로 늘어나야 한다.
+        for dist in (3.0, 10.0, 20.0):
+            wps = [wp(None, "approach", [0] * 6), wp(None, "approach", [-dist, dist / 2, 0, 0, 0, 0])]
+            for w in wps:
+                del w["t"]
+            tl = Timeline(wps, v_limit_deg=30.0, a_limit_deg=120.0, min_phase_s=0.0)
+            dt = 0.0005
+            ts = np.arange(0, tl.duration + dt, dt)
+            q = np.array([tl.sample(t)[0] for t in ts])
+            a = np.abs(np.diff(q, 2, axis=0)) / dt ** 2
+            self.assertLessEqual(a.max(), 120.0 * 1.02, dist)
+            v = np.abs(np.diff(q, axis=0)) / dt
+            self.assertLessEqual(v.max(), 30.0 * 1.01, dist)
+
     def test_planned_times_are_respected_at_peak(self):
         tl = Timeline(WAYPOINTS, v_limit_deg=30.0)
         insert = [s for s in tl.segments if s[0] == "insert"][0]
