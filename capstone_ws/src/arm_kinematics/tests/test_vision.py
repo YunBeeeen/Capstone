@@ -89,6 +89,21 @@ class VisionTests(unittest.TestCase):
         # 책상 뒤 끝 근처: 상자 둘레에 바닥이 더 많이 보여도 받침면은 책상 (시뮬에서 40 cm 틀렸던 경우)
         self.check((0.76, -0.40), (0.075, 0.075, 0.08), 0.0)
 
+    def test_floor_height_floor_only_and_behind_desk(self):
+        global DESK_X
+        from arm_kinematics.vision import camera_pose, floor_height
+        T_zero = camera_pose(0, math.radians(21.6), [0.167, 0.06, 0.0])
+        saved = DESK_X
+        try:
+            for desk, h in (((-1.0, -0.9), 0.76), ((-1.0, -0.9), 1.23), ((0.35, 0.85), 1.23)):
+                DESK_X = desk                     # (-1, -0.9) = 책상이 카메라 뒤 → 앞은 바닥만
+                globals()["DESK_X"] = desk
+                K, T = camera(height=h)
+                d = render_depth(K, T, np.array([0.5, 0.0, DESK_TOP + 0.03]), (0.06, 0.06, 0.06), 0.0)
+                self.assertAlmostEqual(floor_height(d, K, T_zero), h, delta=0.01, msg=f"책상 {desk}, 높이 {h}")
+        finally:
+            globals()["DESK_X"] = saved
+
     def test_support_height_alone(self):
         K, T = camera()
         c = np.array([0.78, 0.0, DESK_TOP + 0.03])

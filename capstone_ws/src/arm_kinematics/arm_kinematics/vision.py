@@ -162,3 +162,22 @@ def camera_pose(roll, pitch, cam_xyz):
     T[:3, :3] = Ry @ Rx @ body_opt
     T[:3, 3] = cam_xyz
     return T
+
+
+def floor_height(depth, K, T, step=4):
+    """카메라 높이 [m] 를 보이는 바닥으로 추정: T 의 카메라 높이를 0 으로 놓고, 로봇 앞 0.45~6 m·좌우 2 m 점들 중
+    점이 충분히 모인 가장 낮은 높이 (1 cm 칸) = 바닥 → 그 깊이만큼이 카메라 높이. 바닥이 안 보이면 None.
+    리프트가 오르내려 카메라 높이를 모를 때 쓴다 (그다음 level_to_floor 로 기울기까지 맞춤)."""
+    T0 = np.array(T, float)
+    T0[2, 3] = 0.0
+    vs, us = np.mgrid[0:depth.shape[0]:step, 0:depth.shape[1]:step]
+    p = pixels_to_points(depth, K, T0, us.ravel(), vs.ravel())
+    p = p[(p[:, 0] > 0.45) & (p[:, 0] < 6.0) & (np.abs(p[:, 1]) < 2.0) & (p[:, 2] < -0.3)]
+    if len(p) < 1000:
+        return None
+    bins = np.floor(p[:, 2] / 0.01).astype(int)
+    vals, counts = np.unique(bins, return_counts=True)
+    dense = vals[counts >= max(100, 0.05 * counts.max())]     # 책상이 화면 대부분이어도 그 뒤로 보이는 바닥을 잡게
+    k = dense.min()
+    sel = p[(bins >= k - 1) & (bins <= k + 1), 2]
+    return float(-np.median(sel))

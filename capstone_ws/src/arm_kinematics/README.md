@@ -228,6 +228,10 @@ MUJOCO_GL=egl python3 tools/vision_sim_test.py --zed-height 1.2 --out out/      
 - 시뮬 결과 (2026-11-17, ZED 1.2 m): 정답 상자로는 8 개 중 7 개 수평 1.2 cm 안 (가지는 바구니에 가려 9.7 cm — SAM 마스크로는 2.1 cm).
   OWLv2 + SAM 으로는 6/8 개 찾음 (단순 도형이라 바구니·고추 못 찾음 — 실물 사진으로 다시 봐야 함), 찾은 것 수평 최대 2.1 cm.
   서버 한 장 OWLv2 1.2 s + SAM 1.4 s (노트북 RTX 3050, 첫 요청).
+- **Jetson 실시간** (ROS 없이 pyzed, 2026-11-17): Jetson `~/arm_vision` (tools/vision_server.py·svo_find.py + vision·checks),
+  서버는 팀 도커로 `docker run -d --name arm_vision_server --runtime nvidia --network host … vision_server.py --owl /m/… --sam /m/…`
+  (모델 ~/jetson-bench/owlv2/, 오프라인). `PYTHONPATH=~/zedpy python3 tools/svo_find.py --live --zed-height auto 단어…`:
+  카메라 높이를 보이는 바닥으로 잼 (리프트가 바뀌어도 됨 — 리프트 최저에서 0.666 m 로 잼, 줄자 0.675 m), 한 장 → 3D 1.1 s (ULTRA 깊이).
 - 녹화 ZED (SVO2) 로 오프라인: `~/capstone_ml/bin/python tools/svo_find.py front.svo2 --frame N --lift-mm <실제> 단어…`
   (pyzed 는 `/usr/local/zed/get_python_api.py` 로 ML 환경에. 기울기 = 녹화 IMU, 높이 = 0.675 + 리프트 + 0.03).
   실물 결과 (2026-11-17, 11/15 수집 s1115_112606): OWLv2 가 장난감 9 종 (바나나·바구니·당근·옥수수·가지·고추·피망·호박·고구마)
