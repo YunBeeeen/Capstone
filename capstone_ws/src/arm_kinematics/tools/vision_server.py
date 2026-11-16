@@ -9,7 +9,8 @@ navigation/tools/shelf_detect_server.py (선반, 포트 5577) 와 같은 방식 
     → {"boxes": [[x0, y0, x1, y1, 점수, "말"], ...],      점수 높은 순, 픽셀
        "masks": [ "PNG base64" | null, ... ]}               sam=1 이면 말마다 1 등 상자에 SAM 마스크 (나머지 null)
   GET  /health
-속도 (OWLv2 fp16, 질의 9 개, 2026-11-17): Jetson AGX Orin MAXN 0.17 s, 노트북 RTX 3050 0.12 s (fp32 는 0.66 / 0.54 s, 결과 같음).
+속도 (질의 9 개, 2026-11-17): OWLv2 fp16 — Jetson AGX Orin MAXN 0.17 s, 노트북 RTX 3050 0.12 s (fp32 0.66 / 0.54 s, 결과 같음).
+  + SAM (마스크 7 개 한 번에) fp16 — Jetson 0.34 s (fp32 0.82 s), 합계 0.51 s, GPU 1.4 GB. fp16 마스크 IoU 최소 0.985 (fp32 대비).
 왜 따로 띄우나: transformers 가 요구하는 Pillow 가 ROS 쪽 시스템 Pillow 보다 새것이라 같은 파이썬에 못 넣음.
 모델은 처음 한 번 ~/.cache/huggingface 에 받는다 (OWLv2 600 MB, SAM 360 MB). 인터넷이 없으면 그 폴더를 복사해 오면 된다.
 """
@@ -35,7 +36,7 @@ def main():
     ap.add_argument("--threshold", type=float, default=0.10)
     ap.add_argument("--no-sam", action="store_true", help="SAM 을 안 올림 (GPU 메모리 절약)")
     ap.add_argument("--cpu", action="store_true")
-    ap.add_argument("--fp32", action="store_true", help="OWLv2 를 fp32 로 (기본: GPU 면 fp16 — 결과 같고 4 배 빠름, 2026-11-17 실측)")
+    ap.add_argument("--fp32", action="store_true", help="OWLv2·SAM 을 fp32 로 (기본: GPU 면 fp16 — 결과 같고 2~4 배 빠름, 2026-11-17 실측)")
     a = ap.parse_args()
     dev = "cpu" if a.cpu or not torch.cuda.is_available() else "cuda"
     print(f"OWLv2 불러오는 중: {a.owl} ({dev})", flush=True)
@@ -46,7 +47,7 @@ def main():
     if not a.no_sam:
         print(f"SAM 불러오는 중: {a.sam}", flush=True)
         sam_proc = SamProcessor.from_pretrained(a.sam)
-        sam = SamModel.from_pretrained(a.sam).to(dev).eval()
+        sam = SamModel.from_pretrained(a.sam, torch_dtype=owl_dtype).to(dev).eval()
 
     def detect(img, queries):
         inp = owl_proc(text=[queries], images=img, return_tensors="pt").to(dev)
@@ -67,11 +68,12 @@ def main():
     def segment(img, boxes):
         """상자들 → 마스크 (H×W bool) 들. 상자마다 SAM 후보 3 개 중 IoU 점수 1 등."""
         inp = sam_proc(img, input_boxes=[[b[:4] for b in boxes]], return_tensors="pt").to(dev)
+        inp["pixel_values"] = inp["pixel_values"].to(owl_dtype)
         with torch.no_grad():
             out = sam(**inp, multimask_output=True)
-        masks = sam_proc.post_process_masks(out.pred_masks.cpu(), inp["original_sizes"].cpu(),
+        masks = sam_proc.post_process_masks(out.pred_masks.float().cpu(), inp["original_sizes"].cpu(),
                                             inp["reshaped_input_sizes"].cpu())[0]       # [상자, 3, H, W]
-        best = out.iou_scores[0].argmax(dim=-1).cpu()                                  # [상자]
+        best = out.iou_scores[0].float().argmax(dim=-1).cpu()                                  # [상자]
         return [masks[i, best[i]].numpy().astype(bool) for i in range(len(boxes))]
 
     def png_b64(mask):
