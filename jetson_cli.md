@@ -100,7 +100,7 @@ scp jetson:/tmp/X_map.png ~/ && xdg-open ~/X_map.png      # 노트북
 
 # 3D 까지 자세히 (RTAB-Map 뷰어, 창이 있는 곳에서): Jetson 모니터 앞이면 바로, 노트북이면 파일을 가져와서
 rtabmap-databaseViewer ~/maps/X.db                                                    # Jetson 모니터
-scp jetson:maps/X.db ~/maps/X_jetson.db && rtabmap-databaseViewer ~/maps/X_jetson.db   # 노트북 (Edit → View 3D map, 끌 때 저장은 No)
+scp jetson:maps/X.db ~/maps/X_jetson.db && source /opt/ros/humble/setup.bash && rtabmap-databaseViewer ~/maps/X_jetson.db   # 노트북 (Edit → View 3D map, 끌 때 저장은 No)
 ```
 - 매핑·재위치 **중에** 실시간으로 보려면 아래 RViz.
 - 그림은 노드별 지역 지도를 주행 기록 위치로 이어 붙인 것이라 실제보다 조금 번져 보일 수 있음 (뷰어·재위치는 루프 클로저로 보정된 지도).
