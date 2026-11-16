@@ -215,7 +215,7 @@ class MotionPlanner:
                 vias = [fixed]
             wps, t, s0 = [], 0.0, start_lift_stage_m
             wps.append(Waypoint(0.0, _deg_dict(q0), s0, "lift"))
-            t += abs(2 * lift - 2 * s0) / self.lift_speed + 0.5
+            t += abs(2 * lift - 2 * s0) / self.lift_speed + (0.5 if abs(lift - s0) > 1e-6 else 0.0)   # 리프트가 안 움직이면 0 s
             wps.append(Waypoint(t, _deg_dict(q0), lift, "lift"))
             prev = q0
             for qv in vias + [q_pre]:

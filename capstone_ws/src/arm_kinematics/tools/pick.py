@@ -48,7 +48,7 @@ def main():
     ap.add_argument("--dz", type=float, default=0.0, help="목표 높이 보정 [m] (− = 더 깊이)")
     ap.add_argument("--min-score", type=float, default=0.15)
     ap.add_argument("--jetson", default="idle@192.168.1.11")
-    ap.add_argument("--speed", type=float, default=0.5, help="play_plan 속도 배율")
+    ap.add_argument("--speed", type=float, default=1.0, help="play_plan 속도 배율 (1.0 = 팔로워 한계 30°/s·120°/s²)")
     ap.add_argument("--settle-deg", type=float, default=2.0, help="play_plan 끝 도착 인정 오차 [도]")
     ap.add_argument("--yes", action="store_true", help="확인 질문 없이 바로 움직임")
     a = ap.parse_args()

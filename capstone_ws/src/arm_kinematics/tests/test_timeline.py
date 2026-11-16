@@ -7,7 +7,7 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from arm_kinematics.timeline import PEAK, Timeline  # noqa: E402
+from arm_kinematics.timeline import Timeline  # noqa: E402
 
 spec = importlib.util.spec_from_file_location("play_plan", ROOT / "tools/play_plan.py")
 play_plan = importlib.util.module_from_spec(spec)
@@ -54,12 +54,17 @@ class TimelineTests(unittest.TestCase):
             self.assertLessEqual(v.max(), 30.0 * 1.01, dist)
 
     def test_planned_times_are_respected_at_peak(self):
+        # 계획 시각이 있으면 최고 속도가 계획 평균 속도를 넘지 않는다 (삽입 3 cm/s·리프트 50 mm/s 를 최고 속도로 지킴)
         tl = Timeline(WAYPOINTS, v_limit_deg=30.0)
         insert = [s for s in tl.segments if s[0] == "insert"][0]
-        self.assertGreaterEqual(insert[3], PEAK * 0.9 - 1e-9)        # planned 0.9 s
+        self.assertGreaterEqual(insert[3], 0.9 - 1e-9)                     # planned 0.9 s 보다 짧지 않음
+        k = [s[0] for s in tl.segments].index("insert")
+        ts = np.linspace(tl.starts[k], tl.starts[k + 1], 4001)
+        q = np.array([tl.sample(t)[0] for t in ts])
+        v = np.max(np.abs(np.diff(q, axis=0)), axis=1) / np.diff(ts)
+        self.assertLessEqual(v.max(), insert[2][-1] / 0.9 * 1.01)           # 최고 속도 ≤ 계획 평균
         lift = [s for s in tl.segments if s[0] == "lift"][0]
-        self.assertGreaterEqual(lift[3], PEAK * 2.0 - 1e-9)
-
+        self.assertGreaterEqual(lift[3], 2.0 - 1e-9)
     def test_speed_scale_and_reverse(self):
         a, b = Timeline(WAYPOINTS), Timeline(WAYPOINTS, speed=0.5)
         self.assertAlmostEqual(b.duration, 2 * a.duration)

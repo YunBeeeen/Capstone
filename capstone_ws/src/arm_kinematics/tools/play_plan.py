@@ -567,20 +567,19 @@ def build_return_timeline(T, tl, t_from, q_now, v_limit, a_limit, speed, min_s=0
     t_from 이 걸친 단계만 남은 길이로 새로 시간을 잡되, 원래 그 길이에 쓰던 시간보다 빠르게 하지 않는다 (삽입 3 cm/s 유지)."""
     t_from = min(max(float(t_from), 0.0), tl.duration)
     q_at = tl.sample(t_from)[0]
+    acc = a_limit * speed * speed
 
     def seg(phase, pts, floor=0.0):
         pts = np.asarray(pts, float)
         step = np.max(np.abs(np.diff(pts, axis=0)), axis=1) if len(pts) > 1 else np.zeros(0)
         arc = np.concatenate([[0.0], np.cumsum(step)])
-        dur = max(min_s / speed, floor, (T.PEAK * arc[-1] / v_limit) / speed,
-                  ((T.ACC_PEAK * arc[-1] / a_limit) ** 0.5) / speed)
+        dur = max(min_s / speed if arc[-1] > 0 else T.EPS_S, floor, T.min_time(float(arc[-1]), v_limit * speed, acc))
         return (phase, pts, arc, dur)
 
     segs = [seg("back_align", [np.asarray(q_now, float), q_at])]
     k = min(int(np.searchsorted(tl.starts, t_from, side="right")) - 1, len(tl.segments) - 1)
     phase, pts, arc, dur = tl.segments[k]
-    tau = min(max((t_from - tl.starts[k]) / dur, 0.0), 1.0)
-    s = T._quintic(tau) * arc[-1]
+    s = T.trapezoid_s(t_from - tl.starts[k], float(arc[-1]), dur, tl.acc)
     if s > 1e-9:
         j = min(int(np.searchsorted(arc, s, side="right")) - 1, len(arc) - 1)
         part = [q_at] + [pts[i] for i in range(j, -1, -1)]
@@ -591,7 +590,7 @@ def build_return_timeline(T, tl, t_from, q_now, v_limit, a_limit, speed, min_s=0
     back.segments = segs
     back.starts = np.concatenate([[0.0], np.cumsum([x[3] for x in segs])])
     back.duration = float(back.starts[-1])
-    back.v_limit, back.a_limit = v_limit, a_limit
+    back.v_limit, back.a_limit, back.acc = v_limit, a_limit, acc
     return back
 
 
