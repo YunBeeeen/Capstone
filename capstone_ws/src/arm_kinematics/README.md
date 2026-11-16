@@ -224,15 +224,17 @@ MjSpec 컴파일마다 약 350 MB 가 풀리지 않아 장면은 한 번 만들�
 # 노트북: 팔이 쉬는(0점) 자세, 리프트 높이는 바닥→ZED 삼각대 나사 실측 (리프트 최저 0.675 m)
 python3 tools/ik_sim_run.py --xyz 0.45 -0.15 1.00 --no-env --zed-height 0.675 --save-plan plan_free.json   # 빈 공간 첫 시험
 python3 tools/ik_sim_run.py --target shelf3 --zed-height 0.885 --save-plan plan_shelf3.json                # 선반 (앞면 0.45 m, 가운데)
-scp plan_free.json tools/play_plan.py arm_kinematics/timeline.py <라파>:~/arm_play/
+scp plan_free.json tools/play_plan.py arm_kinematics/timeline.py raspberrypi:~/arm_play/   # ssh 별칭 raspberrypi = pi@raspberrypi.local
 
-# 라파: data_collection 환경
-source <data_collection>/config.env && conda activate "$CONDA_ENV" && export PYTHONPATH="$LEROBOT_DIR/src"
+# 라파 (모바일 로봇): 팔 = SocketCAN can_arm_r, 파이썬 = ~/rebot_env/venv (팀 lerobot_patched)
+sudo ~/capstone/capstone_ws/can/can_up.sh                      # CAN 올리기
 cd ~/arm_play
-python3 play_plan.py plan_free.json --dry-run                 # 팔 없이 내용 확인
-python3 play_plan.py --pose                                    # 현재 모터 1~6 (쉬는 자세면 0점 5° 안)
-python3 play_plan.py plan_free.json --stop-at approach         # 접근점까지, 속도 0.5
-python3 play_plan.py plan_free.json                            # 끝까지 → ENTER 로 같은 길 복귀
+PY=~/rebot_env/venv/bin/python
+$PY play_plan.py --check-only                                  # 팔로워 설정만 (모터 연결 안 함)
+$PY play_plan.py plan_free.json --dry-run                      # 팔 없이 내용 확인
+$PY play_plan.py --pose                                        # 현재 모터 1~6 (쉬는 자세면 0점 5° 안)
+$PY play_plan.py plan_free.json --stop-at approach             # 접근점까지, 속도 0.5
+$PY play_plan.py plan_free.json                                # 끝까지 → ENTER 로 같은 길 복귀
 python3 play_plan.py --gripper open                            # 그리퍼만 (팔은 지금 자세 유지), close = 닫기
 # 노트북: --pose 로 읽은 모터 각 → 모델상 손끝 위치 (줄자로 잰 값과 비교)
 python3 tools/fk_check.py --zed-height 0.885 --motors=0,0,0,0,0,0
@@ -242,6 +244,11 @@ python3 play_plan.py plan_basket.json --grip-after open        # 들고 와서 �
 
 손끝 (`right_arm_tool0`, IK 가 맞추는 점) = **두 손가락 끝의 가운데** (손가락 몸통은 그 뒤 0~9 cm). 0점 자세·리프트 210 mm
 에서 (앞 25.5, 오른쪽 21.8, 바닥에서 96.9 cm).
+
+팔로워 설정 `--setup mobile` (기본) = 라파 `~/rebot_env/arm_follow_test.py` 와 같은 값 (2026-11-15 결정): `can_arm_r`
+(socketcan), id `arm_r`, 그리퍼 열림 340, 중력 보상 1.0·roll 45°·wrist_flex 0.85, 중력 URDF `~/rebot_env/` 수정본
+(한계를 사용자 값 ±5° 로 넓힘), 관절 한계 collector `USER_LIMITS_DEG`, 그리퍼 900°/s, 끊김 hold.
+data_collection 팔(USB, `config.env`)은 `--setup data_collection`.
 
 그리퍼: 팀 팔로워의 공개 각도 **−270° = 완전 열림 (손가락 관절 0.05 m), 0° = 닫힘**, 힘 제한 위치 모드라 닫기를 보내면
 물체에 막혀 멈춘다. 그리퍼를 움직이는 동안 팔은 그 자리 목표를 계속 보낸다 (명령 끊김 방지). 목표에 닿거나 0.4 s 동안

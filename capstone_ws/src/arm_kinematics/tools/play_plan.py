@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """실기 B601 팔로워에서 plan.json (tools/ik_sim_run.py --save-plan) 을 재생한다. 라즈베리파이에서 실행.
 
-준비 (팔로워가 연결된 라파, data_collection 환경):
-  source <data_collection>/config.env && conda activate "$CONDA_ENV" && export PYTHONPATH="$LEROBOT_DIR/src"
-  # 이 파일과 ../arm_kinematics/timeline.py 를 같은 상대 위치로 복사 (numpy 만 필요, pinocchio 불필요)
+준비: 이 파일과 ../arm_kinematics/timeline.py 를 라파의 한 폴더에 복사 (numpy 만 필요, pinocchio 불필요).
+  모바일 로봇 라파 (기본 --setup mobile, 팔 = SocketCAN can_arm_r):
+    sudo ~/capstone/capstone_ws/can/can_up.sh                     # CAN 올리기 (can_arm_r 포함)
+    ~/rebot_env/venv/bin/python play_plan.py --check-only          # 설정만 확인 (모터 연결 안 함)
+  data_collection 팔 (USB, --setup data_collection):
+    source <data_collection>/config.env && conda activate "$CONDA_ENV" && export PYTHONPATH="$LEROBOT_DIR/src"
 
   python3 play_plan.py plan.json --dry-run                 # 팔 연결 없이 재생 내용만 출력
   python3 play_plan.py --pose                              # 현재 모터 1~6 [도] 출력. 토크를 켜서 읽고, 받친 뒤 ENTER 로 해제
@@ -14,8 +17,10 @@
   python3 play_plan.py plan.json --grip-after open         # 들고 와서 → 끝에서 놓기
 
 동작:
-  - config.env 와 같은 팔로워 설정 (중력 보상 roll 45°, MIT, 100 Hz, 30°/s·120°/s², 명령 끊김 0.25 s, 끌림 15°).
-    단 comm_loss_action 은 'hold' 로 고정 (경로 재생 중 끊겼을 때 home 으로 가면 선반에 부딪힐 수 있음).
+  - 팔로워 설정: mobile = 라파 ~/rebot_env/arm_follow_test.py 와 같음 (can_arm_r, id arm_r, 그리퍼 열림 340,
+    중력 URDF ~/rebot_env 수정본, 관절 한계 collector USER_LIMITS_DEG, 그리퍼 900°/s). data_collection = config.env.
+    둘 다 중력 보상 roll 45°, MIT, 100 Hz, 30°/s·120°/s², 명령 끊김 0.25 s, 끌림 15°,
+    comm_loss_action 'hold' (경로 재생 중 끊겼을 때 home 으로 가면 선반에 부딪힐 수 있음).
   - 관절별 중력 배율 (--gravity-scale, 기본 wrist_flex=0.85) 을 collector 와 같은 방식으로 건다.
   - 현재 자세가 경로 시작과 --start-tol (기본 5°) 안이면 천천히 시작 자세로 맞춘 뒤 재생, 넘으면 중단.
   - 목표를 50 Hz 로 보낸다. 루프가 늦으면 경로 시각을 건너뛰지 않고 끊긴 데서 이어 간다 (재출발은 0.3 s 동안 서서히).
@@ -63,11 +68,54 @@ def env(name, default):
     return os.environ.get(name, default)
 
 
+# 모바일 로봇 라파 (2026-11-15 결정, ~/rebot_env/arm_follow_test.py 와 같은 값)
+MOBILE = dict(port="can_arm_r", can_adapter="socketcan", id="arm_r", gripper_open_deg=340.0,
+              gravity_urdf="/home/pi/rebot_env/B601_DM_wrist_d435i_no_plate.urdf",
+              gripper_vel=900.0, gripper_acc=20000.0)
+# collector/arm_limits.py USER_LIMITS_DEG (라파 ~/collector_run 에 있으면 그걸 씀)
+USER_LIMITS_DEG = {"shoulder_lift": (-210.0, 1.0), "elbow_flex": (-200.0, 1.0),
+                   "wrist_flex": (-85.0, 120.0), "wrist_roll": (-180.0, 170.0)}
+
+
+def user_limits():
+    try:
+        sys.path.insert(0, os.path.expanduser("~/collector_run"))
+        from collector.arm_limits import USER_LIMITS_DEG as lim
+        return dict(lim), "~/collector_run/collector/arm_limits.py"
+    except ImportError:
+        return dict(USER_LIMITS_DEG), "play_plan.py 내장 (2026-11-15 값)"
+    finally:
+        sys.path.pop(0)
+
+
 def make_robot(args):
     try:
         from lerobot.robots.rebot_b601_follower import RebotB601Follower, RebotB601FollowerRobotConfig
     except ImportError as e:
-        raise SystemExit(f"LeRobot 팔로워를 못 불러옴 ({e}). config.env 를 source 하고 conda 환경·PYTHONPATH 를 켰는지 확인") from e
+        hint = ("~/rebot_env/venv/bin/python 으로 실행했는지" if args.setup == "mobile"
+                else "config.env 를 source 하고 conda 환경·PYTHONPATH 를 켰는지")
+        raise SystemExit(f"LeRobot 팔로워를 못 불러옴 ({e}). {hint} 확인") from e
+    if args.setup == "mobile":
+        if not Path(MOBILE["gravity_urdf"]).is_file():
+            raise SystemExit(f"중력 URDF 없음: {MOBILE['gravity_urdf']}")
+        lim, src = user_limits()
+        defaults = RebotB601FollowerRobotConfig(port=MOBILE["port"]).joint_limits
+        limits = {**defaults, **lim, "gripper": (-270.0, 0.0)}
+        cfg = RebotB601FollowerRobotConfig(
+            port=MOBILE["port"], can_adapter=MOBILE["can_adapter"], id=MOBILE["id"],
+            gripper_open_deg=MOBILE["gripper_open_deg"], joint_limits=limits,
+            max_relative_target=15.0,
+            gravity_comp=True, gravity_urdf_path=MOBILE["gravity_urdf"], gravity_mount_roll_deg=45.0,
+            gravity_mount_pitch_deg=0.0, gravity_tau_scale=1.0, gravity_missing_finger_mass_kg=0.03,
+            control_mode="mit", background_control=True, control_rate_hz=100.0, command_timeout_s=0.25,
+            max_target_velocity_deg_s=30.0, max_target_acceleration_deg_s2=120.0,
+            require_supported_release=True,
+            gripper_max_velocity_deg_s=MOBILE["gripper_vel"], gripper_max_acceleration_deg_s2=MOBILE["gripper_acc"],
+            comm_loss_action="hold",
+        )
+        print(f"설정 mobile: {MOBILE['port']} ({MOBILE['can_adapter']}), id {MOBILE['id']}, 그리퍼 열림 {MOBILE['gripper_open_deg']:.0f}, "
+              f"중력 1.0 roll 45°, 관절 한계 {src}")
+        return RebotB601Follower(cfg), cfg
     if "FOLLOWER_PORT" not in os.environ:
         raise SystemExit("FOLLOWER_PORT 가 없음 — data_collection 의 config.env 를 먼저 source 하세요")
     cfg = RebotB601FollowerRobotConfig(
@@ -260,6 +308,9 @@ def play(robot, tl, gripper, rate_hz, lag_pause_deg, t_end=None, label="", stall
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("plan", nargs="?", type=Path)
+    ap.add_argument("--setup", choices=["mobile", "data_collection"], default="mobile",
+                    help="팔로워 설정: mobile = 모바일 로봇 라파 (can_arm_r), data_collection = config.env (USB)")
+    ap.add_argument("--check-only", action="store_true", help="팔로워 설정만 만들어 보고 끝 (모터 연결 안 함)")
     ap.add_argument("--pose", action="store_true", help="현재 모터 1~6 [도] 만 출력")
     ap.add_argument("--gripper", choices=["open", "close"], help="경로 없이 그리퍼만 열기/닫기 (팔은 지금 자세 유지)")
     ap.add_argument("--grip-before", choices=["open", "close", "keep"], default="keep", help="경로 재생 전 그리퍼")
@@ -285,7 +336,7 @@ def main():
 
     if not (-270.0 <= args.grip_open_deg < args.grip_close_deg <= 0.0):
         ap.error("그리퍼 각도: −270 ≤ --grip-open-deg < --grip-close-deg ≤ 0")
-    if not (args.pose or args.gripper):
+    if not (args.pose or args.gripper or args.check_only):
         if args.plan is None:
             ap.error("plan.json 이 필요 (또는 --pose / --gripper)")
         plan = json.loads(args.plan.read_text())
@@ -321,6 +372,10 @@ def main():
             return 0
 
     robot, cfg = make_robot(args)
+    if args.check_only:
+        print("관절 한계 [도]:", {n: tuple(round(x, 1) for x in v) for n, v in robot._joint_limits.items()})
+        print("--check-only: 모터에 연결하지 않았습니다.")
+        return 0
     print(f"팔로워 연결: {cfg.port} (comm_loss_action=hold, 끌림 {cfg.max_relative_target}°)")
     robot.connect()
     try:
