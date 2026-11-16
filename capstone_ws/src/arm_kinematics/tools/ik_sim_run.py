@@ -49,6 +49,9 @@ def main():
     ap.add_argument("--approach", default="heading", help=APPROACH_HELP)
     ap.add_argument("--tilt", default="-10,45", help="heading 모드 기울기 범위 [도] (아래 +)")
     ap.add_argument("--front", type=float, default=FRONT, help="로봇 중심 → 가구 앞면 [m] (설 자리 거리)")
+    ap.add_argument("--descend", type=float, metavar="D",
+                    help="위에서 내려와 집기: 접근점 = 목표 D m 위, 그대로 곧게 내려옴 (손가락은 --tilt 범위, 기본 45~89° 아래로). "
+                         "같은 길로 돌아오면 먼저 D 만큼 곧게 들어 올림")
     ap.add_argument("--desk-top", type=float, help="책상 윗면 높이 [m] (기본 0.88). svo_find 가 잰 받침면 높이를 넣으면 됨")
     ap.add_argument("--support-margin", type=float, default=0.005,
                     help="물체를 받치는 면 (책상 상판·목표 선반 판) 의 충돌 여유 [m] — 나머지는 --margin. 물체를 집으려면 손가락이 면에 가까이 가야 함")
@@ -90,8 +93,13 @@ def main():
             robot = Placement(args.robot[0], args.robot[1], math.radians(args.robot[2]))
         target = room_to_robot(tgt_room, robot)
         into = room_to_robot(robot_to_room([0, 0, 0], robot) + into_room, robot)
-    ik_kw, plan_kw, approach = orientation_args(
-        args.approach, into, [float(v) for v in args.tilt.split(",")])
+    tilt = [float(v) for v in args.tilt.split(",")]
+    if args.descend is not None and args.tilt == ap.get_default("tilt"):
+        tilt = [45.0, 89.0]                               # 손가락이 아래를 봐야 내려오며 물체가 손가락 사이로 들어옴
+    ik_kw, plan_kw, approach = orientation_args(args.approach, into, tilt)
+    if args.descend is not None:
+        plan_kw = dict(plan_kw, move_dir=(0.0, 0.0, -1.0), standoffs=(args.descend,))
+        print(f"위에서 내려와 집기: 접근점 {100 * args.descend:.0f} cm 위, 손가락 {tilt[0]:.0f}~{tilt[1]:.0f}° 아래로")
 
     env_room = [] if args.no_env else env_for(args.target, args.front, args.lateral)
     support = "desk_top" if args.target == "desk" else f"shelf_board{args.target[-1]}" if args.target.startswith("shelf") else None

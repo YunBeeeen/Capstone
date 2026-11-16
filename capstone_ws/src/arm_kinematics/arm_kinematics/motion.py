@@ -133,8 +133,9 @@ class MotionPlanner:
              start_lift_stage_m: float = 0.0,
              standoffs: tuple[float, ...] = (0.15, 0.12, 0.10, 0.07, 0.05),
              insert_step: float = 0.01, max_tries: int = 10, start_clip_deg: float = 2.0,
-             select_top_k: int = 4) -> Plan | None:
+             select_top_k: int = 4, move_dir=None) -> Plan | None:
         """standoffs: 접근점 거리 후보 [m] — 앞에서부터 시도 (가구 앞이 몸에 가까우면 짧게).
+        move_dir: 들어가는 직선의 방향 (주면 그리퍼 자세와 따로). 예: (0, 0, −1) = 접근점을 목표 바로 위에 두고 곧게 내려옴.
 
         heading 을 주면 (IK 도 heading 으로 푼 후보): 접근점은 목표에서 heading 반대로 수평으로 물러난 곳,
         삽입은 heading 방향 수평 직선, 그 동안 그리퍼 자세(후보의 회전)를 그대로 유지한다.
@@ -163,6 +164,8 @@ class MotionPlanner:
             # 물러나고 들어가는 방향: heading(수평) > 지정 접근축 > 후보의 그리퍼 접근축
             R_c = self.kin.fk(c.motors_deg, lift).rotation
             a = heading if heading is not None else approach if approach is not None else R_c[:, 0]
+            if move_dir is not None:
+                a = np.asarray(move_dir, float) / np.linalg.norm(move_dir)
             kw = dict(approach=approach) if (approach is not None and heading is None) else dict(rotation=R_c)
             q_pre = None
             for standoff in standoffs:
