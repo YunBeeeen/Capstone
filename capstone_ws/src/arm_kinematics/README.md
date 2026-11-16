@@ -210,6 +210,27 @@ python3 -m mujoco.viewer --mjcf=../description/mjcf/mission_scene.xml
 정지 오차는 도착 후 다시 재서 계획하므로 6 cm·6° 까지 문제없고, 한계는 인식 오차다.
 MjSpec 컴파일마다 약 350 MB 가 풀리지 않아 장면은 한 번 만들고 시행마다 `reset(seed)` 한다.
 
+## 물체 찾기 (OWLv2 + SAM + ZED, `tools/vision_server.py`, `tools/find_object.py`, `arm_kinematics/vision.py`)
+
+글자 → OWLv2 상자 → (SAM 마스크) → ZED 깊이로 로봇 바닥 기준 3D → 집을 목표. GPU 가 있는 곳 (노트북 → Jetson) 에서.
+
+```bash
+~/capstone_ml/bin/python tools/vision_server.py                 # 서버 (127.0.0.1:5578, 선반용 5577 과 따로). OWLv2 + SAM
+ros2 launch capstone_navigation map.launch.py                    # ZED + zed_base_tf (다른 터미널)
+python3 tools/find_object.py banana basket --zed-height 1.2 -n 5 --out /tmp/find.jpg   # ROS 환경
+MUJOCO_GL=egl python3 tools/vision_sim_test.py --zed-height 1.2 --out out/              # 시뮬 + 가상 ZED 로 전체 시험
+```
+
+- 3D: 마스크(없으면 상자) 픽셀 → 점구름, 가장 가까운 덩어리만, 받침면(상자 둘레에서 점이 충분히 모인 **가장 높은** 수평면) 위 1 cm
+  넘는 점만. 카메라는 앞·윗면만 보므로 중심 = 주축 범위의 가운데, 높이 = 받침면과 윗면의 가운데. 긴 축 방향(바구니·바나나)도 냄.
+- 집을 목표 = 중심 + `--grasp-depth` (2.5 cm) 앞: IK 가 맞추는 점이 손가락 끝이라 중심에 맞추면 끝으로만 집게 됨.
+  책상 높이·앞 모서리도 재서 바로 쓸 `ik_sim_run --target desk --front … --xyz …` 명령을 출력.
+- 시뮬 결과 (2026-11-17, ZED 1.2 m): 정답 상자로는 8 개 중 7 개 수평 1.2 cm 안 (가지는 바구니에 가려 9.7 cm — SAM 마스크로는 2.1 cm).
+  OWLv2 + SAM 으로는 6/8 개 찾음 (단순 도형이라 바구니·고추 못 찾음 — 실물 사진으로 다시 봐야 함), 찾은 것 수평 최대 2.1 cm.
+  서버 한 장 OWLv2 1.2 s + SAM 1.4 s (노트북 RTX 3050, 첫 요청).
+- **리프트 210 mm (ZED 0.885 m) 에서는 책상 윗면이 거의 옆으로 보여 물체가 서로 가린다.** ZED 1.0~1.2 m 에서 보고, 그 높이에서도
+  책상 집기 계획이 된다 (desk, 앞면 0.35 m: ZED 1.0 / 1.1 / 1.2 m 모두 검증 통과).
+
 ## 실기 실행 (`tools/play_plan.py`, 라즈베리파이)
 
 구조: 노트북(나중에 Jetson)이 계획(IK·경로·MuJoCo 검증 → `plan.json`), 라파가 실행 (팔로워에 50 Hz 목표 전송, CAN).
