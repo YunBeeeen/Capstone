@@ -59,6 +59,7 @@ class MotionPlanner:
         self.step = np.radians(check_step_deg)
 
     via_back = (0.20, 0.30)   # 경유점: 목표에서 접근축 반대로 [m]
+    via_up = (0.0, 0.06, 0.12)  # 경유점을 접근점보다 이만큼 높게도 [m] (든 물체가 판 앞 모서리에 걸릴 때 위에서 내려옴)
 
     def _near_solution(self, xyz, lift, kw, q_ref, max_dev_deg=45.0):
         """xyz 에 대한 IK 해 중 q_ref 에 가장 가까운 것 (방향 조건 kw). 시작점 하나 → 실패 시 여럿."""
@@ -74,19 +75,23 @@ class MotionPlanner:
                 return best
         return None
 
-    def _ok(self, q, lift) -> str | None:
+    START_SELF_FREE_DEG = 5.0   # 출발 자세에서 이만큼 안은 팔 링크끼리 충돌을 무시 (접힌 자세 메시가 0.5 mm 로 붙어 있음)
+
+    def _ok(self, q, lift, near_start: bool = False) -> str | None:
         if np.any(q < self.lo - 1e-6) or np.any(q > self.hi + 1e-6):
             return "관절 한계(실행 범위) 밖"
-        if self.checker is not None and self.checker.in_collision(list(np.degrees(q)), lift):
+        if self.checker is not None and self.checker.in_collision(list(np.degrees(q)), lift, ignore_self=near_start):
             pairs = self.checker.colliding_pairs(list(np.degrees(q)), lift)
             return f"충돌 {pairs[:2]}"
         return None
 
-    def _segment(self, qa, qb, lift):
+    def _segment(self, qa, qb, lift, q_start=None):
+        """qa→qb 관절 보간 검사. q_start 를 주면 그 근처(START_SELF_FREE_DEG 안)는 팔 링크끼리 충돌을 무시."""
         n = max(1, int(np.ceil(np.max(np.abs(qb - qa)) / self.step)))
         for k in range(1, n + 1):
             q = qa + (qb - qa) * k / n
-            why = self._ok(q, lift)
+            near = q_start is not None and np.degrees(np.max(np.abs(q - q_start))) < self.START_SELF_FREE_DEG
+            why = self._ok(q, lift, near_start=near)
             if why:
                 return f"이동 중 {why}"
         return None
@@ -189,15 +194,16 @@ class MotionPlanner:
             vias = []
             why = None
             for sl in np.linspace(start_lift_stage_m, lift, 6):   # 리프트가 움직이는 동안 (팔은 시작 자세)
-                why = why or self._ok(q0, float(sl))
-            why = why or self._segment(q0, q_pre, lift)
+                why = why or self._ok(q0, float(sl), near_start=True)
+            why = why or self._segment(q0, q_pre, lift, q_start=q0)
             if why:
                 fixed = None
-                for back in self.via_back:
-                    q_via = self._near_solution(np.asarray(target, float) - back * a, lift, kw, q_pre)
+                for back, up in [(b, u) for u in self.via_up for b in (standoff, *self.via_back) if b > standoff or u > 0]:
+                    q_via = self._near_solution(np.asarray(target, float) - back * a + [0, 0, up], lift, kw, q_pre)
                     if q_via is None:
                         continue
-                    if not (self._ok(q_via, lift) or self._segment(q0, q_via, lift) or self._segment(q_via, q_pre, lift)):
+                    if not (self._ok(q_via, lift) or self._segment(q0, q_via, lift, q_start=q0)
+                            or self._segment(q_via, q_pre, lift)):
                         fixed = q_via
                         break
                 if fixed is None:

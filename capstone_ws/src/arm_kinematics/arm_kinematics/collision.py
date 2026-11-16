@@ -20,11 +20,14 @@ PACKAGE = "mobile_robot_description"
 
 @dataclass(frozen=True)
 class Box:
-    """로봇 바닥 기준(world 프레임) 상자. size 는 전체 길이 [m], yaw 는 z축 회전 [rad]."""
+    """로봇 바닥 기준(world 프레임) 상자. size 는 전체 길이 [m], yaw 는 z축 회전 [rad].
+    margin: 이 상자만의 여유 [m] (None 이면 검사기 기본). 집거나 놓을 물체를 받치는 면(책상 상판, 놓을 층의 판)은
+    그리퍼·물체가 가까이 가야 하므로 작게 준다."""
     name: str
     size: tuple[float, float, float]
     center: tuple[float, float, float]
     yaw: float = 0.0
+    margin: float | None = None
 
 
 _ROBOT_GEOM_CACHE: dict = {}
@@ -55,7 +58,13 @@ class CollisionChecker:
         return out, names, [i for i, n in enumerate(names) if n.startswith(arm_prefix)]
 
     def __init__(self, kin: B601Kinematics, env: list[Box] = (), arm_prefix: str = "right_arm",
-                 margin: float = 0.02, finger_openings: tuple[float, ...] | None = None):
+                 margin: float = 0.02, finger_openings: tuple[float, ...] | None = None,
+                 attached: list[tuple[str, tuple[float, float, float], "pin.SE3"]] = (),
+                 attach_frame: str = "right_arm_end_link"):
+        """attached: 그리퍼가 든 물체 [(이름, 상자 크기, 자세)] 또는 [(이름, 상자 크기, 자세, "hang")].
+        기본은 attach_frame 에 단단히 붙음 (자세 = attach_frame 기준). "hang" 은 손잡이로 매달린 물체: 위치만
+        attach_frame 원점을 따라가고 방향은 로봇 기준으로 고정 (똑바로 섬) — 자세 = 그 점에 놓인 로봇 방향 프레임 기준.
+        가구(+여유)·로봇 몸체와 충돌 검사, 팔 링크와는 검사하지 않는다 (잡고 있으므로)."""
         self.kin = kin
         self.model = kin.model
         self.data = self.model.createData()
@@ -71,18 +80,48 @@ class CollisionChecker:
         for box in self.env:
             placement = pin.SE3(pin.rpy.rpyToMatrix(0, 0, box.yaw), np.array(box.center, dtype=float))
             for tag, extra in [("env", 0.0)] + [(f"clr{lv}", lv) for lv in self.CLEARANCE_LEVELS]:
-                size = [s + 2 * (self.margin + extra) for s in box.size]
+                m = self.margin if box.margin is None else box.margin
+                size = [s + 2 * (m + extra) for s in box.size]
                 gid = self.geom.addGeometryObject(
                     pin.GeometryObject(f"{tag}/{box.name}", 0, 0, placement, hppfcl.Box(*size)))
                 for a in arm_ids:
                     self.geom.addCollisionPair(pin.CollisionPair(a, gid))
                     if extra:
                         level_pairs[extra].append(len(self.geom.collisionPairs) - 1)
+        # 들고 있는 물체: attach_frame 의 부모 관절에 붙인다
+        fid = self.model.getFrameId(attach_frame)
+        frame = self.model.frames[fid]
+        body_ids = [i for i, o in enumerate(self.geom.geometryObjects)
+                    if not o.name.startswith(arm_prefix) and "/" not in o.name]      # 차체·리프트·바퀴·카메라
+        env_ids = {i: o.name for i, o in enumerate(self.geom.geometryObjects) if "/" in o.name}
+        self.attached = list(attached)
+        self._attach_fid, self._hanging = fid, []
+        for name, size, placement, *mode in self.attached:
+            if mode and mode[0] == "hang":     # 세계(로봇 기준)에 두고 매 검사 전에 위치를 옮긴다
+                gid = self.geom.addGeometryObject(pin.GeometryObject(
+                    f"held/{name}", 0, 0, placement, hppfcl.Box(*size)))
+                self._hanging.append((gid, placement))
+            else:
+                gid = self.geom.addGeometryObject(pin.GeometryObject(
+                    f"held/{name}", frame.parentJoint, fid, frame.placement * placement, hppfcl.Box(*size)))
+            for b in body_ids:
+                self.geom.addCollisionPair(pin.CollisionPair(b, gid))
+            for e, ename in env_ids.items():
+                self.geom.addCollisionPair(pin.CollisionPair(e, gid))
+                for lv in self.CLEARANCE_LEVELS:
+                    if ename.startswith(f"clr{lv}/"):
+                        level_pairs[lv].append(len(self.geom.collisionPairs) - 1)
         self.names = [o.name for o in self.geom.geometryObjects]
         clr = {k for ks in level_pairs.values() for k in ks}
         self.gdata = pin.GeometryData(self.geom)
         for k in clr:                                   # 여유 사본은 충돌 판정에서 뺀다
             self.gdata.deactivateCollisionPair(k)
+        # 팔 링크끼리 쌍을 뺀 검사용 (접힌 출발 자세 근처: 메시가 원래 거의 붙어 있음)
+        self._noself_gdata = pin.GeometryData(self.geom)
+        for k, cp in enumerate(self.geom.collisionPairs):
+            a, b = self.names[cp.first], self.names[cp.second]
+            if k in clr or (a.startswith(arm_prefix) and b.startswith(arm_prefix)):
+                self._noself_gdata.deactivateCollisionPair(k)
         self._level_gdata = {}
         for lv, ks in level_pairs.items():              # 단계별: 그 단계 사본 쌍만 켬
             gd = pin.GeometryData(self.geom)
@@ -93,19 +132,32 @@ class CollisionChecker:
             self._level_gdata[lv] = gd
         self._env_gdata, self._env_pairs = None, []
 
-    def in_collision(self, arm, lift_stage_m: float = 0.0) -> bool:
+    def _q(self, arm, lift_stage_m, finger):
+        """관절 벡터. 매달린 물체가 있으면 그 자리도 이 자세에 맞게 옮겨 둔다."""
+        q = self.kin.configuration(arm, lift_stage_m, finger)
+        if self._hanging:
+            pin.framesForwardKinematics(self.model, self.data, q)
+            p = self.data.oMf[self._attach_fid].translation
+            for gid, placement in self._hanging:
+                self.geom.geometryObjects[gid].placement = pin.SE3(np.eye(3), p.copy()) * placement
+        return q
+
+    def in_collision(self, arm, lift_stage_m: float = 0.0, ignore_self: bool = False) -> bool:
+        """ignore_self: 팔 링크끼리 충돌은 보지 않음 (팔↔차체·가구·든 물체는 봄)."""
+        gd = self._noself_gdata if ignore_self else self.gdata
         for f in self.finger_openings:
-            q = self.kin.configuration(arm, lift_stage_m, f)
-            if pin.computeCollisions(self.model, self.data, self.geom, self.gdata, q, True):
+            q = self._q(arm, lift_stage_m, f)
+            if pin.computeCollisions(self.model, self.data, self.geom, gd, q, True):
                 return True
         return False
 
-    def colliding_pairs(self, arm, lift_stage_m: float = 0.0) -> list[tuple[str, str]]:
+    def colliding_pairs(self, arm, lift_stage_m: float = 0.0, ignore_self: bool = False) -> list[tuple[str, str]]:
+        gd = self._noself_gdata if ignore_self else self.gdata
         out = []
         for f in self.finger_openings:
-            q = self.kin.configuration(arm, lift_stage_m, f)
-            pin.computeCollisions(self.model, self.data, self.geom, self.gdata, q, False)
-            for k, res in enumerate(self.gdata.collisionResults):
+            q = self._q(arm, lift_stage_m, f)
+            pin.computeCollisions(self.model, self.data, self.geom, gd, q, False)
+            for k, res in enumerate(gd.collisionResults):
                 if res.isCollision():
                     cp = self.geom.collisionPairs[k]
                     pair = (self.names[cp.first], self.names[cp.second])
@@ -128,7 +180,7 @@ class CollisionChecker:
             return float("inf"), None
         best, pair = float("inf"), None
         for f in self.finger_openings:
-            q = self.kin.configuration(arm, lift_stage_m, f)
+            q = self._q(arm, lift_stage_m, f)
             pin.computeDistances(self.model, self.data, self.geom, self._env_gdata, q)
             for k in self._env_pairs:
                 res = self._env_gdata.distanceResults[k]
@@ -146,7 +198,7 @@ class CollisionChecker:
         for lv in self.CLEARANCE_LEVELS:
             gd = self._level_gdata[lv]
             hit = any(pin.computeCollisions(self.model, self.data, self.geom, gd,
-                                            self.kin.configuration(arm, lift_stage_m, f), True)
+                                            self._q(arm, lift_stage_m, f), True)
                       for f in self.finger_openings)
             if hit:
                 return free

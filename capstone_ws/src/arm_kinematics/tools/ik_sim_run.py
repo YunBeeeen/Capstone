@@ -214,7 +214,8 @@ def main():
                 q, s, _ = actual()
                 if t > 0.3:
                     track_max = max(track_max, float(np.degrees(np.max(np.abs(q - q_cmd)))))
-                pairs = checker.colliding_pairs(list(np.degrees(q)), max(0.0, min(0.315, s)))
+                near = float(np.degrees(np.max(np.abs(q - np.radians(start_deg))))) < MotionPlanner.START_SELF_FREE_DEG
+                pairs = checker.colliding_pairs(list(np.degrees(q)), max(0.0, min(0.315, s)), ignore_self=near)
                 if pairs:
                     collisions.append((round(t, 2), phase, pairs[:2]))
             if phase != last_phase and last_phase is not None:
@@ -280,13 +281,15 @@ def kinematic_check(kin, checker, tl, lift_at, target, v_limit, dt=0.01):
     lo, hi = np.degrees(kin.arm_lower), np.degrees(kin.arm_upper)
     issues, prev, vmax = [], None, 0.0
     ts = np.append(np.arange(0.0, tl.duration, dt), tl.duration)
+    q_start = tl.sample(0.0)[0]
     for t in ts:
         q, phase = tl.sample(t)
+        near = float(np.max(np.abs(q - q_start))) < MotionPlanner.START_SELF_FREE_DEG   # 접힌 출발 자세 근처
         s = float(np.clip(lift_at(t), 0.0, kin.lift_stage_max))
         if np.any(q < lo - 0.05) or np.any(q > hi + 0.05):
             issues.append(f"t={t:.2f}s {phase} 관절 한계 밖 {np.round(q, 1).tolist()}")
-        elif checker.in_collision(list(q), s):
-            issues.append(f"t={t:.2f}s {phase} 충돌 {checker.colliding_pairs(list(q), s)[:2]}")
+        elif checker.in_collision(list(q), s, ignore_self=near):
+            issues.append(f"t={t:.2f}s {phase} 충돌 {checker.colliding_pairs(list(q), s, ignore_self=near)[:2]}")
         if prev is not None:
             vmax = max(vmax, float(np.max(np.abs(q - prev[1]))) / max(t - prev[0], 1e-9))
         prev = (t, q)

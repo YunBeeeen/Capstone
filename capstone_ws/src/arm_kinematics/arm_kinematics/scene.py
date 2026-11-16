@@ -96,7 +96,7 @@ def to_robot(boxes: list[Box], robot: Placement) -> list[Box]:
     out = []
     for b in boxes:
         dx, dy = b.center[0] - robot.x, b.center[1] - robot.y
-        out.append(Box(b.name, b.size, (c * dx + s * dy, -s * dx + c * dy, b.center[2]), b.yaw - robot.yaw))
+        out.append(Box(b.name, b.size, (c * dx + s * dy, -s * dx + c * dy, b.center[2]), b.yaw - robot.yaw, b.margin))
     return out
 
 
