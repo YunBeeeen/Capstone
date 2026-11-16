@@ -122,7 +122,7 @@ Jetson: J5 → J3 (Nav2) → J2 (매핑이면 **저장 끝날 때까지 기다�
 
 | 것 | 내용 |
 |---|---|
-| 경로 | 노트북 `~/capstone/capstone_ws/...` 대신 Jetson `~/capstone_ws/...` (`$NAV`). 지도 `~/maps/` (노트북 지도는 없음) |
+| 경로 | 노트북 `~/capstone/capstone_ws/...` 대신 Jetson `~/capstone_ws/...` (`$NAV`). 지도 `~/maps/` (노트북 지도는 없음). `unable to open database file` 이면 `mkdir -p ~/maps` |
 | 인터넷 | Jetson 은 인터넷 없음. 설치가 더 필요하면 노트북을 랜선으로 꽂고 터널 (`ssh -N -R 127.0.0.1:1080 jetson`), apt 에 `-o Acquire::http::Proxy=socks5h://127.0.0.1:1080 -o Acquire::https::Proxy=socks5h://127.0.0.1:1080` |
 | 게임패드 | Jetson 커널에 X-Box 드라이버를 직접 빌드해 넣음 (`~/xpad_build`, 부팅 때 자동). JetPack 업데이트하면 다시 빌드 |
 | ZED 한 대 | 매핑·Nav2 가 ZED 를 쓰는 동안 물체 찾기 `svo_find --live` 는 ZED 를 못 엶 (ROS 영상으로 찾는 건 다음 작업) |
