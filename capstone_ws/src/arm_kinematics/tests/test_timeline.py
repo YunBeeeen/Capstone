@@ -61,7 +61,7 @@ class FakeFollower:
     def __init__(self, q0, tau=0.15, stall=None):
         self.q = np.array(q0, float)
         self.target = self.q.copy()
-        self.tau, self.stall, self.t_last, self.sent = tau, stall, None, 0
+        self.tau, self.stall, self.t_last, self.sent, self.held = tau, stall, None, 0, False
 
     def send_action(self, action):
         import time
@@ -74,6 +74,10 @@ class FakeFollower:
             self.q[self.stall[0]] = 0.0       # joint held back for the first N commands
         self.sent += 1
         return action
+
+    def hold(self):
+        self.held = True
+        self.target = self.q.copy()
 
     def get_observation(self):
         obs = {f"{n}.pos": float(v) for n, v in zip(play_plan.NAMES, self.q)}
@@ -90,6 +94,19 @@ class PlayerTests(unittest.TestCase):
         self.assertAlmostEqual(t, tl.duration)
         np.testing.assert_allclose(robot.q, [-12, 0, 0, 0, 0, 0], atol=2.0)
         self.assertGreater(robot.sent, 60)
+
+    def test_blocked_joint_stops_with_hold_and_retreats_from_actual_pose(self):
+        wps = [wp(0.0, "insert", [0] * 6), wp(0.4, "insert", [-30, 0, 0, 0, 0, 0])]
+        tl = Timeline(wps, v_limit_deg=60.0)
+        robot = FakeFollower([0] * 6, stall=(0, 10 ** 9))          # 1번 관절이 영영 막힘 (장애물)
+        with self.assertRaises(play_plan.Stalled) as ctx:
+            play_plan.play(robot, tl, -10.0, rate_hz=200.0, lag_pause_deg=5.0, stall_s=0.3)
+        self.assertTrue(robot.held)
+        e = ctx.exception
+        self.assertLess(e.t_plan, tl.duration)                       # 끝까지 밀지 않았다
+        t_back = play_plan.closest_time(tl, e.q_meas, e.t_plan)
+        self.assertLess(t_back, e.t_plan)                             # 실제 팔 위치 = 경로 앞쪽
+        self.assertLess(abs(tl.sample(t_back)[0][0] - e.q_meas[0]), 1.0)
 
     def test_reverse_points_retrace_the_path(self):
         tl = Timeline(WAYPOINTS, v_limit_deg=30.0)

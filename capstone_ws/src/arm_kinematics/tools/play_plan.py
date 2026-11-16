@@ -16,6 +16,8 @@
   - 관절별 중력 배율 (--gravity-scale, 기본 wrist_flex=0.85) 을 collector 와 같은 방식으로 건다.
   - 현재 자세가 경로 시작과 --start-tol (기본 5°) 안이면 천천히 시작 자세로 맞춘 뒤 재생, 넘으면 중단.
   - 목표를 50 Hz 로 보낸다. 측정 위치가 목표보다 10° 넘게 늦으면 경로 시간을 멈추고 기다린다 (15° 끌림 정지 방지).
+  - 늦은 상태가 --stall 초 (기본 1 s) 넘게 계속되면 부딪힌 것으로 보고 측정 자세로 고정(hold)하고 멈춘다
+    (목표가 앞에 남아 장애물을 계속 미는 것을 막음). 그다음 ENTER 로 실제 팔이 있는 지점부터 같은 길로 복귀.
   - 리프트는 움직이지 않는다 (plan 의 lift_fixed 가 아니면 경고).
   - 끝나면 자세 유지 → ENTER 로 같은 길 거꾸로 돌아가기, q 로 그대로 종료.
   - 종료(또는 Ctrl+C)는 팀 팔로워의 disconnect: 자세 유지한 채 '팔을 받친 뒤 ENTER' 를 기다렸다가 토크 해제.
@@ -117,11 +119,21 @@ def action(q_deg, gripper):
     return a
 
 
-def play(robot, tl, gripper, rate_hz, lag_pause_deg, t_end=None, label=""):
-    """tl 을 rate_hz 로 재생. 측정이 lag_pause_deg 넘게 늦으면 시간을 멈춘다. 끝 시각 반환."""
+class Stalled(RuntimeError):
+    """측정이 목표를 오래 못 따라옴 (부딪힘 추정). t_plan = 멈춘 경로 시각."""
+
+    def __init__(self, t_plan, lag, q_meas):
+        super().__init__(f"t={t_plan:.2f}s 에서 {lag:.1f}° 늦은 채 멈춤")
+        self.t_plan, self.lag, self.q_meas = t_plan, lag, q_meas
+
+
+def play(robot, tl, gripper, rate_hz, lag_pause_deg, t_end=None, label="", stall_s=1.0):
+    """tl 을 rate_hz 로 재생. 측정이 lag_pause_deg 넘게 늦으면 시간을 멈추고, 그 상태가 stall_s 넘게
+    이어지면 hold 후 Stalled 를 던진다. 끝 시각 반환."""
     period = 1.0 / rate_hz
     t_end = tl.duration if t_end is None else t_end
     t_plan, last_wall, next_tick, next_log, paused = 0.0, time.perf_counter(), time.perf_counter(), 0.0, 0.0
+    stuck = 0.0
     while True:
         now = time.perf_counter()
         q_cmd, phase = tl.sample(t_plan)
@@ -132,7 +144,12 @@ def play(robot, tl, gripper, rate_hz, lag_pause_deg, t_end=None, label=""):
         last_wall = now
         if lag > lag_pause_deg:
             paused += dt
+            stuck += dt
+            if stuck > stall_s:
+                robot.hold()                      # 측정 자세로 고정: 앞에 남은 목표를 버린다
+                raise Stalled(t_plan, lag, q_meas)
         else:
+            stuck = 0.0
             t_plan = min(t_plan + dt, t_end)
         if now >= next_log:
             print(f"{label}{t_plan:6.2f}/{t_end:5.2f}s {phase:10s} 늦음 {lag:5.1f}°"
@@ -154,6 +171,7 @@ def main():
     ap.add_argument("--rate", type=float, default=50.0, help="목표 전송 주기 [Hz]")
     ap.add_argument("--start-tol", type=float, default=5.0, help="현재 자세 ↔ 경로 시작 허용 차 [도]")
     ap.add_argument("--lag-pause", type=float, default=10.0, help="이만큼 늦으면 경로 시간 멈춤 [도] (끌림 정지 15° 보다 작게)")
+    ap.add_argument("--stall", type=float, default=1.0, help="이만큼 [s] 계속 늦으면 부딪힘으로 보고 고정·정지")
     ap.add_argument("--gravity-scale", default="wrist_flex=0.85", help="관절별 중력 배율, 예 'wrist_flex=0.85' 또는 '4=0.85', 빈 값이면 안 검")
     args = ap.parse_args()
 
@@ -197,17 +215,26 @@ def main():
             align = T.Timeline([{"phase": "align", "motors_deg": {str(i): q0[i - 1] for i in range(1, 7)}},
                                 {"phase": "align", "motors_deg": {str(i): start[i - 1] for i in range(1, 7)}}],
                                v_limit_deg=10.0)
-            play(robot, align, gripper, args.rate, args.lag_pause, label="[시작 맞춤] ")
+            play(robot, align, gripper, args.rate, args.lag_pause, label="[시작 맞춤] ", stall_s=args.stall)
         input("\n경로 재생 시작: ENTER (멈추려면 Ctrl+C — 자세 유지)\n")
-        play(robot, tl, gripper, args.rate, args.lag_pause, t_end=t_end)
-        q_end, _ = measured(robot)
-        print("도착. 측정 모터 1~6:", ",".join(f"{v:.1f}" for v in q_end))
-        robot.hold()
+        t_back_from = t_end
+        try:
+            play(robot, tl, gripper, args.rate, args.lag_pause, t_end=t_end, stall_s=args.stall)
+            q_end, _ = measured(robot)
+            print("도착. 측정 모터 1~6:", ",".join(f"{v:.1f}" for v in q_end))
+            robot.hold()
+        except Stalled as e:
+            t_back_from = closest_time(tl, e.q_meas, e.t_plan)
+            print(f"\n⚠ 멈춤: {e} — 부딪힘 추정, 측정 자세로 고정함. 측정 모터 1~6:",
+                  ",".join(f"{v:.1f}" for v in e.q_meas), f"(경로 {t_back_from:.2f}s 지점과 가장 가까움)")
         ans = input("\nENTER = 같은 길로 시작 자세까지 되돌아가기, q = 여기서 유지한 채 종료: ").strip().lower()
         if ans != "q":
             back = T.Timeline([{"t": t, "phase": ph, "motors_deg": {str(i): q[i - 1] for i in range(1, 7)}}
-                               for t, ph, q in _reverse_points(tl, t_end)], v_limit_deg=v_limit, speed=1.0)
-            play(robot, back, gripper, args.rate, args.lag_pause, label="[복귀] ")
+                               for t, ph, q in _reverse_points(tl, t_back_from)], v_limit_deg=v_limit, speed=1.0)
+            try:
+                play(robot, back, gripper, args.rate, args.lag_pause, label="[복귀] ", stall_s=args.stall)
+            except Stalled as e:
+                print(f"\n⚠ 복귀 중에도 멈춤: {e} — 고정한 채 종료합니다. 팔을 받치고 직접 빼 주세요.")
             robot.hold()
     except KeyboardInterrupt:
         print("\n중지 — 현재 자세 유지")
@@ -215,6 +242,13 @@ def main():
     finally:
         robot.disconnect()   # 팀 코드: 자세 유지 → '팔을 받친 뒤 ENTER' → 토크 해제
     return 0
+
+
+def closest_time(tl, q_meas, t_max, step=0.02):
+    """경로 [0, t_max] 에서 측정 자세와 가장 가까운 시각 (복귀를 실제 팔 위치에서 시작하려고)."""
+    ts = np.append(np.arange(0.0, t_max, step), t_max)
+    d = [float(np.max(np.abs(tl.sample(t)[0] - q_meas))) for t in ts]
+    return float(ts[int(np.argmin(d))])
 
 
 def _reverse_points(tl, t_end, step=0.05):
