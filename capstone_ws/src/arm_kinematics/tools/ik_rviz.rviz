@@ -1,0 +1,72 @@
+Panels:
+- Class: rviz_common/Displays
+  Name: Displays
+Visualization Manager:
+  Class: ''
+  Global Options:
+    Fixed Frame: world
+    Background Color: 48; 48; 48
+  Displays:
+  - Class: rviz_default_plugins/Grid
+    Name: Grid
+    Enabled: true
+    Cell Size: 0.5
+  - Class: rviz_default_plugins/Axes
+    Name: robot frame (x 앞 빨강, y 왼쪽 초록, z 위 파랑)
+    Enabled: true
+    Reference Frame: world
+    Length: 0.4
+    Radius: 0.01
+  - Class: rviz_default_plugins/RobotModel
+    Name: RobotModel
+    Enabled: true
+    Description Source: Topic
+    Description Topic:
+      Value: /robot_description
+      Durability Policy: Transient Local
+      Reliability Policy: Reliable
+    Visual Enabled: true
+  - Class: rviz_default_plugins/MarkerArray
+    Name: 환경·목표·후보
+    Enabled: true
+    Topic:
+      Value: /ik/markers
+      Durability Policy: Transient Local
+      Reliability Policy: Reliable
+  - Class: rviz_default_plugins/PointCloud2
+    Name: 작업 공간 (색 = σmin)
+    Enabled: true
+    Topic:
+      Value: /ik/workspace
+      Durability Policy: Transient Local
+      Reliability Policy: Reliable
+    Style: Points
+    Size (Pixels): 3
+    Color Transformer: Intensity
+    Channel Name: intensity
+    Use rainbow: true
+    Invert Rainbow: true
+    Autocompute Intensity Bounds: false
+    Min Intensity: 0
+    Max Intensity: 0.05
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Name: Current View
+      Target Frame: world
+      Distance: 3.0
+      Pitch: 0.45
+      Yaw: 2.6
+      Focal Point:
+        X: 0.1
+        Y: -0.3
+        Z: 0.7
+      Near Clip Distance: 0.01
+    Saved: null
+  Tools:
+  - Class: rviz_default_plugins/MoveCamera
+  - Class: rviz_default_plugins/Interact
+    Hide Inactive Objects: true
+  - Class: rviz_default_plugins/Select
+  - Class: rviz_default_plugins/FocusCamera
+  Value: true
