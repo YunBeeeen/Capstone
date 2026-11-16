@@ -91,6 +91,20 @@ python3 $NAV/place_go.py shelf_A                                   # 선반 확�
 python3 $NAV/place_go.py shelf_A --check-only                      #   보는 자리까지 가서 재기만
 ```
 
+### 지도 보기
+
+```bash
+# 저장된 지도 → 그림 한 장 (Jetson 에서, SSH 로도 됨) → 노트북으로 가져와 보기
+python3 $NAV/map_png.py ~/maps/X.db                       # Jetson: /tmp/X_map.png
+scp jetson:/tmp/X_map.png ~/ && xdg-open ~/X_map.png      # 노트북
+
+# 3D 까지 자세히 (RTAB-Map 뷰어, 창이 있는 곳에서): Jetson 모니터 앞이면 바로, 노트북이면 파일을 가져와서
+rtabmap-databaseViewer ~/maps/X.db                                                    # Jetson 모니터
+scp jetson:maps/X.db ~/maps/X_jetson.db && rtabmap-databaseViewer ~/maps/X_jetson.db   # 노트북 (Edit → View 3D map, 끌 때 저장은 No)
+```
+- 매핑·재위치 **중에** 실시간으로 보려면 아래 RViz.
+- 그림은 노드별 지역 지도를 주행 기록 위치로 이어 붙인 것이라 실제보다 조금 번져 보일 수 있음 (뷰어·재위치는 루프 클로저로 보정된 지도).
+
 ### RViz (선택)
 - Jetson 모니터 앞: `rviz2 -d ~/capstone_ws/install/capstone_navigation/share/capstone_navigation/config/nav.rviz`
 - 노트북 (랜선으로 iDLE): `export ROS_DOMAIN_ID=21 && source /opt/ros/humble/setup.bash && rviz2 -d ~/capstone/capstone_ws/install/capstone_navigation/share/capstone_navigation/config/nav.rviz`
