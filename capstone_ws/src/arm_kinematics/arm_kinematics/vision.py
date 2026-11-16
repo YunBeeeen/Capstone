@@ -201,3 +201,11 @@ def floor_height(depth, K, T, step=4):
     T0[2, 3] = 0.0
     floors = [pl for pl in horizontal_planes(depth, K, T0, step) if pl[0] < -0.3 and pl[2] >= 0.6]
     return -floors[0][0] if floors else None
+
+
+def plane_front_edge(depth, K, T, z, near_y, half_width=0.3, step=3):
+    """높이 z (±1 cm) 수평면 점들 중 좌우 near_y ± half_width 안에서 로봇에 가장 가까운 x (1 % 분위) = 책상 앞 모서리. 없으면 None."""
+    vs, us = np.mgrid[0:depth.shape[0]:step, 0:depth.shape[1]:step]
+    p = pixels_to_points(depth, K, T, us.ravel(), vs.ravel())
+    s = p[(np.abs(p[:, 2] - z) < 0.01) & (np.abs(p[:, 1] - near_y) < half_width) & (p[:, 0] > 0.15)]
+    return float(np.percentile(s[:, 0], 1)) if len(s) > 100 else None

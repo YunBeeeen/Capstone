@@ -28,7 +28,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from arm_kinematics.vision import (camera_pose, estimate_object, floor_height, horizontal_planes,  # noqa: E402
-                                   level_to_floor)
+                                   level_to_floor, plane_front_edge)
 
 ZED_HEIGHT_AT_LIFT0, OPTICAL_ABOVE_SCREW, CAM_X, LEFT_LENS_Y = 0.675, 0.03, 0.167, 0.06
 
@@ -105,6 +105,8 @@ def main():
     ap.add_argument("--no-sam", action="store_true")
     ap.add_argument("--min-score", type=float, default=0.15)
     ap.add_argument("--depth-mode", default="NEURAL", help="NEURAL | PERFORMANCE | QUALITY | ULTRA")
+    ap.add_argument("--grasp-depth", type=float, default=0.025,
+                    help="집을 목표 = 중심 + 이만큼 앞(+x) [m] (IK 가 맞추는 점이 손가락 끝이라)")
     ap.add_argument("--out", type=Path)
     ap.add_argument("--json", type=Path)
     args = ap.parse_args()
@@ -183,8 +185,16 @@ def once(args, svo, cam, screw):
             print(f"{q:24s} {b[4]:.2f}  3D 실패 (점 부족)")
             continue
         print(f"{q:24s} {b[4]:.2f}  {est}" + (f", 받침면 {100 * est.support_z:.1f} cm" if est.support_z else ""))
-        result[q] = {"score": b[4], "box": b[:4], "center": est.center.tolist(), "size": list(est.size), "yaw": est.yaw,
-                     "support_z": est.support_z}
+        target = est.center + np.array([args.grasp_depth, 0.0, 0.0])
+        front = plane_front_edge(depth, K, T, est.support_z, est.center[1]) if est.support_z else None
+        zed = h - OPTICAL_ABOVE_SCREW
+        if front is not None:
+            print(f"   IK: python3 tools/ik_sim_run.py --target desk --desk-top {est.support_z:.3f} --front {front:.3f} "
+                  f"--lateral={est.center[1]:.3f} --xyz {target[0]:.3f} {target[1]:.3f} {target[2]:.3f} "
+                  f"--zed-height {zed:.3f} --no-sim --save-plan /tmp/p.json")
+        result[q] = {"score": b[4], "box": b[:4], "center": est.center.tolist(), "target": target.tolist(),
+                     "size": list(est.size), "yaw": est.yaw, "support_z": est.support_z, "desk_front_x": front,
+                     "zed_height": zed}
         x0, y0, x1, y1 = map(int, b[:4])
         if mask is not None:
             bgr[mask] = (0.5 * bgr[mask] + 0.5 * np.array([0, 200, 255])).astype(np.uint8)

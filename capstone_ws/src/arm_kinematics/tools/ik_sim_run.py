@@ -49,6 +49,9 @@ def main():
     ap.add_argument("--approach", default="heading", help=APPROACH_HELP)
     ap.add_argument("--tilt", default="-10,45", help="heading 모드 기울기 범위 [도] (아래 +)")
     ap.add_argument("--front", type=float, default=FRONT, help="로봇 중심 → 가구 앞면 [m] (설 자리 거리)")
+    ap.add_argument("--desk-top", type=float, help="책상 윗면 높이 [m] (기본 0.88). svo_find 가 잰 받침면 높이를 넣으면 됨")
+    ap.add_argument("--support-margin", type=float, default=0.005,
+                    help="물체를 받치는 면 (책상 상판·목표 선반 판) 의 충돌 여유 [m] — 나머지는 --margin. 물체를 집으려면 손가락이 면에 가까이 가야 함")
     ap.add_argument("--lateral", type=float, default=LATERAL, help="가구 가운데 y [m] (− = 로봇 오른쪽)")
     ap.add_argument("--along", type=float, default=ALONG, help="목표를 가구 가운데에서 y 로 옮긴 양 [m]")
     ap.add_argument("--height", type=float, default=0.05)
@@ -74,6 +77,10 @@ def main():
     if args.limits == "conservative":
         kin.set_motor_limits_deg(conservative_limits(kin))
     print("관절 한계 [도]:", {n: (round(lo, 1), round(hi, 1)) for n, (lo, hi) in kin.motor_limits_deg().items()})
+    if args.desk_top is not None:
+        import arm_kinematics.scene as scene_mod
+        scene_mod.DESK_TOP = args.desk_top                 # env_for·preset_target 가 부를 때 읽는 값
+        print(f"책상 윗면 {args.desk_top:.3f} m (기본 0.88)")
     if args.xyz:
         robot = Placement(args.robot[0], args.robot[1], math.radians(args.robot[2])) if args.robot else Placement(0, 0, 0)
         target, into = np.array(args.xyz), np.array([1.0, 0.0, 0.0])
@@ -87,6 +94,9 @@ def main():
         args.approach, into, [float(v) for v in args.tilt.split(",")])
 
     env_room = [] if args.no_env else env_for(args.target, args.front, args.lateral)
+    support = "desk_top" if args.target == "desk" else f"shelf_board{args.target[-1]}" if args.target.startswith("shelf") else None
+    env_room = [type(b)(b.name, b.size, b.center, b.yaw, args.support_margin if b.name == support else b.margin)
+                for b in env_room]
     if args.no_sim:
         sim_lim = kin.motor_limits_deg()
     else:
