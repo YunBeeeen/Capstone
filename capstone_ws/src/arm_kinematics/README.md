@@ -241,6 +241,17 @@ MUJOCO_GL=egl python3 tools/vision_sim_test.py --zed-height 1.2 --out out/      
 - **리프트 210 mm (ZED 0.885 m) 에서는 책상 윗면이 거의 옆으로 보여 물체가 서로 가린다.** ZED 1.0~1.2 m 에서 보고, 그 높이에서도
   책상 집기 계획이 된다 (desk, 앞면 0.35 m: ZED 1.0 / 1.1 / 1.2 m 모두 검증 통과).
 
+## 한 번에: 찾기 → 계획 → 집기 (`tools/pick.py`, 라즈베리파이)
+
+```bash
+cd ~/arm_play/ws/arm_kinematics && PY=~/rebot_env/venv/bin/python
+$PY tools/pick.py pumpkin --hover     # 물체 6 cm 위 접근점까지만 (정렬 눈으로 확인)
+$PY tools/pick.py pumpkin             # 그리퍼 열기 → 6 cm 위 → 곧게 내려옴 → 닫기 → ENTER: 6 cm 들어 올리며 복귀
+```
+팔 자세 읽기 (읽기 전용) → Jetson `svo_find --live --zed-height auto` (카메라·책상 높이·앞 모서리를 화면에서) →
+`ik_sim_run --descend 0.06` (책상 = 잰 값, 받침면 여유 0.5 cm, 손가락 45~89° 아래) → 요약 + y 확인 → `play_plan`.
+오른팔이라 물체가 로봇 오른쪽 앞 (앞 0.45~0.6 m, 오른쪽 0~0.25 m) 이어야 여유 있게 됨 (왼쪽 +0.15 m 는 중력 부하 한계).
+
 ## 실기 실행 (`tools/play_plan.py`, 라즈베리파이)
 
 구조: 노트북(나중에 Jetson)이 계획(IK·경로·MuJoCo 검증 → `plan.json`), 라파가 실행 (팔로워에 50 Hz 목표 전송, CAN).

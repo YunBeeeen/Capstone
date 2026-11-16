@@ -36,7 +36,8 @@ def phrase(word):
 
 
 def run(cmd, **kw):
-    return subprocess.run(cmd, capture_output=True, text=True, **kw)
+    """중간 단계 실행 — 입력은 막음 (ssh 등이 사용자 입력을 먼저 읽어 가지 않게)."""
+    return subprocess.run(cmd, capture_output=True, text=True, stdin=subprocess.DEVNULL, **kw)
 
 
 def main():
@@ -109,9 +110,14 @@ def main():
           f"계획 {dur:.1f} s (속도 배율 전), {sel}")
     print("   " + ("물체 위 접근점까지만 (--hover)" if a.hover else "그리퍼 열기 → 접근점 → 내려옴 → 닫기 → ENTER 로 들어 올리며 복귀"))
     print("   그림 (라파): /tmp/pick_vision.jpg")
-    if not a.yes and input("   움직일까요? y 입력: ").strip().lower() != "y":
-        print("취소")
-        return 0
+    if not a.yes:
+        try:
+            ok = input("   움직일까요? y 입력: ").strip().lower() == "y"
+        except EOFError:
+            ok = False
+        if not ok:
+            print("취소 (움직이지 않음)")
+            return 0
 
     # 5) 실행
     pp = [PY, str(HERE / "play_plan.py"), plan, "--speed", str(a.speed), "--settle-deg", str(a.settle_deg)]
