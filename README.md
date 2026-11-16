@@ -1,6 +1,6 @@
-# Capstone — Mobile Humanoid
+# Capstone — Mobile Manipulator
 
-캡스톤 디자인 모바일 휴머노이드(모바일 매니퓰레이터) 프로젝트 코드베이스임.
+캡스톤 디자인 모바일 매니퓰레이터 프로젝트 코드베이스임.
 
 - **스워브 베이스** (4륜 독립 조향 + 인휠 구동) + **2단 리프트** + **B601-DM 팔** + 손목/헤드 카메라
 - 이 저장소 = 하위 제어(모터 브링업 · CAN 브리지 · 스워브 기구학) + 로봇 모델(URDF/MJCF) + MuJoCo 시뮬 + 텔레옵
@@ -96,6 +96,7 @@ capstone_ws/
 | [sim](capstone_ws/src/sim/) | `capstone_sim` | MuJoCo 시뮬 (브리지 대체) · URDF→MJCF 생성기 · RViz | Python |
 | [teleop](capstone_ws/src/teleop/) | `capstone_teleop` | 게임패드(SHAKS S0) · 화면 가상 패드 → `cmd_vel` · `lift_cmd` (PC → 라파 UDP) | Python/YAML |
 | [lift_bridge](capstone_ws/src/lift_bridge/) | `lift_bridge` | 리프트 Pico 시리얼 ↔ ROS (조그 · 주차 · 자동 원점) | Python |
+| [arm_kinematics](capstone_ws/src/arm_kinematics/) | (ROS 패키지 아님) | B601 팔 FK·IK·충돌·경로 계획, MuJoCo/RViz 시험, 라파 실기 재생기 | Python |
 
 | 도구 폴더 | 내용 |
 |---|---|

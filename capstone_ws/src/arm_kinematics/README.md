@@ -111,6 +111,11 @@ source /opt/ros/humble/setup.bash && source ../../install/setup.bash
 python3 tools/ik_rviz.py    --target shelf4 --approach free               # RViz: 로봇·환경·목표·작업 공간 점구름
 ```
 
+`--no-sim`: MuJoCo 없이 기구학 검증만 한다 (라파·젯슨에서 계획할 때, pinocchio·hpp-fcl·numpy 만 필요). 실제로 재생될
+5차 곡선 경로를 0.01 s 마다 뽑아 관절 한계·충돌(손가락 닫힘·벌림, 여유)·속도를 검사하고 끝 그리퍼 위치를 FK 로 확인한다.
+노트북에서 약 4 s. 실행 때마다 MuJoCo 물리를 돌릴 필요는 없다 — 물리 재생은 개발·회귀 시험용 (시뮬 추종 1° 대 실기 약 8° 라
+추종 결과는 실기를 대표하지 못함).
+
 `--approach` (기본 `heading`):
 - `heading` — **그리퍼가 가구 안쪽을 본다.** 접근축의 수평 방향을 고정하고, 기울기만 `--tilt=-10,45` (아래 +, 도) 범위에서 자유.
   접근점은 목표에서 수평으로 10 → 7 → 5 cm 물러난 곳, 삽입은 수평 직선이며 그 동안 그리퍼 자세 유지.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""IK 비용이 가장 낮은 실행 가능 후보를 골라 MuJoCo 물리로 실제로 움직여 본다.
+"""IK 비용이 가장 낮은 실행 가능 후보를 골라 MuJoCo 물리로 실제로 움직여 본다 (또는 --no-sim: 기구학 검증만).
 
   python3 tools/ik_sim_run.py --target desk --approach down
   python3 tools/ik_sim_run.py --target shelf3 --approach into --headless out/   # 창 없이 단계별 PNG + 보고
@@ -11,6 +11,8 @@
 순서: (리프트) → 접근점(목표에서 10/7/5 cm 뒤) → 직선으로 목표. 재생은 timeline.py 의 5차 곡선 (실기 실행기와 같음).
 확인: 관절 추종 오차, 실제 시뮬 자세의 충돌(팔 ↔ 몸체·선반·책상, Pinocchio 메시), 최종 그리퍼 끝 오차, 베이스 밀림.
 시뮬 장면은 팔 관절 범위를 실기 한계(collector USER_LIMITS_DEG + URDF)로 바꿔서 만든다.
+--no-sim: MuJoCo 없이 (라파·젯슨에서 계획할 때). 실제로 재생될 5차 곡선 경로를 0.01 s 마다 뽑아
+관절 한계·충돌(손가락 닫힘·벌림, 여유)·속도를 검사하고 끝 그리퍼 위치를 FK 로 확인한다. 통과하면 plan 저장.
 """
 import argparse
 import json
@@ -61,11 +63,11 @@ def main():
                          "collector = 넓힌 한계 (팔로워도 collector 처럼 넓힌 URDF 를 쓸 때만)")
     ap.add_argument("--margin", type=float, default=0.02, help="가구 충돌 상자 여유 [m] (사방)")
     ap.add_argument("--no-env", action="store_true", help="가구 없이 (빈 공간 첫 실기 시험용, --xyz 와 같이)")
+    ap.add_argument("--no-sim", action="store_true", help="MuJoCo 없이 기구학 검증만 (pinocchio·hpp-fcl·numpy 만 필요)")
     ap.add_argument("--headless", type=Path)
     ap.add_argument("--save-plan", type=Path, help="실기용 경로 JSON (모터 1~6 도, 리프트 mm, 시간)")
     args = ap.parse_args()
 
-    import mujoco
     kin = B601Kinematics()
     if args.limits == "conservative":
         kin.set_motor_limits_deg(conservative_limits(kin))
@@ -83,11 +85,15 @@ def main():
         args.approach, into, [float(v) for v in args.tilt.split(",")])
 
     env_room = [] if args.no_env else env_for(args.target, args.front, args.lateral)
-    model, data = build_mujoco(ROBOT_XML, env_room, arm_limits_deg=kin.motor_limits_deg())   # 실기 한계로
-    jid = {i: mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, f"right_arm_joint{i}") for i in MOTORS}
-    real = kin.motor_limits_deg()
-    sim_lim = {i: (max(real[i][0], math.degrees(model.jnt_range[jid[i]][0])),
-                   min(real[i][1], math.degrees(model.jnt_range[jid[i]][1]))) for i in MOTORS}
+    if args.no_sim:
+        sim_lim = kin.motor_limits_deg()
+    else:
+        import mujoco
+        model, data = build_mujoco(ROBOT_XML, env_room, arm_limits_deg=kin.motor_limits_deg())   # 실기 한계로
+        jid = {i: mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, f"right_arm_joint{i}") for i in MOTORS}
+        real = kin.motor_limits_deg()
+        sim_lim = {i: (max(real[i][0], math.degrees(model.jnt_range[jid[i]][0])),
+                       min(real[i][1], math.degrees(model.jnt_range[jid[i]][1]))) for i in MOTORS}
 
     checker = CollisionChecker(kin, to_robot(env_room, robot), margin=args.margin)   # 손가락 닫힘·벌림 둘 다 검사
     ik = B601IK(kin, collision=checker)
@@ -125,6 +131,21 @@ def main():
     tl = Timeline(wp_dicts, v_limit_deg=args.speed, phase_min_s={"lift": lift_dur}, a_limit_deg=args.accel)
     print(f"경로 {len(plan.waypoints)} 점, 재생 {tl.duration:.1f}s (5차 곡선, 최고 {args.speed:.0f}°/s), "
           f"접근 거리 {100 * plan.standoff:.0f} cm")
+    t_lift_end = tl.phase_end("lift")
+
+    def lift_at(t):
+        return lift_from + (lift_to - lift_from) * _quintic(t / t_lift_end)
+
+    if args.no_sim:
+        res = kinematic_check(kin, checker, tl, lift_at, target, args.speed)
+        print("\n== 기구학 검증 (MuJoCo 없음)")
+        print(f"샘플 {res['samples']} 개, 끝 그리퍼 오차 {res['end_error_mm']:.2f} mm, 최고 관절 속도 {res['max_speed_deg_s']:.1f}°/s")
+        for line in res["issues"][:6]:
+            print("  문제:", line)
+        validated = not res["issues"] and res["end_error_mm"] < MAX_END_ERR_MM
+        print("검증", "통과" if validated else "실패")
+        validation = {"method": "kinematic", **{k: v for k, v in res.items() if k != "issues"}, "collisions": 0}
+        return write_plan(args, validated, validation, target, approach, plan, kin, checker, lift_to, wp_dicts)
 
     # ---- MuJoCo 초기화 ----
     mujoco.mj_resetDataKeyframe(model, data, 0)
@@ -167,12 +188,10 @@ def main():
 
     track_max, collisions, phase_end, done = 0.0, [], {}, {"ok": False}
     dt, T = model.opt.timestep, tl.duration + 1.5
-    t_lift_end = tl.phase_end("lift")
 
     def command(t):
         q_deg, phase = tl.sample(t)
-        s = lift_from + (lift_to - lift_from) * _quintic(t / t_lift_end)
-        return np.radians(q_deg), s, phase
+        return np.radians(q_deg), lift_at(t), phase
 
     def run(sync=None):
         nonlocal track_max
@@ -243,28 +262,58 @@ def main():
         for name, img in shots.items():
             Image.fromarray(img).save(args.headless / f"{name}.png")
         print("저장", args.headless, sorted(shots))
-    if args.save_plan:
-        if not validated:
-            print(f"plan 저장 안 함: 검증 실패 ({args.save_plan})")
-            return 2
-        args.save_plan.parent.mkdir(parents=True, exist_ok=True)
-        args.save_plan.write_text(json.dumps({
-            "frame": "robot world (x 앞, y 왼쪽, z 바닥)", "target_xyz": target.round(4).tolist(),
-            "approach": None if approach is None else np.round(approach, 4).tolist(),
-            "start_deg": {str(k): round(float(v), 3) for k, v in plan.waypoints[0].motors_deg.items()},
-            "lift_fixed": args.zed_height is not None, "lift_total_mm": round(2000 * lift_to, 1),
-            "zed_height_m": args.zed_height, "v_limit_deg": args.speed, "a_limit_deg": args.accel,
-            "limits": args.limits, "limits_deg": {str(n): v for n, v in kin.motor_limits_deg().items()},
-            "collision": {"margin_m": args.margin, "finger_openings_m": list(checker.finger_openings),
-                          "env": "none" if args.no_env else args.target},
-            "candidate": {"cost": plan.candidate.cost, "terms": plan.candidate.cost_terms,
-                          "sigma_min": plan.candidate.sigma_min, "load": plan.candidate.load},
-            "validated": True,
-            "validation": {"end_error_mm": round(err_mm, 2), "tracking_max_deg": round(track_max, 2), "collisions": 0},
-            "waypoints": wp_dicts,
-        }, indent=1, ensure_ascii=False))
-        print("plan 저장 (검증 통과):", args.save_plan)
-    return 0 if validated else 2
+    validation = {"method": "mujoco", "end_error_mm": round(err_mm, 2), "tracking_max_deg": round(track_max, 2),
+                  "collisions": len(collisions)}
+    return write_plan(args, validated, validation, target, approach, plan, kin, checker, lift_to, wp_dicts)
+
+
+def kinematic_check(kin, checker, tl, lift_at, target, v_limit, dt=0.01):
+    """실제로 재생될 경로를 dt 마다 뽑아 한계·충돌·속도 검사, 끝 그리퍼 오차 [mm]."""
+    lo, hi = np.degrees(kin.arm_lower), np.degrees(kin.arm_upper)
+    issues, prev, vmax = [], None, 0.0
+    ts = np.append(np.arange(0.0, tl.duration, dt), tl.duration)
+    for t in ts:
+        q, phase = tl.sample(t)
+        s = float(np.clip(lift_at(t), 0.0, kin.lift_stage_max))
+        if np.any(q < lo - 0.05) or np.any(q > hi + 0.05):
+            issues.append(f"t={t:.2f}s {phase} 관절 한계 밖 {np.round(q, 1).tolist()}")
+        elif checker.in_collision(list(q), s):
+            issues.append(f"t={t:.2f}s {phase} 충돌 {checker.colliding_pairs(list(q), s)[:2]}")
+        if prev is not None:
+            vmax = max(vmax, float(np.max(np.abs(q - prev[1]))) / max(t - prev[0], 1e-9))
+        prev = (t, q)
+    if vmax > v_limit * 1.05:
+        issues.append(f"관절 속도 {vmax:.1f}°/s > {v_limit}°/s")
+    q_end, _ = tl.sample(tl.duration)
+    end = kin.fk(list(q_end), float(np.clip(lift_at(tl.duration), 0.0, kin.lift_stage_max))).translation
+    return {"samples": len(ts), "end_error_mm": round(1000 * float(np.linalg.norm(end - target)), 2),
+            "max_speed_deg_s": round(vmax, 2), "issues": issues}
+
+
+def write_plan(args, validated, validation, target, approach, plan, kin, checker, lift_to, wp_dicts):
+    """검증 통과 시에만 plan.json 저장. 반환 = 종료 코드."""
+    if not args.save_plan:
+        return 0 if validated else 2
+    if not validated:
+        print(f"plan 저장 안 함: 검증 실패 ({args.save_plan})")
+        return 2
+    args.save_plan.parent.mkdir(parents=True, exist_ok=True)
+    args.save_plan.write_text(json.dumps({
+        "frame": "robot world (x 앞, y 왼쪽, z 바닥)", "target_xyz": np.round(target, 4).tolist(),
+        "approach": None if approach is None else np.round(approach, 4).tolist(),
+        "start_deg": {str(k): round(float(v), 3) for k, v in plan.waypoints[0].motors_deg.items()},
+        "lift_fixed": args.zed_height is not None, "lift_total_mm": round(2000 * lift_to, 1),
+        "zed_height_m": args.zed_height, "v_limit_deg": args.speed, "a_limit_deg": args.accel,
+        "limits": args.limits, "limits_deg": {str(n): v for n, v in kin.motor_limits_deg().items()},
+        "collision": {"margin_m": args.margin, "finger_openings_m": list(checker.finger_openings),
+                      "env": "none" if args.no_env else args.target},
+        "candidate": {"cost": plan.candidate.cost, "terms": plan.candidate.cost_terms,
+                      "sigma_min": plan.candidate.sigma_min, "load": plan.candidate.load},
+        "validated": True, "validation": validation,
+        "waypoints": wp_dicts,
+    }, indent=1, ensure_ascii=False))
+    print(f"plan 저장 (검증 통과, {validation['method']}):", args.save_plan)
+    return 0
 
 
 if __name__ == "__main__":

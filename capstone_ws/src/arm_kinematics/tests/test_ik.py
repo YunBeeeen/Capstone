@@ -142,6 +142,32 @@ class MotionTests(unittest.TestCase):
         self.assertEqual(times, sorted(times))
 
 
+class KinematicValidationTests(unittest.TestCase):
+    def test_no_sim_check_passes_clean_path_and_catches_obstacle(self):
+        import importlib.util
+        from arm_kinematics.motion import MotionPlanner
+        from arm_kinematics.timeline import Timeline
+        spec = importlib.util.spec_from_file_location("ik_sim_run", Path(__file__).resolve().parents[1] / "tools/ik_sim_run.py")
+        run = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(run)
+        kin = B601Kinematics()
+        target, into, _ = preset_target("shelf3")
+        checker = CollisionChecker(kin, env_for("shelf3"))
+        ik = B601IK(kin, collision=checker)
+        plan = MotionPlanner(ik).plan({i: 0.0 for i in range(1, 7)}, target,
+                                      ik.solve(target, [0.105], heading=into, n_random=16), heading=into)
+        wps = [{"t": w.t, "phase": w.phase, "motors_deg": {str(k): v for k, v in w.motors_deg.items()}} for w in plan.waypoints]
+        tl = Timeline(wps)
+        lift = plan.waypoints[-1].lift_stage_m
+        ok = run.kinematic_check(kin, checker, tl, lambda t: lift, target, 30.0)
+        self.assertEqual(ok["issues"], [])
+        self.assertLess(ok["end_error_mm"], 2.0)
+        # 경로 끝(목표) 둘레에 상자 → 검증이 잡아야 한다
+        walled = CollisionChecker(kin, env_for("shelf3") + [Box("obstacle", (0.08, 0.08, 0.08), tuple(target))])
+        bad = run.kinematic_check(kin, walled, tl, lambda t: lift, target, 30.0)
+        self.assertTrue(any("env/obstacle" in line for line in bad["issues"]))
+
+
 class MujocoTests(unittest.TestCase):
     def test_mujoco_matches_pinocchio(self):
         try:
