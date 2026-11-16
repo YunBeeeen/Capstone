@@ -26,6 +26,7 @@ sys.path.insert(0, str(ROOT))
 from arm_kinematics import B601Kinematics  # noqa: E402
 from arm_kinematics.b601 import MOTORS  # noqa: E402
 from arm_kinematics.collision import CollisionChecker  # noqa: E402
+from arm_kinematics.gravity import conservative_limits  # noqa: E402
 from arm_kinematics.ik import B601IK, describe  # noqa: E402
 from arm_kinematics.motion import MotionPlanner  # noqa: E402
 from arm_kinematics.timeline import Timeline, _quintic  # noqa: E402
@@ -34,6 +35,7 @@ from arm_kinematics.scene import (  # noqa: E402
 
 ROBOT_XML = ROOT.parent / "description/mjcf/mobile_robot_right_arm.xml"
 FINGER_OPEN = 0.035
+MAX_END_ERR_MM = 10.0        # 검증: 시뮬 끝 그리퍼 오차 상한
 ZED_HEIGHT_AT_LIFT0 = 0.675   # 바닥 → ZED 삼각대 나사, 리프트 최저 (실측 2026-11-11)
 
 
@@ -53,6 +55,10 @@ def main():
     ap.add_argument("--start", help="시작 자세 모터 1~6 [도], 쉼표 (기본 0점). 음수로 시작하면 --start=-1,...")
     ap.add_argument("--zed-height", type=float, help="바닥 → ZED 삼각대 나사 높이 실측 [m]. 주면 리프트를 그 높이로 고정 "
                                                      "(리프트 최저에서 0.675 m)")
+    ap.add_argument("--limits", choices=["conservative", "collector"], default="conservative",
+                    help="관절 한계: conservative = collector ∩ 팀 중력 URDF (data_collection 팔로워 그대로일 때, 기본), "
+                         "collector = 넓힌 한계 (팔로워도 collector 처럼 넓힌 URDF 를 쓸 때만)")
+    ap.add_argument("--margin", type=float, default=0.02, help="가구 충돌 상자 여유 [m] (사방)")
     ap.add_argument("--no-env", action="store_true", help="가구 없이 (빈 공간 첫 실기 시험용, --xyz 와 같이)")
     ap.add_argument("--headless", type=Path)
     ap.add_argument("--save-plan", type=Path, help="실기용 경로 JSON (모터 1~6 도, 리프트 mm, 시간)")
@@ -60,6 +66,9 @@ def main():
 
     import mujoco
     kin = B601Kinematics()
+    if args.limits == "conservative":
+        kin.set_motor_limits_deg(conservative_limits(kin))
+    print("관절 한계 [도]:", {n: (round(lo, 1), round(hi, 1)) for n, (lo, hi) in kin.motor_limits_deg().items()})
     if args.xyz:
         robot = Placement(args.robot[0], args.robot[1], math.radians(args.robot[2])) if args.robot else Placement(0, 0, 0)
         target, into = np.array(args.xyz), np.array([1.0, 0.0, 0.0])
@@ -79,7 +88,7 @@ def main():
     sim_lim = {i: (max(real[i][0], math.degrees(model.jnt_range[jid[i]][0])),
                    min(real[i][1], math.degrees(model.jnt_range[jid[i]][1]))) for i in MOTORS}
 
-    checker = CollisionChecker(kin, to_robot(env_room, robot))
+    checker = CollisionChecker(kin, to_robot(env_room, robot), margin=args.margin)   # 손가락 닫힘·벌림 둘 다 검사
     ik = B601IK(kin, collision=checker)
     if args.zed_height is not None:
         total = args.zed_height - ZED_HEIGHT_AT_LIFT0
@@ -96,7 +105,7 @@ def main():
         print("주의: 시작 자세가 실기 한계 밖", kin.motor_limits_deg())
     start_lift = lifts[0] if args.zed_height is not None else 0.0
     t0 = time.time()
-    cands = ik.solve(target, lifts, n_random=32, **ik_kw)
+    cands = ik.solve(target, lifts, n_random=32, seed=dict(zip(MOTORS, start_deg)), **ik_kw)   # 시작 자세 = move 비용 기준
     planner = MotionPlanner(ik, limits_deg=sim_lim, max_joint_speed_deg=args.speed)
     start = dict(zip(MOTORS, start_deg))
     plan = planner.plan(start, target, cands, start_lift_stage_m=start_lift, **plan_kw)
@@ -115,20 +124,6 @@ def main():
     tl = Timeline(wp_dicts, v_limit_deg=args.speed, phase_min_s={"lift": lift_dur})
     print(f"경로 {len(plan.waypoints)} 점, 재생 {tl.duration:.1f}s (5차 곡선, 최고 {args.speed:.0f}°/s), "
           f"접근 거리 {100 * plan.standoff:.0f} cm")
-
-    if args.save_plan:
-        args.save_plan.parent.mkdir(parents=True, exist_ok=True)
-        args.save_plan.write_text(json.dumps({
-            "frame": "robot world (x 앞, y 왼쪽, z 바닥)", "target_xyz": target.round(4).tolist(),
-            "approach": None if approach is None else np.round(approach, 4).tolist(),
-            "start_deg": {str(k): v for k, v in start.items()},
-            "lift_fixed": args.zed_height is not None, "lift_total_mm": round(2000 * lift_to, 1),
-            "zed_height_m": args.zed_height, "v_limit_deg": args.speed,
-            "candidate": {"cost": plan.candidate.cost, "terms": plan.candidate.cost_terms,
-                          "sigma_min": plan.candidate.sigma_min, "load": plan.candidate.load},
-            "waypoints": wp_dicts,
-        }, indent=1, ensure_ascii=False))
-        print("저장", args.save_plan)
 
     # ---- MuJoCo 초기화 ----
     mujoco.mj_resetDataKeyframe(model, data, 0)
@@ -169,7 +164,7 @@ def main():
         cam.distance, cam.azimuth, cam.elevation = 2.3, -35.0 + math.degrees(robot.yaw), -22.0
         shots = {}
 
-    track_max, collisions, phase_end = 0.0, [], {}
+    track_max, collisions, phase_end, done = 0.0, [], {}, {"ok": False}
     dt, T = model.opt.timestep, tl.duration + 1.5
     t_lift_end = tl.phase_end("lift")
 
@@ -202,6 +197,7 @@ def main():
             if sync is not None and k % 8 == 0:
                 if not sync(t):
                     return
+        done["ok"] = True
         if renderer is not None:
             renderer.update_scene(data, cam); shots["final"] = renderer.render().copy()
 
@@ -236,12 +232,38 @@ def main():
           f"{math.degrees(base_now.yaw - robot.yaw):.2f}°")
     print(f"관절 추종 최대 오차 {track_max:.2f}°")
     print("충돌", "없음" if not collisions else f"{len(collisions)} 회, 처음: {collisions[0]}")
+    err_mm = 1000 * float(np.linalg.norm(ee_room - tgt_room))
+    validated = done["ok"] and not collisions and err_mm < MAX_END_ERR_MM
+    print("검증", "통과" if validated else
+          ("실패 — " + ("재생이 끝나기 전에 창을 닫음" if not done["ok"] else
+                        "충돌" if collisions else f"끝 오차 {err_mm:.1f} mm > {MAX_END_ERR_MM} mm")))
     if shots:
         from PIL import Image
         for name, img in shots.items():
             Image.fromarray(img).save(args.headless / f"{name}.png")
         print("저장", args.headless, sorted(shots))
-    return 0 if not collisions else 2
+    if args.save_plan:
+        if not validated:
+            print(f"plan 저장 안 함: 검증 실패 ({args.save_plan})")
+            return 2
+        args.save_plan.parent.mkdir(parents=True, exist_ok=True)
+        args.save_plan.write_text(json.dumps({
+            "frame": "robot world (x 앞, y 왼쪽, z 바닥)", "target_xyz": target.round(4).tolist(),
+            "approach": None if approach is None else np.round(approach, 4).tolist(),
+            "start_deg": {str(k): round(float(v), 3) for k, v in plan.waypoints[0].motors_deg.items()},
+            "lift_fixed": args.zed_height is not None, "lift_total_mm": round(2000 * lift_to, 1),
+            "zed_height_m": args.zed_height, "v_limit_deg": args.speed,
+            "limits": args.limits, "limits_deg": {str(n): v for n, v in kin.motor_limits_deg().items()},
+            "collision": {"margin_m": args.margin, "finger_openings_m": list(checker.finger_openings),
+                          "env": "none" if args.no_env else args.target},
+            "candidate": {"cost": plan.candidate.cost, "terms": plan.candidate.cost_terms,
+                          "sigma_min": plan.candidate.sigma_min, "load": plan.candidate.load},
+            "validated": True,
+            "validation": {"end_error_mm": round(err_mm, 2), "tracking_max_deg": round(track_max, 2), "collisions": 0},
+            "waypoints": wp_dicts,
+        }, indent=1, ensure_ascii=False))
+        print("plan 저장 (검증 통과):", args.save_plan)
+    return 0 if validated else 2
 
 
 if __name__ == "__main__":

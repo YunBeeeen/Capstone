@@ -6,7 +6,7 @@
   # 이 파일과 ../arm_kinematics/timeline.py 를 같은 상대 위치로 복사 (numpy 만 필요, pinocchio 불필요)
 
   python3 play_plan.py plan.json --dry-run                 # 팔 연결 없이 재생 내용만 출력
-  python3 play_plan.py --pose                              # 현재 모터 1~6 [도] 출력 (경로 시작 자세용)
+  python3 play_plan.py --pose                              # 현재 모터 1~6 [도] 출력. 토크를 켜서 읽고, 받친 뒤 ENTER 로 해제
   python3 play_plan.py plan.json --stop-at approach        # 접근점까지만 (기본 속도 0.5)
   python3 play_plan.py plan.json --speed 1.0               # 끝까지, 계획 속도
 
@@ -18,7 +18,9 @@
   - 목표를 50 Hz 로 보낸다. 측정 위치가 목표보다 10° 넘게 늦으면 경로 시간을 멈추고 기다린다 (15° 끌림 정지 방지).
   - 늦은 상태가 --stall 초 (기본 1 s) 넘게 계속되면 부딪힌 것으로 보고 측정 자세로 고정(hold)하고 멈춘다
     (목표가 앞에 남아 장애물을 계속 미는 것을 막음). 그다음 ENTER 로 실제 팔이 있는 지점부터 같은 길로 복귀.
-  - 리프트는 움직이지 않는다 (plan 의 lift_fixed 가 아니면 경고).
+  - 리프트는 움직이지 않는다: plan 이 lift_fixed (ik_sim_run --zed-height) 가 아니면 실행 거부.
+  - ik_sim_run 의 MuJoCo 검증을 통과한 plan (validated) 만 실행. 팔로워가 실제로 쓰는 관절 한계 밖 점이 있으면 거부.
+  - 삽입 단계는 더 작은 지연(--insert-lag, 기본 5°)에서 멈춘다. 끝에서 --settle 초 안에 2° 안으로 못 들어오면 정지로 본다.
   - 끝나면 자세 유지 → ENTER 로 같은 길 거꾸로 돌아가기, q 로 그대로 종료.
   - 종료(또는 Ctrl+C)는 팀 팔로워의 disconnect: 자세 유지한 채 '팔을 받친 뒤 ENTER' 를 기다렸다가 토크 해제.
 """
@@ -127,13 +129,15 @@ class Stalled(RuntimeError):
         self.t_plan, self.lag, self.q_meas = t_plan, lag, q_meas
 
 
-def play(robot, tl, gripper, rate_hz, lag_pause_deg, t_end=None, label="", stall_s=1.0):
-    """tl 을 rate_hz 로 재생. 측정이 lag_pause_deg 넘게 늦으면 시간을 멈추고, 그 상태가 stall_s 넘게
-    이어지면 hold 후 Stalled 를 던진다. 끝 시각 반환."""
+def play(robot, tl, gripper, rate_hz, lag_pause_deg, t_end=None, label="", stall_s=1.0,
+         insert_lag_deg=None, settle_s=2.0, settle_deg=2.0):
+    """tl 을 rate_hz 로 재생. 측정이 lag_pause_deg (삽입 단계는 insert_lag_deg) 넘게 늦으면 시간을 멈추고,
+    그 상태가 stall_s 넘게 이어지면 hold 후 Stalled. 끝 시각에 닿은 뒤 settle_s 안에 settle_deg 안으로
+    못 들어와도 hold 후 Stalled (끝에서 조금 늦은 채 계속 미는 것을 막음). 끝 시각 반환."""
     period = 1.0 / rate_hz
     t_end = tl.duration if t_end is None else t_end
     t_plan, last_wall, next_tick, next_log, paused = 0.0, time.perf_counter(), time.perf_counter(), 0.0, 0.0
-    stuck = 0.0
+    stuck = settle = 0.0
     while True:
         now = time.perf_counter()
         q_cmd, phase = tl.sample(t_plan)
@@ -142,7 +146,8 @@ def play(robot, tl, gripper, rate_hz, lag_pause_deg, t_end=None, label="", stall
         lag = float(np.max(np.abs(q_cmd - q_meas)))
         dt = now - last_wall
         last_wall = now
-        if lag > lag_pause_deg:
+        limit = lag_pause_deg if insert_lag_deg is None or "insert" not in phase else min(lag_pause_deg, insert_lag_deg)
+        if lag > limit:
             paused += dt
             stuck += dt
             if stuck > stall_s:
@@ -155,8 +160,13 @@ def play(robot, tl, gripper, rate_hz, lag_pause_deg, t_end=None, label="", stall
             print(f"{label}{t_plan:6.2f}/{t_end:5.2f}s {phase:10s} 늦음 {lag:5.1f}°"
                   + (f" (대기 누적 {paused:.1f}s)" if paused > 0 else ""), flush=True)
             next_log = now + 0.5
-        if t_plan >= t_end and lag < 2.0:
-            return t_plan
+        if t_plan >= t_end:
+            if lag < settle_deg:
+                return t_plan
+            settle += dt
+            if settle > settle_s:
+                robot.hold()
+                raise Stalled(t_plan, lag, q_meas)
         next_tick += period
         time.sleep(max(0.0, next_tick - time.perf_counter()))
 
@@ -171,6 +181,8 @@ def main():
     ap.add_argument("--rate", type=float, default=50.0, help="목표 전송 주기 [Hz]")
     ap.add_argument("--start-tol", type=float, default=5.0, help="현재 자세 ↔ 경로 시작 허용 차 [도]")
     ap.add_argument("--lag-pause", type=float, default=10.0, help="이만큼 늦으면 경로 시간 멈춤 [도] (끌림 정지 15° 보다 작게)")
+    ap.add_argument("--insert-lag", type=float, default=5.0, help="삽입 단계에서 멈추는 지연 [도]")
+    ap.add_argument("--settle", type=float, default=2.0, help="끝 도착 후 2° 안으로 들어올 때까지 기다리는 시간 [s]")
     ap.add_argument("--stall", type=float, default=1.0, help="이만큼 [s] 계속 늦으면 부딪힘으로 보고 고정·정지")
     ap.add_argument("--gravity-scale", default="wrist_flex=0.85", help="관절별 중력 배율, 예 'wrist_flex=0.85' 또는 '4=0.85', 빈 값이면 안 검")
     args = ap.parse_args()
@@ -187,8 +199,17 @@ def main():
         lift_mm = {w["lift_total_mm"] for w in plan["waypoints"]}
         print(f"경로 {args.plan}: 경로점 {len(plan['waypoints'])}, 재생 {t_end:.1f}s / 전체 {tl.duration:.1f}s "
               f"(속도 {args.speed}, 최고 {v_limit * args.speed:.0f}°/s), 목표 {plan.get('target_xyz')}")
-        print(f"  시작 자세 {np.round(start, 1).tolist()}, 리프트 {sorted(lift_mm)} mm"
-              + ("" if plan.get("lift_fixed") and len(lift_mm) == 1 else "  ⚠ 리프트가 고정이 아님 — 이 실행기는 리프트를 안 움직임"))
+        print(f"  시작 자세 {np.round(start, 1).tolist()}, 리프트 {sorted(lift_mm)} mm, 한계 {plan.get('limits')}, "
+              f"충돌 여유 {plan.get('collision', {}).get('margin_m')} m, 검증 {plan.get('validation')}")
+        problems = []
+        if not plan.get("validated"):
+            problems.append("MuJoCo 검증을 통과한 plan 이 아님 (ik_sim_run.py 가 검증 통과 후에만 저장)")
+        if not plan.get("lift_fixed") or len(lift_mm) != 1:
+            problems.append("리프트가 고정된 plan 이 아님 (ik_sim_run.py --zed-height 로 다시 계획)")
+        if problems:
+            for msg in problems:
+                print("  거부:", msg)
+            return 2
         if args.dry_run:
             for t in np.arange(0.0, t_end + 1e-9, 0.5):
                 q, ph = tl.sample(t)
@@ -206,6 +227,13 @@ def main():
         print("현재 모터 1~6 [도]:", ",".join(f"{v:.2f}" for v in q0), f"  그리퍼 {gripper:.1f}")
         if args.pose:
             return 0
+        bad = check_limits(robot, tl, t_end)
+        if bad:
+            print("거부: 팔로워의 실제 관절 한계 밖 점이 있음 (조용히 잘리면 검증한 경로와 달라짐):")
+            for line in bad[:6]:
+                print("  ", line)
+            print("  → ik_sim_run.py --limits conservative (기본) 으로 다시 계획하세요.")
+            return 2
         diff = float(np.max(np.abs(q0 - start)))
         if diff > args.start_tol:
             print(f"현재 자세가 경로 시작과 {diff:.1f}° 다름 (허용 {args.start_tol}°). "
@@ -215,11 +243,14 @@ def main():
             align = T.Timeline([{"phase": "align", "motors_deg": {str(i): q0[i - 1] for i in range(1, 7)}},
                                 {"phase": "align", "motors_deg": {str(i): start[i - 1] for i in range(1, 7)}}],
                                v_limit_deg=10.0)
-            play(robot, align, gripper, args.rate, args.lag_pause, label="[시작 맞춤] ", stall_s=args.stall)
+            play(robot, align, gripper, args.rate, args.lag_pause, label="[시작 맞춤] ", stall_s=args.stall,
+                 settle_s=args.settle)
+            robot.hold()          # ENTER 를 기다리는 동안 명령 끊김(0.25 s) 오류가 걸리지 않게 측정 자세 고정
         input("\n경로 재생 시작: ENTER (멈추려면 Ctrl+C — 자세 유지)\n")
         t_back_from = t_end
         try:
-            play(robot, tl, gripper, args.rate, args.lag_pause, t_end=t_end, stall_s=args.stall)
+            play(robot, tl, gripper, args.rate, args.lag_pause, t_end=t_end, stall_s=args.stall,
+                 insert_lag_deg=args.insert_lag, settle_s=args.settle)
             q_end, _ = measured(robot)
             print("도착. 측정 모터 1~6:", ",".join(f"{v:.1f}" for v in q_end))
             robot.hold()
@@ -229,19 +260,49 @@ def main():
                   ",".join(f"{v:.1f}" for v in e.q_meas), f"(경로 {t_back_from:.2f}s 지점과 가장 가까움)")
         ans = input("\nENTER = 같은 길로 시작 자세까지 되돌아가기, q = 여기서 유지한 채 종료: ").strip().lower()
         if ans != "q":
-            back = T.Timeline([{"t": t, "phase": ph, "motors_deg": {str(i): q[i - 1] for i in range(1, 7)}}
-                               for t, ph, q in _reverse_points(tl, t_back_from)], v_limit_deg=v_limit, speed=1.0)
+            q_now, _ = measured(robot)
+            back = T.Timeline(return_waypoints(tl, t_back_from, q_now), v_limit_deg=v_limit, speed=1.0)
             try:
-                play(robot, back, gripper, args.rate, args.lag_pause, label="[복귀] ", stall_s=args.stall)
+                play(robot, back, gripper, args.rate, args.lag_pause, label="[복귀] ", stall_s=args.stall,
+                     insert_lag_deg=args.insert_lag, settle_s=args.settle)
             except Stalled as e:
                 print(f"\n⚠ 복귀 중에도 멈춤: {e} — 고정한 채 종료합니다. 팔을 받치고 직접 빼 주세요.")
             robot.hold()
+    except Stalled as e:
+        print(f"\n⚠ 멈춤: {e} — 측정 자세로 고정한 채 종료합니다.")
+        robot.hold()
     except KeyboardInterrupt:
         print("\n중지 — 현재 자세 유지")
         robot.hold()
     finally:
         robot.disconnect()   # 팀 코드: 자세 유지 → '팔을 받친 뒤 ENTER' → 토크 해제
     return 0
+
+
+def check_limits(robot, tl, t_end, step=0.05, tol=0.2):
+    """팔로워가 실제로 쓰는 관절 한계 (연결 후 robot._joint_limits) 밖의 경로점 목록."""
+    limits = getattr(robot, "_joint_limits", None)
+    if not limits:
+        print("주의: 팔로워 관절 한계를 읽지 못해 경로 한계 검사를 건너뜀")
+        return []
+    out = []
+    for t in np.append(np.arange(0.0, t_end, step), t_end):
+        q, ph = tl.sample(t)
+        for n, v in zip(NAMES, q):
+            lo, hi = limits[n]
+            if v < lo - tol or v > hi + tol:
+                out.append(f"t={t:.2f}s {ph} {n} {v:.1f}° (한계 {lo:.1f}~{hi:.1f})")
+    return out
+
+
+def return_waypoints(tl, t_from, q_now, step=0.05):
+    """복귀 경로: 측정 자세 → (경로에서 가장 가까운 지점부터) 같은 길 거꾸로 → 시작.
+    맨 앞이 측정 자세라 hold 뒤 첫 명령이 튀지 않는다."""
+    first = {"t": 0.0, "phase": "back_align", "motors_deg": {str(i): float(q_now[i - 1]) for i in range(1, 7)}}
+    rest = [{"t": t + 0.5, "phase": ph, "motors_deg": {str(i): float(q[i - 1]) for i in range(1, 7)}}
+            for t, ph, q in _reverse_points(tl, t_from, step)]
+    rest[0]["phase"] = "back_align"           # 측정 자세 → 경로 위 가장 가까운 점 (짧은 맞춤)
+    return [first] + rest
 
 
 def closest_time(tl, q_meas, t_max, step=0.02):

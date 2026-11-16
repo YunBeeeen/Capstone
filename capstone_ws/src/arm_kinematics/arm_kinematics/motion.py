@@ -86,13 +86,17 @@ class MotionPlanner:
     def plan(self, start_deg, target, candidates: list[IKCandidate], approach=None, heading=None,
              start_lift_stage_m: float = 0.0,
              standoffs: tuple[float, ...] = (0.10, 0.07, 0.05),
-             insert_step: float = 0.01, max_tries: int = 10) -> Plan | None:
+             insert_step: float = 0.01, max_tries: int = 10, start_clip_deg: float = 2.0) -> Plan | None:
         """standoffs: 접근점 거리 후보 [m] — 앞에서부터 시도 (가구 앞이 몸에 가까우면 짧게).
 
         heading 을 주면 (IK 도 heading 으로 푼 후보): 접근점은 목표에서 heading 반대로 수평으로 물러난 곳,
         삽입은 heading 방향 수평 직선, 그 동안 그리퍼 자세(후보의 회전)를 그대로 유지한다.
         """
         q0 = public_to_q(start_deg)
+        q0c = np.clip(q0, self.lo, self.hi)        # 쉬는 자세가 한계를 살짝 넘을 수 있음 (예: 2번 +0.4°)
+        if np.max(np.abs(q0c - q0)) > np.radians(start_clip_deg):
+            return Plan(None, {}, [], [f"시작 자세가 실행 한계에서 {np.degrees(np.max(np.abs(q0c - q0))):.1f}° 밖"])
+        q0 = q0c
         approach = None if approach is None else np.asarray(approach, float) / np.linalg.norm(approach)
         if heading is not None:
             heading = np.array(heading, float)

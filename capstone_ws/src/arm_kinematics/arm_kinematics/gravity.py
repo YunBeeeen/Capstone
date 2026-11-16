@@ -73,3 +73,22 @@ class ArmGravity:
         """관절별 |τ| / 안전 상한 의 최댓값 (0~1). 비용 함수용."""
         tau = self.torques(arm)
         return max(abs(tau[n]) / DEFAULT_TAU_LIMIT[n] for n in ARM_JOINTS)
+
+
+def team_urdf_limits_deg() -> dict[int, tuple[float, float]]:
+    """팀 중력 URDF (실기 팔로워가 한계 교집합에 쓰는 원본) 의 관절 1~6 한계 [도]."""
+    import numpy as np
+    import pinocchio as pin
+    m = pin.buildModelFromUrdf(str(TEAM_URDF))
+    out = {}
+    for n in range(1, 7):
+        j = m.joints[m.getJointId(f"joint{n}")]
+        out[n] = tuple(float(v) for v in np.degrees([m.lowerPositionLimit[j.idx_q], m.upperPositionLimit[j.idx_q]]))
+    return out
+
+
+def conservative_limits(kin) -> dict[int, tuple[float, float]]:
+    """kin 의 한계 (URDF + collector) ∩ 팀 중력 URDF 한계. data_collection 설정 그대로인 팔로워가
+    실제로 허용하는 쪽에 가깝다 (collector 처럼 넓힌 URDF 사본을 쓰지 않는 경우)."""
+    team, cur = team_urdf_limits_deg(), kin.motor_limits_deg()
+    return {n: (round(max(cur[n][0], team[n][0]), 3), round(min(cur[n][1], team[n][1]), 3)) for n in cur}

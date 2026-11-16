@@ -1,7 +1,8 @@
 """팔 충돌 검사 (Pinocchio + hpp-fcl): 팔 자기 충돌, 팔 ↔ 로봇 몸체, 팔 ↔ 환경 상자.
 
 충돌 쌍 = 전체 쌍 − SRDF Adjacent − 손가락끼리 − 팔이 없는 쌍 (+ 팔 ↔ 환경 상자).
-손가락은 닫힌 상태(관절 0)로 검사한다.
+손가락은 닫힘(0)과 벌림(finger_openings) 을 모두 검사한다 (그리퍼를 열고 들어갈 수 있으므로).
+환경 상자는 margin 만큼 사방으로 키운다 (선반 위치 측정 오차·실기 추종 지연 여유).
 """
 from __future__ import annotations
 
@@ -27,7 +28,8 @@ class Box:
 
 
 class CollisionChecker:
-    def __init__(self, kin: B601Kinematics, env: list[Box] = (), arm_prefix: str = "right_arm"):
+    def __init__(self, kin: B601Kinematics, env: list[Box] = (), arm_prefix: str = "right_arm",
+                 margin: float = 0.02, finger_openings: tuple[float, ...] | None = None):
         self.kin = kin
         self.model = kin.model
         self.data = self.model.createData()
@@ -51,9 +53,12 @@ class CollisionChecker:
                 self.geom.addCollisionPair(cp)
         arm_ids = [i for i, n in enumerate(names) if n.startswith(arm_prefix)]
         self.env = list(env)
+        self.margin = float(margin)
+        self.finger_openings = (0.0, kin.finger_max) if finger_openings is None else tuple(finger_openings)
         for box in self.env:
             placement = pin.SE3(pin.rpy.rpyToMatrix(0, 0, box.yaw), np.array(box.center, dtype=float))
-            obj = pin.GeometryObject(f"env/{box.name}", 0, 0, placement, hppfcl.Box(*box.size))
+            size = [s + 2 * self.margin for s in box.size]
+            obj = pin.GeometryObject(f"env/{box.name}", 0, 0, placement, hppfcl.Box(*size))
             gid = self.geom.addGeometryObject(obj)
             for a in arm_ids:
                 self.geom.addCollisionPair(pin.CollisionPair(a, gid))
@@ -61,15 +66,21 @@ class CollisionChecker:
         self.names = [o.name for o in self.geom.geometryObjects]
 
     def in_collision(self, arm, lift_stage_m: float = 0.0) -> bool:
-        q = self.kin.configuration(arm, lift_stage_m)
-        return bool(pin.computeCollisions(self.model, self.data, self.geom, self.gdata, q, True))
+        for f in self.finger_openings:
+            q = self.kin.configuration(arm, lift_stage_m, f)
+            if pin.computeCollisions(self.model, self.data, self.geom, self.gdata, q, True):
+                return True
+        return False
 
     def colliding_pairs(self, arm, lift_stage_m: float = 0.0) -> list[tuple[str, str]]:
-        q = self.kin.configuration(arm, lift_stage_m)
-        pin.computeCollisions(self.model, self.data, self.geom, self.gdata, q, False)
         out = []
-        for k, res in enumerate(self.gdata.collisionResults):
-            if res.isCollision():
-                cp = self.geom.collisionPairs[k]
-                out.append((self.names[cp.first], self.names[cp.second]))
+        for f in self.finger_openings:
+            q = self.kin.configuration(arm, lift_stage_m, f)
+            pin.computeCollisions(self.model, self.data, self.geom, self.gdata, q, False)
+            for k, res in enumerate(self.gdata.collisionResults):
+                if res.isCollision():
+                    cp = self.geom.collisionPairs[k]
+                    pair = (self.names[cp.first], self.names[cp.second])
+                    if pair not in out:
+                        out.append(pair)
         return out

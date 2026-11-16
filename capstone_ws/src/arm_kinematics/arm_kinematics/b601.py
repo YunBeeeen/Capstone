@@ -104,6 +104,17 @@ class B601Kinematics:
             if name in USER_LIMITS_DEG:
                 self.arm_lower[i], self.arm_upper[i] = np.radians(USER_LIMITS_DEG[name])
         self.lift_stage_max = float(self.model.upperPositionLimit[self._lift_q[0]])
+        fl, fr = f"{prefix}finger_left", f"{prefix}finger_right"
+        self._finger_q = ([self._joint(fl).idx_q, self._joint(fr).idx_q]
+                          if self.model.existJointName(fl) and self.model.existJointName(fr) else None)
+        self.finger_max = float(self.model.upperPositionLimit[self._finger_q[0]]) if self._finger_q else 0.0
+
+    def set_motor_limits_deg(self, limits: dict[int, tuple[float, float]]) -> None:
+        """모터 번호별 사용 한계 [도] 를 바꾼다 (예: conservative_limits())."""
+        for n, (lo, hi) in limits.items():
+            if lo >= hi:
+                raise ValueError(f"motor {n}: empty limit {lo}..{hi}")
+            self.arm_lower[n - 1], self.arm_upper[n - 1] = np.radians([lo, hi])
 
     def _joint(self, name):
         if not self.model.existJointName(name):
@@ -115,14 +126,16 @@ class B601Kinematics:
             raise ValueError(f"{self.urdf_path} has no frame {name!r}")
         return self.model.getFrameId(name)
 
-    def configuration(self, arm, lift_stage_m: float = 0.0) -> np.ndarray:
+    def configuration(self, arm, lift_stage_m: float = 0.0, finger_m: float = 0.0) -> np.ndarray:
         """전체 q. `arm` 은 공개 각도[도] (dict/6개). `lift_stage_m` 은 단(stage) 하나의 이동량[m];
-        두 단이 같이 움직이므로 상판 높이 변화는 2배다."""
+        두 단이 같이 움직이므로 상판 높이 변화는 2배다. `finger_m` = 손가락 하나의 벌림 [m] (0 = 닫힘)."""
         if not 0.0 <= lift_stage_m <= self.lift_stage_max + 1e-9:
             raise ValueError(f"lift_stage_m {lift_stage_m} outside [0, {self.lift_stage_max}]")
         q = pin.neutral(self.model)
         q[self._arm_q] = public_to_q(arm)
         q[self._lift_q] = lift_stage_m
+        if self._finger_q and finger_m:
+            q[self._finger_q[0]], q[self._finger_q[1]] = finger_m, -finger_m   # 오른손가락 = 왼손가락 × −1 (URDF mimic)
         return q
 
     def motor_limits_deg(self) -> dict[int, tuple[float, float]]:
