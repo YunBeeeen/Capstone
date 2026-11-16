@@ -288,6 +288,33 @@ class PlayerMainTests(unittest.TestCase):
         self.assertIn("빈손", out.getvalue())
         self.assertGreater(robot.g, -3.0)
 
+    def test_hold_drift_small_settle_passes_real_sag_fails(self):
+        import contextlib
+        import io
+        import time as _t
+
+        class Sagging(FakeFollower):
+            def __init__(self, rate_deg_s, grip_jump=0.0):
+                super().__init__([0.0] * 6)
+                self.rate, self.t_hold, self.grip_jump = rate_deg_s, None, grip_jump
+
+            def hold(self):
+                super().hold()
+                self.t_hold = self.t_hold or _t.perf_counter()
+
+            def get_observation(self):
+                obs = super().get_observation()
+                if self.t_hold is not None:
+                    obs["shoulder_lift.pos"] -= self.rate * (_t.perf_counter() - self.t_hold)
+                    obs["gripper.pos"] += self.grip_jump
+                return obs
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            ok = play_plan.preflight(Sagging(0.8, grip_jump=5.0), hold_s=1.0)     # 1 s 에 0.8° + 그리퍼 5° → 정상
+            bad = play_plan.preflight(Sagging(5.0), hold_s=1.0)                  # 1 s 에 5° 처짐 → 멈춤
+        self.assertEqual(ok, [])
+        self.assertTrue(any("모터 2" in b for b in bad), bad)
+
     def test_disabled_gripper_blocks_any_motion(self):
         import contextlib
         import io

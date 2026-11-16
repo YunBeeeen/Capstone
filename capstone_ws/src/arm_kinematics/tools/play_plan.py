@@ -22,8 +22,9 @@
     둘 다 중력 보상 roll 45°, MIT, 100 Hz, 30°/s·120°/s², 명령 끊김 0.25 s, 끌림 15°,
     comm_loss_action 'hold' (경로 재생 중 끊겼을 때 home 으로 가면 선반에 부딪힐 수 있음).
   - 관절별 중력 배율 (--gravity-scale, 기본 wrist_flex=0.85) 을 collector 와 같은 방식으로 건다.
-  - 시작 점검 (연결할 때마다): 모터 1~6 + 그리퍼 7 개가 모두 응답·켜짐(상태 1)·온도 정상이고, 1 초 동안 자세가 1° 넘게
-    움직이지 않는지 (제대로 붙잡혔는지) 표로 보여 준다. 하나라도 아니면 아무것도 움직이지 않고 끝낸다.
+  - 시작 점검 (연결할 때마다): 모터 1~6 + 그리퍼 7 개가 모두 응답·켜짐(상태 1)·온도 정상이고, 켜진 뒤 0.3 s 지나
+    1 초 동안 팔 관절이 3° (--hold-drift) 넘게 움직이지 않는지 (처지지 않는지) 표로 보여 준다. 하나라도 아니면 아무것도
+    움직이지 않고 끝낸다.
     경로 재생 직전·복귀 직전에도 켜짐·오류를 다시 본다.
   - 현재 자세가 경로 시작과 --start-tol (기본 5°) 안이면 천천히 시작 자세로 맞춘 뒤 재생, 넘으면 중단.
   - 목표를 50 Hz 로 보낸다. 루프가 늦으면 경로 시각을 건너뛰지 않고 끊긴 데서 이어 간다 (재출발은 0.3 s 동안 서서히).
@@ -225,21 +226,25 @@ def motor_status(robot):
     return rows, bad
 
 
-def preflight(robot, hold_s=1.0, drift_deg=1.0):
-    """연결 직후: 지금 자세로 붙잡고 hold_s 동안 움직임을 본 뒤 상태표를 출력. 반환 문제 목록 (비면 통과)."""
+def preflight(robot, hold_s=1.0, drift_deg=3.0, settle_s=0.3):
+    """연결 직후: 지금 자세로 붙잡고, 켜지며 자리 잡는 settle_s 뒤 hold_s 동안 팔 관절 1~6 움직임을 본 뒤 상태표 출력.
+    반환 문제 목록 (비면 통과). drift_deg: 켜졌는데 못 버티고 처지는 관절 (1 s 에 몇~수십 도) 을 잡는 기준.
+    토크가 켜질 때 중력 보상·위치 제어로 1° 남짓 움직이는 건 정상 (실기 2026-11-17: 1.1°) — 그리퍼는 세지 않음."""
     robot.hold()
-    q0, g0 = measured(robot)
-    drift, t0 = 0.0, time.perf_counter()
+    time.sleep(settle_s)
+    q0, _ = measured(robot)
+    dq, t0 = np.zeros(6), time.perf_counter()
     while time.perf_counter() - t0 < hold_s:
-        q, g = measured(robot)
-        drift = max(drift, float(np.max(np.abs(q - q0))), abs(g - g0))
+        q, _ = measured(robot)
+        dq = np.maximum(dq, np.abs(q - q0))
         time.sleep(0.05)
     rows, bad = motor_status(robot)
-    if drift > drift_deg:
-        bad.append(f"붙잡은 뒤 {hold_s:.0f} s 동안 {drift:.1f}° 움직임 (제대로 안 붙잡힘)")
+    k = int(np.argmax(dq))
+    if dq[k] > drift_deg:
+        bad.append(f"붙잡은 뒤 {hold_s:.0f} s 동안 모터 {k + 1} 이 {dq[k]:.1f}° 움직임 (기준 {drift_deg:.0f}°, 못 버티고 처짐?)")
     print("시작 점검 (모터 1~6 + 그리퍼):")
     print("\n".join(rows))
-    print(f"  붙잡은 뒤 {hold_s:.0f} s 움직임 최대 {drift:.2f}°")
+    print(f"  붙잡은 뒤 {hold_s:.0f} s 움직임 최대 모터 {k + 1} {dq[k]:.2f}° (기준 {drift_deg:.0f}°)")
     print("  → 통과" if not bad else "  → 문제: " + "; ".join(bad))
     return bad
 
@@ -379,6 +384,8 @@ def main():
     ap.add_argument("--check-only", action="store_true", help="팔로워 설정만 만들어 보고 끝 (모터 연결 안 함)")
     ap.add_argument("--pose", action="store_true", help="현재 모터 1~6 [도] 만 출력")
     ap.add_argument("--gripper", choices=["open", "close"], help="경로 없이 그리퍼만 열기/닫기 (팔은 지금 자세 유지)")
+    ap.add_argument("--hold-drift", type=float, default=3.0,
+                    help="시작 점검: 붙잡은 뒤 1 s 동안 팔 관절이 이보다 많이 움직이면 멈춤 [도] (켜질 때 1° 남짓은 정상)")
     ap.add_argument("--grip-before", choices=["open", "close", "keep"], default="keep", help="경로 재생 전 그리퍼")
     ap.add_argument("--grip-after", choices=["open", "close", "keep"], default="keep",
                     help="경로 끝에 도착하면 그리퍼 (close = 잡기, open = 놓기). 부딪혀 멈췄으면 하지 않음")
@@ -448,7 +455,7 @@ def main():
         scales = apply_gravity_scales(robot, args.gravity_scale)
         if scales:
             print("중력 배율:", scales)
-        bad = preflight(robot)
+        bad = preflight(robot, drift_deg=args.hold_drift)
         q0, gripper = measured(robot)
         print("현재 모터 1~6 [도]:", ",".join(f"{v:.2f}" for v in q0), f"  그리퍼 {gripper:.1f}")
         if args.pose:
