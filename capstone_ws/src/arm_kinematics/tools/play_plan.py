@@ -15,7 +15,9 @@
     단 comm_loss_action 은 'hold' 로 고정 (경로 재생 중 끊겼을 때 home 으로 가면 선반에 부딪힐 수 있음).
   - 관절별 중력 배율 (--gravity-scale, 기본 wrist_flex=0.85) 을 collector 와 같은 방식으로 건다.
   - 현재 자세가 경로 시작과 --start-tol (기본 5°) 안이면 천천히 시작 자세로 맞춘 뒤 재생, 넘으면 중단.
-  - 목표를 50 Hz 로 보낸다. 측정 위치가 목표보다 10° 넘게 늦으면 경로 시간을 멈추고 기다린다 (15° 끌림 정지 방지).
+  - 목표를 50 Hz 로 보낸다. 루프가 늦으면 경로 시각을 건너뛰지 않고 끊긴 데서 이어 간다 (재출발은 0.3 s 동안 서서히).
+    끝나면 루프 타이밍 (최대 간격, 늦은 주기 수) 을 출력. 0.25 s 넘게 끊기면 팔로워가 정지하므로 이유를 알리고 종료.
+  - 측정 위치가 목표보다 10° 넘게 늦으면 경로 시간을 멈추고 기다린다 (15° 끌림 정지 방지).
   - 늦은 상태가 --stall 초 (기본 1 s) 넘게 계속되면 부딪힌 것으로 보고 측정 자세로 고정(hold)하고 멈춘다
     (목표가 앞에 남아 장애물을 계속 미는 것을 막음). 그다음 ENTER 로 실제 팔이 있는 지점부터 같은 길로 복귀.
   - 리프트는 움직이지 않는다: plan 이 lift_fixed (ik_sim_run --zed-height) 가 아니면 실행 거부.
@@ -130,45 +132,70 @@ class Stalled(RuntimeError):
 
 
 def play(robot, tl, gripper, rate_hz, lag_pause_deg, t_end=None, label="", stall_s=1.0,
-         insert_lag_deg=None, settle_s=2.0, settle_deg=2.0):
-    """tl 을 rate_hz 로 재생. 측정이 lag_pause_deg (삽입 단계는 insert_lag_deg) 넘게 늦으면 시간을 멈추고,
-    그 상태가 stall_s 넘게 이어지면 hold 후 Stalled. 끝 시각에 닿은 뒤 settle_s 안에 settle_deg 안으로
-    못 들어와도 hold 후 Stalled (끝에서 조금 늦은 채 계속 미는 것을 막음). 끝 시각 반환."""
+         insert_lag_deg=None, settle_s=2.0, settle_deg=2.0, ramp_s=0.3, stats=None):
+    """tl 을 rate_hz 로 재생. 끝 시각 반환.
+
+    시간: 경로 시각은 벽시계가 아니라 '끊긴 데서 이어 가기'. 한 번에 최대 1.5 주기만 나아가고, 루프가
+    2 주기 넘게 늦었거나 (GC·통신 지연) 지연 때문에 멈췄다가 다시 갈 때는 진행 속도를 0 → 1 로 ramp_s 동안
+    올린다. 그래서 늦어도 목표가 건너뛰지 않고, 그 사이 멈춘 팔이 부드럽게 다시 출발한다 (대신 전체 시간이 늘어남).
+    밀린 주기는 몰아 보내지 않고 버린다.
+    안전: 측정이 lag_pause_deg (삽입 단계는 insert_lag_deg) 넘게 늦으면 경로 시각을 멈추고, 그 상태가 stall_s 넘게
+    이어지면 hold 후 Stalled. 끝 시각에 닿은 뒤 settle_s 안에 settle_deg 안으로 못 들어와도 hold 후 Stalled.
+    stats (dict) 에 루프 타이밍을 남긴다: max_gap_s, late_ticks, ticks.
+    """
     period = 1.0 / rate_hz
+    max_step = 1.5 * period
     t_end = tl.duration if t_end is None else t_end
-    t_plan, last_wall, next_tick, next_log, paused = 0.0, time.perf_counter(), time.perf_counter(), 0.0, 0.0
-    stuck = settle = 0.0
-    while True:
-        now = time.perf_counter()
-        q_cmd, phase = tl.sample(t_plan)
-        robot.send_action(action(q_cmd, gripper))
-        q_meas, _ = measured(robot)
-        lag = float(np.max(np.abs(q_cmd - q_meas)))
-        dt = now - last_wall
-        last_wall = now
-        limit = lag_pause_deg if insert_lag_deg is None or "insert" not in phase else min(lag_pause_deg, insert_lag_deg)
-        if lag > limit:
-            paused += dt
-            stuck += dt
-            if stuck > stall_s:
-                robot.hold()                      # 측정 자세로 고정: 앞에 남은 목표를 버린다
-                raise Stalled(t_plan, lag, q_meas)
-        else:
-            stuck = 0.0
-            t_plan = min(t_plan + dt, t_end)
-        if now >= next_log:
-            print(f"{label}{t_plan:6.2f}/{t_end:5.2f}s {phase:10s} 늦음 {lag:5.1f}°"
-                  + (f" (대기 누적 {paused:.1f}s)" if paused > 0 else ""), flush=True)
-            next_log = now + 0.5
-        if t_plan >= t_end:
-            if lag < settle_deg:
-                return t_plan
-            settle += dt
-            if settle > settle_s:
-                robot.hold()
-                raise Stalled(t_plan, lag, q_meas)
-        next_tick += period
-        time.sleep(max(0.0, next_tick - time.perf_counter()))
+    stats = {} if stats is None else stats
+    stats.update(max_gap_s=0.0, late_ticks=0, ticks=0)
+    t_plan, rate, paused, stuck, settle = 0.0, 1.0, 0.0, 0.0, 0.0
+    last_wall = next_tick = time.perf_counter()
+    next_log = 0.0
+    try:
+        while True:
+            now = time.perf_counter()
+            dt = now - last_wall
+            last_wall = now
+            stats["ticks"] += 1
+            stats["max_gap_s"] = max(stats["max_gap_s"], dt)
+            if dt > 2 * period:
+                stats["late_ticks"] += 1
+                rate = 0.0                            # 끊겼다: 그 사이 팔로워는 마지막 목표에서 멈춤 → 천천히 재출발
+            q_cmd, phase = tl.sample(t_plan)
+            robot.send_action(action(q_cmd, gripper))
+            q_meas, _ = measured(robot)
+            lag = float(np.max(np.abs(q_cmd - q_meas)))
+            limit = lag_pause_deg if insert_lag_deg is None or "insert" not in phase else min(lag_pause_deg, insert_lag_deg)
+            if lag > limit:
+                paused += dt
+                stuck += dt
+                rate = 0.0
+                if stuck > stall_s:
+                    robot.hold()                      # 측정 자세로 고정: 앞에 남은 목표를 버린다
+                    raise Stalled(t_plan, lag, q_meas)
+            else:
+                stuck = 0.0
+                rate = min(1.0, rate + dt / ramp_s)
+                t_plan = min(t_plan + min(dt, max_step) * rate, t_end)
+            if now >= next_log:
+                print(f"{label}{t_plan:6.2f}/{t_end:5.2f}s {phase:10s} 늦음 {lag:5.1f}°"
+                      + (f" (대기 누적 {paused:.1f}s)" if paused > 0 else ""), flush=True)
+                next_log = now + 0.5
+            if t_plan >= t_end:
+                if lag < settle_deg:
+                    return t_plan
+                settle += dt
+                if settle > settle_s:
+                    robot.hold()
+                    raise Stalled(t_plan, lag, q_meas)
+            next_tick += period
+            late = time.perf_counter() - next_tick
+            if late > period:
+                next_tick = time.perf_counter()       # 밀린 주기는 버림 (몰아 보내지 않음)
+            time.sleep(max(0.0, next_tick - time.perf_counter()))
+    finally:
+        print(f"{label}루프: {stats['ticks']} 주기, 최대 간격 {1000 * stats['max_gap_s']:.0f} ms, "
+              f"늦은 주기(> {2000 * period:.0f} ms) {stats['late_ticks']}", flush=True)
 
 
 def main():
@@ -274,6 +301,14 @@ def main():
     except Stalled as e:
         print(f"\n⚠ 멈춤: {e} — 측정 자세로 고정한 채 종료합니다.")
         robot.hold()
+    except RuntimeError as e:
+        why = ("명령이 끊긴 시간이 팔로워 한도(0.25 s)를 넘어 팔로워가 정지함 — 루프 타이밍(위 '최대 간격')을 확인하세요"
+               if "timeout" in str(e) else "팔로워 오류")
+        print(f"\n⚠ {why}: {e}. 팔로워는 자세를 유지합니다 (comm_loss_action=hold).")
+        try:
+            robot.hold()
+        except Exception as e2:  # 이미 오류 상태면 hold 도 거부될 수 있음
+            print("  hold 실패:", e2)
     except KeyboardInterrupt:
         print("\n중지 — 현재 자세 유지")
         robot.hold()

@@ -144,6 +144,30 @@ class PlayerTests(unittest.TestCase):
         self.assertLess(t_back, e.t_plan)                             # 실제 팔 위치 = 경로 앞쪽
         self.assertLess(abs(tl.sample(t_back)[0][0] - e.q_meas[0]), 1.0)
 
+    def test_loop_hiccup_resumes_without_jump_or_burst(self):
+        import time
+
+        class Hiccup(FakeFollower):
+            def send_action(self, action):
+                if self.sent == 60:
+                    time.sleep(0.2)                         # 루프가 이 틱에서 0.2 s 멈춤 (팔로워 0.25 s 한도 안)
+                self.cmds.append((time.perf_counter(), np.array([action[f"{n}.pos"] for n in play_plan.NAMES])))
+                return super().send_action(action)
+
+        tl = Timeline([wp(0.0, "approach", [0] * 6), wp(1.0, "approach", [-30, -15, 0, 0, 0, 0])], v_limit_deg=30.0)
+        robot = Hiccup([0] * 6)
+        robot.cmds = []
+        stats = {}
+        play_plan.play(robot, tl, -10.0, rate_hz=50.0, lag_pause_deg=10.0, stats=stats)
+        ts = np.array([c[0] for c in robot.cmds])
+        q = np.array([c[1] for c in robot.cmds])
+        steps = np.max(np.abs(np.diff(q, axis=0)), axis=1)
+        normal = np.max(steps[30:58])
+        self.assertLessEqual(steps[58:75].max(), normal * 1.2)      # 멈춘 뒤 목표가 건너뛰지 않는다
+        self.assertLessEqual(int(np.sum(np.diff(ts)[61:75] < 0.005)), 1)   # 밀린 명령을 몰아 보내지 않는다
+        self.assertGreaterEqual(stats["late_ticks"], 1)
+        self.assertGreater(stats["max_gap_s"], 0.18)
+
     def test_end_offset_inside_pause_band_stops_after_settle(self):
         # 끝에서 3° 늦은 채 머무름 (2° < 3° < 10°): 예전에는 무한히 밀었다
         wps = [wp(0.0, "insert", [0] * 6), wp(0.2, "insert", [-6, 0, 0, 0, 0, 0])]

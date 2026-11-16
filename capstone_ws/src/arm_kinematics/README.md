@@ -135,7 +135,10 @@ python3 tools/ik_rviz.py    --target shelf4 --approach free               # RViz
 
 ## 실기 실행 (`tools/play_plan.py`, 라즈베리파이)
 
-구조: 노트북이 계획(IK·경로·MuJoCo 검증 → `plan.json`), 라파가 실행 (팔로워에 50 Hz 목표 전송).
+구조: 노트북(나중에 Jetson)이 계획(IK·경로·MuJoCo 검증 → `plan.json`), 라파가 실행 (팔로워에 50 Hz 목표 전송, CAN).
+상위 기기는 **경로 전체를 한 번** 넘기고, 시간에 민감한 50 Hz 전송·정지 판단은 라파 안에서만 한다
+(네트워크 지연이 팔 제어 주기에 끼지 않게). 지금은 파일(scp)로 넘기고, 나중에 UDP·ROS 메시지로 바꾼다.
+라파 루프가 늦으면 경로 시각을 건너뛰지 않고 끊긴 데서 이어 가며 0.3 s 동안 서서히 재출발한다 (0.25 s 넘게 끊기면 팔로워가 정지).
 팔로워(팀 LeRobot 패치)가 안에서 100 Hz MIT·중력 보상·30°/s·120°/s² 제한을 돌리므로 실행기는 목표만 보낸다.
 궤적은 `arm_kinematics/timeline.py` (numpy 만) 의 5차 곡선을 노트북 시뮬과 라파 실행기가 똑같이 쓴다.
 리프트는 움직이지 않는다 (`--zed-height` 로 현재 높이 고정).
