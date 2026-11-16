@@ -19,11 +19,12 @@ import numpy as np
 import pinocchio as pin
 
 from .b601 import MOTORS, B601Kinematics
+from .checks import in_basket
 from .collision import Box, CollisionChecker
 from .gravity import conservative_limits
 from .ik import B601IK
 from .motion import MotionPlanner
-from .objects import BASKET_HANDLE_H, BASKET_SIZE, BASKET_WALL, OBJECTS, ORANGE_R, DeskLayout, add_to_spec
+from .objects import BASKET_GRASP_LOCAL, BASKET_SIZE, BASKET_WALL, OBJECTS, ORANGE_R, DeskLayout, add_to_spec
 from .scene import DESK_TOP, Placement, env_for, shelf_board_top
 from .timeline import Timeline
 
@@ -33,11 +34,11 @@ DESK_FRONT, SHELF_FRONT, LATERAL = 0.35, 0.40, -0.10
 LIFT_STAGE = 0.105                     # 리프트 총 210 mm 고정
 BASE_LINK_Z = -0.020
 FRUIT_R = ORANGE_R
-BASKET = dict(size=BASKET_SIZE, wall=BASKET_WALL, handle_h=BASKET_HANDLE_H)   # 바닥 기준 손잡이 높이
+BASKET = dict(size=BASKET_SIZE, wall=BASKET_WALL, grasp_local=BASKET_GRASP_LOCAL)   # 손잡이 없는 바구니 테두리
 OBJECT_MARGIN = 0.005    # 위치를 아는 물체(과일·바구니) 상자 여유
 FINGER_OPEN, FINGER_CLOSED = 0.05, 0.0      # 실기 공개 각도 −270° (play_plan 기본 열기) = 0.05, 0° = 닫힘
 # 바구니를 들고 다닐 자세 (로봇 기준 그리퍼 위치 후보 [m]): 0점 자세는 그리퍼가 책상 앞 모서리 위(0.26, −0.22, 0.97)라
-# 매달린 바구니(바닥이 그리퍼보다 손잡이 높이만큼 아래)가 책상 상판에 걸린다 → 더 높고 몸 쪽으로
+# 매달린 바구니(바닥이 그리퍼보다 테두리 높이만큼 아래)가 책상 상판에 걸린다 → 더 높고 몸 쪽으로
 CARRY_TARGETS = ((0.22, -0.28, 1.12), (0.18, -0.30, 1.15), (0.25, -0.25, 1.10), (0.20, -0.32, 1.20))
 
 
@@ -275,17 +276,17 @@ class MissionSim:
             name, adr, rel = self.held
             if name == "fruit":                     # 손가락 사이에 단단히
                 attached = [(name, (FRUIT_R * 2,) * 3, rel)]
-            else:                                   # 손잡이로 매달림: 시뮬과 같은 모델 (위치만 그리퍼, 똑바로, 로봇과 같이 돎)
+            else:                                   # 테두리를 잡고 매달림: 시뮬과 같은 모델 (위치만 그리퍼, 똑바로, 로봇과 같이 돎)
                 grip_local, yaw0, robot_yaw0 = self._hang
                 R = pin.rpy.rpyToMatrix(0, 0, yaw0 - robot_yaw0)          # 로봇 기준 바구니 방향
-                # 바구니 원점 = 바닥 가운데 → 상자 가운데는 위로 손잡이 높이의 절반
-                box = pin.SE3(R, -R @ grip_local) * pin.SE3(np.eye(3), np.array([0, 0, BASKET["handle_h"] / 2]))
-                attached = [(name, (BASKET["size"][0], BASKET["size"][1], BASKET["handle_h"]), box, "hang")]
+                # 바구니 원점 = 바닥 가운데 → 상자 가운데는 위로 몸통 높이의 절반
+                box = pin.SE3(R, -R @ grip_local) * pin.SE3(np.eye(3), np.array([0, 0, BASKET["size"][2] / 2]))
+                attached = [(name, (BASKET["size"][0], BASKET["size"][1], BASKET["size"][2]), box, "hang")]
         return CollisionChecker(self.kin, boxes_to_robot(list(furniture) + list(obstacles), robot), margin=0.02, attached=attached)
 
     def _object_boxes(self, name) -> list[Box]:
         """계획용 장애물 상자들 (본 위치, 실제 크기, 여유 OBJECT_MARGIN).
-        바구니 = 테두리 높이까지의 몸통 + 손잡이 막대 (손잡이를 피해 테두리 위로 과일을 놓을 수 있게)."""
+        바구니 = 손잡이 없는 몸통 (테두리 높이까지)."""
         p = self.seen_pos(name)
         if name == "fruit":
             return [Box("obj_fruit", (2 * FRUIT_R,) * 3, tuple(p), 0.0, OBJECT_MARGIN)]
@@ -296,9 +297,8 @@ class MissionSim:
             cy = p[1] + math.sin(yaw) * c[0] + math.cos(yaw) * c[1]
             return [Box(f"obj_{name}", tuple(o.bbox), (cx, cy, p[2] + c[2]), yaw, OBJECT_MARGIN)]
         bx, by, bz = BASKET["size"]
-        hh, yaw = BASKET["handle_h"], self._obj_yaw(name)
-        return [Box("obj_basket", (bx, by, bz), (p[0], p[1], p[2] + bz / 2), yaw, OBJECT_MARGIN),
-                Box("obj_basket_handle", (0.012, by, 0.012), (p[0], p[1], p[2] + hh), yaw, OBJECT_MARGIN)]
+        yaw = self._obj_yaw(name)
+        return [Box("obj_basket", (bx, by, bz), (p[0], p[1], p[2] + bz / 2), yaw, OBJECT_MARGIN)]
 
     def _others(self) -> list[Box]:
         """집지 않는 책상 위 물체들 (채소) 의 계획용 상자."""
@@ -434,7 +434,7 @@ class MissionSim:
             return res.add(f"잡기 {name}", False, f"그리퍼가 잡을 곳에서 {100 * dist:.1f} cm 떨어짐")
         self.held = (name, self.obj_adr[name], self._end_pose().actInv(self._obj_pose(name)))
         if name == "basket":
-            # 손잡이를 잡은 바구니는 매달려 똑바로 선다: 손잡이 점만 그리퍼를 따라가고, 방향은 로봇과 같이 돈다
+            # 테두리를 잡은 바구니는 매달려 똑바로 선다: 잡은 점만 그리퍼를 따라가고, 방향은 로봇과 같이 돈다
             obj = self._obj_pose(name)
             self._hang = (obj.actInv(self._end_pose().translation), self._obj_yaw(name), self.base_pose().yaw)
         return res.add(f"잡기 {name}", True, f"그리퍼 ↔ 잡을 곳 {1000 * dist:.0f} mm")
@@ -457,7 +457,10 @@ class MissionSim:
 
     def _grasp_point(self, name, seen=True):
         p = self.seen_pos(name) if seen else self.obj_pos(name)
-        return p if name == "fruit" else p + np.array([0, 0, BASKET["handle_h"]])
+        if name == "fruit":
+            return p
+        R = pin.rpy.rpyToMatrix(0, 0, self._obj_yaw(name))
+        return p + R @ np.array(BASKET["grasp_local"])
 
     # ---- 임무 -----------------------------------------------------------------------------------
     def run(self) -> MissionResult:
@@ -470,7 +473,7 @@ class MissionSim:
             return res
         if not self.retract(tl, "과일 들고 팔 접기", res, self.desk_boxes, self._object_boxes("basket") + self._others()):
             return res
-        # 2) 바구니 위에 놓기: 손잡이를 피해 바구니 앞쪽(로봇 쪽) 5 cm, 테두리 위 4 cm
+        # 2) 바구니 위에 놓기: 바구니 앞쪽(로봇 쪽) 5 cm, 테두리 위 4 cm
         self._look()
         bp = self.seen_pos("basket")
         near = self._toward_robot(bp, 0.05)
@@ -480,19 +483,28 @@ class MissionSim:
             return res
         self.release(res)
         self.retract(tl, "팔 접기", res)
-        inside, rel = self._fruit_in_basket()
-        if not res.add("과일이 바구니 안", inside, f"바구니 기준 ({100 * rel[0]:+.1f}, {100 * rel[1]:+.1f}, {100 * rel[2]:+.1f}) cm"):
-            return res
-        # 3) 바구니 손잡이 잡기 (장애물: 책상)
+        # 로봇 판단: 다시 본 위치 + 바구니 방향 (실기에서는 바구니 마스크 점구름의 긴 축으로 추정할 값)
         self._look()
-        tl = self.plan_move(self._grasp_point("basket"), self.desk_boxes, self._others(), "바구니 손잡이로 팔 뻗기", res)
+        v = in_basket(self.seen_pos("fruit"), self.seen_pos("basket"), BASKET["size"][:2],
+                      basket_yaw=self._obj_yaw("basket"))
+        inside, rel = self._fruit_in_basket()             # 실제 (시뮬 정답)
+        mark = "" if v.inside == inside else f" ⚠ 실제는 {'안' if inside else '밖'}"
+        if not res.add("과일이 바구니 안 (로봇 판단)", v.inside,
+                       f"{v.reason}; 실제 바구니 기준 ({100 * rel[0]:+.1f}, {100 * rel[1]:+.1f}) cm{mark}"):
+            return res
+        # 3) 바구니 테두리 잡기 (장애물: 책상)
+        self._look()
+        tl = self.plan_move(self._grasp_point("basket"), self.desk_boxes, self._others(), "바구니 테두리로 팔 뻗기", res)
         if tl is None or not self.grip("basket", res):
             return res
         if not self.retract(tl, "바구니 들고 다닐 자세로", res, self.desk_boxes, self._others(), carry=True):
             return res
-        # 4) 선반으로 주행 → 3층에 두기 (바구니 바닥이 판 위 1.5 cm 가 되게 손잡이 목표)
+        # 4) 선반으로 주행 → 3층에 두기 (바구니 바닥이 판 위 1.5 cm 가 되게 테두리 목표)
         self.drive_to(SHELF_STAND, res)
-        place = SHELF_STAND.apply((SHELF_FRONT + 0.12, LATERAL, shelf_board_top(3) + 0.015 + BASKET["handle_h"]))
+        basket_floor = SHELF_STAND.apply((SHELF_FRONT + 0.12, LATERAL, shelf_board_top(3) + 0.015))
+        _, yaw0, robot_yaw0 = self._hang
+        yaw = yaw0 + (self.base_pose().yaw - robot_yaw0)
+        place = basket_floor + pin.rpy.rpyToMatrix(0, 0, yaw) @ np.array(BASKET["grasp_local"])
         tl = self.plan_move(place, self.shelf_boxes, [], "선반 3층으로 바구니 넣기", res)
         if tl is None:
             return res
