@@ -23,6 +23,7 @@ from .collision import Box, CollisionChecker
 from .gravity import conservative_limits
 from .ik import B601IK
 from .motion import MotionPlanner
+from .objects import BASKET_HANDLE_H, BASKET_SIZE, BASKET_WALL, OBJECTS, ORANGE_R, DeskLayout, add_to_spec
 from .scene import DESK_TOP, Placement, env_for, shelf_board_top
 from .timeline import Timeline
 
@@ -31,12 +32,12 @@ SHELF_STAND = Placement(-3.0, 0.0, math.pi)
 DESK_FRONT, SHELF_FRONT, LATERAL = 0.35, 0.40, -0.10
 LIFT_STAGE = 0.105                     # 리프트 총 210 mm 고정
 BASE_LINK_Z = -0.020
-FRUIT_R = 0.03
-BASKET = dict(size=(0.20, 0.14, 0.07), wall=0.006, handle_h=0.10)   # 바닥 기준 손잡이 높이
+FRUIT_R = ORANGE_R
+BASKET = dict(size=BASKET_SIZE, wall=BASKET_WALL, handle_h=BASKET_HANDLE_H)   # 바닥 기준 손잡이 높이
 OBJECT_MARGIN = 0.005    # 위치를 아는 물체(과일·바구니) 상자 여유
 FINGER_OPEN, FINGER_CLOSED = 0.05, 0.0      # 실기 공개 각도 −270° (play_plan 기본 열기) = 0.05, 0° = 닫힘
 # 바구니를 들고 다닐 자세 (로봇 기준 그리퍼 위치 후보 [m]): 0점 자세는 그리퍼가 책상 앞 모서리 위(0.26, −0.22, 0.97)라
-# 매달린 바구니(바닥이 그리퍼 10 cm 아래)가 책상 상판에 걸린다 → 더 높고 몸 쪽으로
+# 매달린 바구니(바닥이 그리퍼보다 손잡이 높이만큼 아래)가 책상 상판에 걸린다 → 더 높고 몸 쪽으로
 CARRY_TARGETS = ((0.22, -0.28, 1.12), (0.18, -0.30, 1.15), (0.25, -0.25, 1.10), (0.20, -0.32, 1.20))
 
 
@@ -98,8 +99,10 @@ class MissionSim:
         self.desk_boxes = with_support(stand_to_room(env_for("desk", DESK_FRONT, LATERAL), DESK_STAND), "desk_top")
         self.shelf_boxes = with_support(stand_to_room(env_for("shelf3", SHELF_FRONT, LATERAL), SHELF_STAND), "shelf_board3")
         # 물체 처음 자리 (책상 설 자리 기준 → 방)
-        self.fruit0 = DESK_STAND.apply((DESK_FRONT + 0.15, LATERAL - 0.12, DESK_TOP + FRUIT_R))
-        self.basket0 = DESK_STAND.apply((DESK_FRONT + 0.18, LATERAL + 0.10, DESK_TOP))
+        # 책상 위 물체 처음 자리 (objects.DeskLayout, 책상 설 자리 기준 → 방): 이름 → (위치, yaw)
+        self.obj0 = {n: (DESK_STAND.apply((x, y, DESK_TOP + OBJECTS[n].rest_z)), DESK_STAND.yaw + math.radians(yaw))
+                     for n, (x, y, yaw) in DeskLayout().poses.items()}
+        self.fruit0, self.basket0 = self.obj0["fruit"][0], self.obj0["basket"][0]
         self.held = None            # (이름, 물체 qpos 주소, end_link 기준 자세 pin.SE3)
         self._offset = {}           # 물체별 인식 오차 (_look)
         self._build(robot_xml)
@@ -120,24 +123,9 @@ class MissionSim:
             key = next((k for k in colors if b.name.startswith(k)), "shelf")
             body.add_geom(type=mj.mjtGeom.mjGEOM_BOX, size=[s / 2 for s in b.size], rgba=colors[key],
                           contype=1, conaffinity=1, friction=[1.0, 0.01, 0.001])
-        fruit = spec.worldbody.add_body(name="fruit", pos=list(self.fruit0))
-        fruit.add_freejoint(name="fruit_free")
-        fruit.add_geom(type=mj.mjtGeom.mjGEOM_SPHERE, size=[FRUIT_R, 0, 0], rgba=[0.95, 0.45, 0.1, 1],
-                       mass=0.05, contype=1, conaffinity=1, friction=[1.0, 0.01, 0.001])
-        bx, by, bz = BASKET["size"]
-        w, hh = BASKET["wall"], BASKET["handle_h"]
-        basket = spec.worldbody.add_body(name="basket", pos=list(self.basket0))
-        basket.add_freejoint(name="basket_free")
-        rgba = [0.75, 0.6, 0.35, 1]
-        parts = [((bx / 2, by / 2, w / 2), (0, 0, w / 2)),                                   # 바닥
-                 ((w / 2, by / 2, bz / 2), (bx / 2 - w / 2, 0, bz / 2)), ((w / 2, by / 2, bz / 2), (-bx / 2 + w / 2, 0, bz / 2)),
-                 ((bx / 2, w / 2, bz / 2), (0, by / 2 - w / 2, bz / 2)), ((bx / 2, w / 2, bz / 2), (0, -by / 2 + w / 2, bz / 2)),
-                 ((0.006, by / 2, 0.006), (0, 0, hh)),                                       # 손잡이 (y 방향 막대)
-                 ((0.006, 0.006, (hh - bz) / 2), (0, by / 2 - 0.006, (hh + bz) / 2)),
-                 ((0.006, 0.006, (hh - bz) / 2), (0, -by / 2 + 0.006, (hh + bz) / 2))]
-        for half, pos in parts:
-            basket.add_geom(type=mj.mjtGeom.mjGEOM_BOX, size=list(half), pos=list(pos), rgba=rgba,
-                            mass=0.02, contype=1, conaffinity=1, friction=[1.0, 0.01, 0.001])
+        for n, (pos, yaw) in self.obj0.items():
+            add_to_spec(spec, mj, n, pos, yaw)
+        self.spec = spec
         self.model = spec.compile()
         self.data = mj.MjData(self.model)
         m = self.model
@@ -146,7 +134,7 @@ class MissionSim:
         self.arm_adr = [jadr(f"right_arm_joint{i}") for i in MOTORS]
         self.lift_adr = [jadr("lift_stage_1_joint"), jadr("lift_stage_2_joint")]
         self.finger_adr = jadr("right_arm_finger_left")
-        self.obj_adr = {"fruit": jadr("fruit_free"), "basket": jadr("basket_free")}
+        self.obj_adr = {n: jadr(f"{n}_free") for n in self.obj0}
         self.act = {mj.mj_id2name(m, mj.mjtObj.mjOBJ_ACTUATOR, a): a for a in range(m.nu)}
         self.end_body = mj.mj_name2id(m, mj.mjtObj.mjOBJ_BODY, "right_arm_end_link")
         self.viewer = None
@@ -168,12 +156,31 @@ class MissionSim:
             d.qpos[a] = LIFT_STAGE
         d.qpos[self.finger_adr] = FINGER_OPEN
         # keyframe 'home' 은 로봇 MJCF 기준이라 새로 넣은 물체 자유 관절을 0 으로 덮는다 → 처음 자리로 다시
-        for name, pos in (("fruit", self.fruit0), ("basket", self.basket0)):
+        for name, (pos, yaw) in self.obj0.items():
             a = self.obj_adr[name]
-            d.qpos[a:a + 7] = [*pos, 1, 0, 0, 0]
+            d.qpos[a:a + 7] = [*pos, math.cos(yaw / 2), 0, 0, math.sin(yaw / 2)]
         self.q_cmd = np.zeros(6)
         self.finger_cmd = FINGER_OPEN
+        self._apply_ctrl()
         mj.mj_forward(m, d)
+
+    def save_scene(self, path):
+        """지금 장면을 MJCF 로 (keyframe 'home' = 처음 상태: 로봇 책상 앞, 리프트 210 mm, 물체 제자리).
+        path 는 로봇 MJCF 와 같은 폴더여야 메시(meshdir ../meshes)를 찾는다."""
+        self.reset()
+        key = self.spec.key("home")
+        key.qpos = list(self.data.qpos)
+        key.ctrl = list(self.data.ctrl)
+        self.spec.compile()
+        with open(path, "w") as f:
+            f.write(self.spec.to_xml())
+
+    def _apply_ctrl(self):
+        d = self.data
+        for i in MOTORS:
+            d.ctrl[self.act[f"right_arm_joint{i}"]] = math.radians(self.q_cmd[i - 1])
+        d.ctrl[self.act["lift_stage_1_joint"]] = LIFT_STAGE
+        d.ctrl[self.act["right_arm_finger_left"]] = self.finger_cmd
 
     # ---- 상태 -----------------------------------------------------------------------------------
     def base_pose(self) -> Placement:
@@ -200,10 +207,7 @@ class MissionSim:
     def _step(self, n=1):
         mj, m, d = self.mj, self.model, self.data
         for _ in range(n):
-            for i in MOTORS:
-                d.ctrl[self.act[f"right_arm_joint{i}"]] = math.radians(self.q_cmd[i - 1])
-            d.ctrl[self.act["lift_stage_1_joint"]] = LIFT_STAGE
-            d.ctrl[self.act["right_arm_finger_left"]] = self.finger_cmd
+            self._apply_ctrl()
             mj.mj_step(m, d)
             if self.held:
                 name, adr, rel = self.held
@@ -285,10 +289,20 @@ class MissionSim:
         p = self.seen_pos(name)
         if name == "fruit":
             return [Box("obj_fruit", (2 * FRUIT_R,) * 3, tuple(p), 0.0, OBJECT_MARGIN)]
+        if name != "basket":                    # 채소: 몸체 기준 상자를 지금 방향으로
+            o, yaw = OBJECTS[name], self._obj_yaw(name)
+            c = np.array(o.bbox_center)
+            cx = p[0] + math.cos(yaw) * c[0] - math.sin(yaw) * c[1]
+            cy = p[1] + math.sin(yaw) * c[0] + math.cos(yaw) * c[1]
+            return [Box(f"obj_{name}", tuple(o.bbox), (cx, cy, p[2] + c[2]), yaw, OBJECT_MARGIN)]
         bx, by, bz = BASKET["size"]
         hh, yaw = BASKET["handle_h"], self._obj_yaw(name)
         return [Box("obj_basket", (bx, by, bz), (p[0], p[1], p[2] + bz / 2), yaw, OBJECT_MARGIN),
                 Box("obj_basket_handle", (0.012, by, 0.012), (p[0], p[1], p[2] + hh), yaw, OBJECT_MARGIN)]
+
+    def _others(self) -> list[Box]:
+        """집지 않는 책상 위 물체들 (채소) 의 계획용 상자."""
+        return [b for n in self.obj0 if n not in ("fruit", "basket") for b in self._object_boxes(n)]
 
     def _obj_yaw(self, name):
         a = self.obj_adr[name]
@@ -451,17 +465,17 @@ class MissionSim:
         self.drive_to(DESK_STAND, res)
         # 1) 과일 집기 (장애물: 책상 + 바구니)
         self._look()
-        tl = self.plan_move(self._grasp_point("fruit"), self.desk_boxes, self._object_boxes("basket"), "과일로 팔 뻗기", res)
+        tl = self.plan_move(self._grasp_point("fruit"), self.desk_boxes, self._object_boxes("basket") + self._others(), "과일로 팔 뻗기", res)
         if tl is None or not self.grip("fruit", res):
             return res
-        if not self.retract(tl, "과일 들고 팔 접기", res, self.desk_boxes, self._object_boxes("basket")):
+        if not self.retract(tl, "과일 들고 팔 접기", res, self.desk_boxes, self._object_boxes("basket") + self._others()):
             return res
         # 2) 바구니 위에 놓기: 손잡이를 피해 바구니 앞쪽(로봇 쪽) 5 cm, 테두리 위 4 cm
         self._look()
         bp = self.seen_pos("basket")
         near = self._toward_robot(bp, 0.05)
         drop = near + np.array([0, 0, BASKET["size"][2] + 0.04 + FRUIT_R])
-        tl = self.plan_move(drop, self.desk_boxes, self._object_boxes("basket"), "바구니 위로 팔 뻗기", res)
+        tl = self.plan_move(drop, self.desk_boxes, self._object_boxes("basket") + self._others(), "바구니 위로 팔 뻗기", res)
         if tl is None:
             return res
         self.release(res)
@@ -471,10 +485,10 @@ class MissionSim:
             return res
         # 3) 바구니 손잡이 잡기 (장애물: 책상)
         self._look()
-        tl = self.plan_move(self._grasp_point("basket"), self.desk_boxes, [], "바구니 손잡이로 팔 뻗기", res)
+        tl = self.plan_move(self._grasp_point("basket"), self.desk_boxes, self._others(), "바구니 손잡이로 팔 뻗기", res)
         if tl is None or not self.grip("basket", res):
             return res
-        if not self.retract(tl, "바구니 들고 다닐 자세로", res, self.desk_boxes, carry=True):
+        if not self.retract(tl, "바구니 들고 다닐 자세로", res, self.desk_boxes, self._others(), carry=True):
             return res
         # 4) 선반으로 주행 → 3층에 두기 (바구니 바닥이 판 위 1.5 cm 가 되게 손잡이 목표)
         self.drive_to(SHELF_STAND, res)
@@ -492,6 +506,11 @@ class MissionSim:
                                                f"선반 기준 ({local[0]:.2f}, {local[1]:+.2f}) m")
         still, rel = self._fruit_in_basket()
         res.add("과일이 여전히 바구니 안", still, f"바구니 기준 ({100 * rel[0]:+.1f}, {100 * rel[1]:+.1f}, {100 * rel[2]:+.1f}) cm")
+        moved = {n: 100 * float(np.linalg.norm(self.obj_pos(n)[:2] - np.asarray(self.obj0[n][0][:2])))
+                 for n in self.obj0 if n not in ("fruit", "basket")}
+        worst = max(moved, key=moved.get) if moved else None
+        res.add("다른 물체 그대로 (1 cm 안)", not moved or moved[worst] < 1.0,
+                f"가장 많이 움직인 {worst} {moved[worst]:.1f} cm" if worst else "")
         res.success = all(s.ok for s in res.steps)
         return res
 

@@ -183,7 +183,20 @@ python3 tools/mission_sim.py --nav-sigma 0.04,0.04,4 --nav-max 0.06,0.06,6 --per
 - 들고 빠지기: 3 cm 곧게 들어 올림 → 삽입 구간을 그만큼 높여 다시 푼 길로 빠짐 → 접기. 이 길 전체를 든 물체 포함 충돌 검사.
   바구니를 들면 0점 자세 대신 **들고 다닐 자세** (그리퍼 (0.22, −0.28, 1.12) m) 로 — 0점 자세는 그리퍼가 책상 앞 모서리 위라
   매달린 바구니가 상판에 걸린다. 주행과 선반 계획은 이 자세에서 시작.
-- 판정: 과일이 바구니 안 (벽 안, 바닥 위), 바구니 바닥이 3층 판 위 ±2 cm 이고 판 안, 선반에 둔 뒤에도 과일이 바구니 안.
+- 판정: 과일이 바구니 안 (벽 안, 바닥 위), 바구니 바닥이 3층 판 위 ±2 cm 이고 판 안, 선반에 둔 뒤에도 과일이 바구니 안,
+  집지 않은 채소가 1 cm 넘게 안 움직임.
+- 책상 위 물체 (`arm_kinematics/objects.py`, 형상·자리·계획용 상자를 한 곳에): 오렌지(`fruit`, 지름 6 cm), 바구니
+  (21 × 13 × 10 cm 실측, 손잡이 높이 13 cm 는 가정), 가지·바나나·당근·옥수수·고추·피망 (장난감 크기 추정, 기본형 조합).
+  집지 않는 채소는 계획 때 장애물로 넣는다. 실물을 재면 `objects.py` 만 고치면 된다.
+
+장면 파일 (`tools/export_scene.py`): 로봇 + 책상 + 선반 + 물체를 MJCF 로 저장. keyframe `home` = 처음 상태
+(책상 앞, 리프트 210 mm, 팔 0점, 그리퍼 열림). 치수를 고치면 다시 내보낸다.
+
+```bash
+python3 tools/export_scene.py --repo            # → description/mjcf/mission_scene.xml (레포 메시 그대로)
+python3 tools/export_scene.py ~/mission_scene   # → 혼자 열리는 폴더(XML + 쓰는 메시 50 개) + zip (약 16 MB), 레포 없는 사람에게
+python3 -m mujoco.viewer --mjcf=../description/mjcf/mission_scene.xml
+```
 
 결과 (2026-11-16, 노트북 시행당 약 14 s, 메모리 1.7 GB):
 
