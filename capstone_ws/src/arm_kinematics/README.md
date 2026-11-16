@@ -234,9 +234,14 @@ python3 play_plan.py --pose                                    # 현재 모터 1
 python3 play_plan.py plan_free.json --stop-at approach         # 접근점까지, 속도 0.5
 python3 play_plan.py plan_free.json                            # 끝까지 → ENTER 로 같은 길 복귀
 python3 play_plan.py --gripper open                            # 그리퍼만 (팔은 지금 자세 유지), close = 닫기
+# 노트북: --pose 로 읽은 모터 각 → 모델상 손끝 위치 (줄자로 잰 값과 비교)
+python3 tools/fk_check.py --zed-height 0.885 --motors=0,0,0,0,0,0
 python3 play_plan.py plan_desk.json --grip-before open --grip-after close   # 열고 다가가 → 끝에서 잡기
 python3 play_plan.py plan_basket.json --grip-after open        # 들고 와서 → 끝에서 놓기
 ```
+
+손끝 (`right_arm_tool0`, IK 가 맞추는 점) = **두 손가락 끝의 가운데** (손가락 몸통은 그 뒤 0~9 cm). 0점 자세·리프트 210 mm
+에서 (앞 25.5, 오른쪽 21.8, 바닥에서 96.9 cm).
 
 그리퍼: 팀 팔로워의 공개 각도 **−270° = 완전 열림 (손가락 관절 0.05 m), 0° = 닫힘**, 힘 제한 위치 모드라 닫기를 보내면
 물체에 막혀 멈춘다. 그리퍼를 움직이는 동안 팔은 그 자리 목표를 계속 보낸다 (명령 끊김 방지). 목표에 닿거나 0.4 s 동안
