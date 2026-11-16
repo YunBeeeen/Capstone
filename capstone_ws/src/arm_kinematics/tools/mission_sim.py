@@ -2,6 +2,7 @@
 """MuJoCo 임무 시뮬: 책상 과일 → 바구니 → 바구니 들고 3 m 뒤 선반 3층 → 팔 빼기 (arm_kinematics/mission.py).
 
   python3 tools/mission_sim.py                          # MuJoCo 창, 1 회, 실시간
+  python3 tools/mission_sim.py --scene                  # 임무 없이 장면(책상·선반·물체·로봇)만 띄워 둘러보기
   python3 tools/mission_sim.py --headless out/          # 창 없이 단계별 PNG
   python3 tools/mission_sim.py --trials 10 --headless out/   # 정지 오차를 바꿔 10 회 → 성공률
   python3 tools/mission_sim.py --nav-sigma 0.03,0.03,3 --nav-max 0.05,0.05,5   # 정지 오차 크게
@@ -29,6 +30,7 @@ def main():
     ap.add_argument("--perception-noise", type=float, default=0.0, help="물체 위치 인식 오차 표준편차 [m]")
     ap.add_argument("--speed", type=float, default=30.0, help="관절 최대 속도 [°/s]")
     ap.add_argument("--headless", type=Path, help="창 없이, 단계 끝마다 PNG 를 이 폴더에")
+    ap.add_argument("--scene", action="store_true", help="임무 없이 장면만 MuJoCo 창으로 (물리는 돌아감, 닫으면 끝)")
     args = ap.parse_args()
     sigma = tuple(float(v) for v in args.nav_sigma.split(","))
     nmax = tuple(float(v) for v in args.nav_max.split(","))
@@ -36,6 +38,17 @@ def main():
     wins = 0
     sim = MissionSim(ROBOT_XML, seed=args.seed, nav_sigma=sigma, nav_max=nmax,
                      perception_noise=args.perception_noise, speed_deg=args.speed)
+    if args.scene:
+        import mujoco.viewer
+        with mujoco.viewer.launch_passive(sim.model, sim.data) as viewer:
+            viewer.cam.lookat[:] = [-1.4, -0.1, 0.5]
+            viewer.cam.distance, viewer.cam.azimuth, viewer.cam.elevation = 5.2, -60.0, -28.0
+            print("책상(원점 앞 0.35 m) ↔ 선반(3 m 뒤, 앞면 0.40 m). 마우스로 둘러보고 창을 닫으면 끝")
+            while viewer.is_running():
+                sim._step(10)
+                viewer.sync()
+                time.sleep(0.02)
+        return 0
     renderer = None
     if args.headless:
         import mujoco
