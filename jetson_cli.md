@@ -91,7 +91,23 @@ python3 $NAV/place_go.py shelf_A                                   # 선반 확�
 python3 $NAV/place_go.py shelf_A --check-only                      #   보는 자리까지 가서 재기만
 ```
 
-### 지도 보기
+### 지도 띄우기 (노트북 RViz, 실시간·저장 지도 둘 다)
+
+```bash
+# Jetson 1 (ssh jetson)
+source ~/nav_env.sh && ros2 launch capstone_navigation zed.launch.py
+# Jetson 2 — 저장 지도 보기 = 재위치 / 매핑하며 보기 = map.launch.py map:=X
+source ~/nav_env.sh && ros2 launch capstone_navigation loc.launch.py map:=X
+# 노트북 (처음 한 번 시계 맞추기 → RViz)
+ssh -t jetson "sudo date -s @$(date +%s.%N)"
+export ROS_DOMAIN_ID=21 && source /opt/ros/humble/setup.bash && source ~/capstone/capstone_ws/install/setup.bash
+rviz2 -d ~/capstone/capstone_ws/install/capstone_navigation/share/capstone_navigation/config/nav.rviz
+# 지도가 안 뜨면 (Jetson 아무 터미널)
+source ~/nav_env.sh && ros2 service call /rtabmap/publish_map rtabmap_msgs/srv/PublishMap "{global: true, optimized: true, graph_only: false}"
+```
+로봇 위치는 재위치가 '위치 찾음' 이 된 뒤 맞게 올라감 (패드 RB 로 조금 움직이거나 돌리기).
+
+### 지도 보기 (저장 파일)
 
 ```bash
 # 저장된 지도 → 그림 한 장 (Jetson 에서, SSH 로도 됨) → 노트북으로 가져와 보기
