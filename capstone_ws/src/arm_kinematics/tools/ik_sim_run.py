@@ -58,6 +58,8 @@ def main():
     ap.add_argument("--start", help="시작 자세 모터 1~6 [도], 쉼표 (기본 0점). 음수로 시작하면 --start=-1,...")
     ap.add_argument("--zed-height", type=float, help="바닥 → ZED 삼각대 나사 높이 실측 [m]. 주면 리프트를 그 높이로 고정 "
                                                      "(리프트 최저에서 0.675 m)")
+    ap.add_argument("--lift-free", action="store_true",
+                    help="리프트도 IK 로 같이 고름 (--zed-height = 지금 높이, 이동량 비용). 실기 실행기는 아직 리프트를 못 움직여 거부함")
     ap.add_argument("--limits", choices=["conservative", "collector"], default="conservative",
                     help="관절 한계: conservative = collector ∩ 팀 중력 URDF (data_collection 팔로워 그대로일 때, 기본), "
                          "collector = 넓힌 한계 (팔로워도 collector 처럼 넓힌 URDF 를 쓸 때만)")
@@ -112,7 +114,8 @@ def main():
         print("주의: 시작 자세가 실기 한계 밖", kin.motor_limits_deg())
     start_lift = lifts[0] if args.zed_height is not None else 0.0
     t0 = time.time()
-    cands = ik.solve(target, lifts, n_random=32, seed=dict(zip(MOTORS, start_deg)), **ik_kw)   # 시작 자세 = move 비용 기준
+    lift_kw = dict(lift_free=True, start_lift_stage_m=start_lift) if args.lift_free else {}
+    cands = ik.solve(target, lifts, n_random=32, seed=dict(zip(MOTORS, start_deg)), **lift_kw, **ik_kw)   # 시작 자세 = move 비용 기준
     planner = MotionPlanner(ik, limits_deg=sim_lim, max_joint_speed_deg=args.speed)
     start = dict(zip(MOTORS, start_deg))
     plan = planner.plan(start, target, cands, start_lift_stage_m=start_lift, **plan_kw)
@@ -307,7 +310,9 @@ def write_plan(args, validated, validation, target, approach, plan, kin, checker
         "frame": "robot world (x 앞, y 왼쪽, z 바닥)", "target_xyz": np.round(target, 4).tolist(),
         "approach": None if approach is None else np.round(approach, 4).tolist(),
         "start_deg": {str(k): round(float(v), 3) for k, v in plan.waypoints[0].motors_deg.items()},
-        "lift_fixed": args.zed_height is not None, "lift_total_mm": round(2000 * lift_to, 1),
+        "lift_fixed": args.zed_height is not None and len({w["lift_total_mm"] for w in wp_dicts}) == 1,
+        "lift_total_mm": round(2000 * lift_to, 1),
+        "lift_start_mm": wp_dicts[0]["lift_total_mm"],
         "zed_height_m": args.zed_height, "v_limit_deg": args.speed, "a_limit_deg": args.accel,
         "limits": args.limits, "limits_deg": {str(n): v for n, v in kin.motor_limits_deg().items()},
         "collision": {"margin_m": args.margin, "finger_openings_m": list(checker.finger_openings),

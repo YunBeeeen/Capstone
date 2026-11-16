@@ -187,7 +187,10 @@ class MotionPlanner:
                 continue
             # 리프트 이동 (시작 자세 유지) + 시작 → 접근점. 직접 가면 부딪히면 더 뒤(바깥) 경유점을 거친다.
             vias = []
-            why = self._ok(q0, lift) or self._segment(q0, q_pre, lift)
+            why = None
+            for sl in np.linspace(start_lift_stage_m, lift, 6):   # 리프트가 움직이는 동안 (팔은 시작 자세)
+                why = why or self._ok(q0, float(sl))
+            why = why or self._segment(q0, q_pre, lift)
             if why:
                 fixed = None
                 for back in self.via_back:

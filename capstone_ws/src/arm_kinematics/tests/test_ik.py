@@ -181,6 +181,33 @@ class TrajectoryCostTests(unittest.TestCase):
         self.assertGreaterEqual(plan.trajectory_meas["min_clearance_transit_m"], 0.01)   # 접근점이 선반 밖
 
 
+class LiftAndStandTests(unittest.TestCase):
+    def test_lift_free_ik_finds_lift_heights_and_prefers_less_travel(self):
+        from arm_kinematics.gravity import conservative_limits
+        kin = B601Kinematics()
+        kin.set_motor_limits_deg(conservative_limits(kin))
+        target, into, _ = preset_target("shelf4")
+        ik = B601IK(kin, collision=CollisionChecker(kin, env_for("shelf4")))
+        fixed = [c for c in ik.solve(target, [0.105], heading=into, n_random=12) if c.ok]
+        free = [c for c in ik.solve(target, [0.105], heading=into, n_random=12, lift_free=True,
+                                    start_lift_stage_m=0.105) if c.ok]
+        self.assertEqual(fixed, [])                                   # 지금 높이(210 mm)로는 4층 불가
+        self.assertTrue(free)
+        self.assertGreater(free[0].lift_stage_m, 0.105)                # 리프트를 올려서 푼다
+        self.assertIn("lift", free[0].cost_terms)
+        for c in free:                                                 # 같은 위치에 도달
+            got = kin.fk(c.motors_deg, c.lift_stage_m).translation
+            self.assertLess(np.linalg.norm(got - target) * 1000, 2.0)
+
+    def test_choose_stand_returns_robust_stand(self):
+        from arm_kinematics.stand import choose_stand
+        best, results = choose_stand("shelf3", -0.10, fronts=(0.40,), laterals=(-0.10,), top=1,
+                                     nav_err=(0.03, 0.03, 3.0), log=lambda *a: None)
+        self.assertIsNotNone(best)
+        self.assertEqual(best.robust, best.perturbations)
+        self.assertEqual(best.perturbations, 6)
+
+
 class KinematicValidationTests(unittest.TestCase):
     def test_no_sim_check_passes_clean_path_and_catches_obstacle(self):
         import importlib.util

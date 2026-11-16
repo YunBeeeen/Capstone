@@ -27,15 +27,14 @@ class Box:
     yaw: float = 0.0
 
 
+_ROBOT_GEOM_CACHE: dict = {}
+
+
 class CollisionChecker:
     CLEARANCE_LEVELS = (0.01, 0.025, 0.05)   # 여유 단계 [m] (margin 위에 더)
 
-    def __init__(self, kin: B601Kinematics, env: list[Box] = (), arm_prefix: str = "right_arm",
-                 margin: float = 0.02, finger_openings: tuple[float, ...] | None = None):
-        self.kin = kin
-        self.model = kin.model
-        self.data = self.model.createData()
-        urdf = Path(kin.urdf_path)
+    def _robot_geometry(self, urdf: Path, arm_prefix: str):
+        """로봇 충돌 형상 + 쌍 (팔이 낀 쌍만, SRDF Adjacent·손가락끼리 제외). 반환 (GeometryModel, 이름들, 팔 id)."""
         mesh_root = urdf.resolve().parents[1]           # .../description (= mobile_robot_description)
         xml = urdf.read_text().replace(f"package://{PACKAGE}/", f"{mesh_root}/")
         geom = pin.buildGeomFromUrdfString(self.model, xml, pin.GeometryType.COLLISION)
@@ -44,16 +43,27 @@ class CollisionChecker:
         if Path(srdf).is_file():
             pin.removeCollisionPairs(self.model, geom, srdf)
         names = [o.name for o in geom.geometryObjects]
-        self.geom = pin.GeometryModel()
+        out = pin.GeometryModel()
         for o in geom.geometryObjects:
-            self.geom.addGeometryObject(o)
+            out.addGeometryObject(o)
         for cp in geom.collisionPairs:
             a, b = names[cp.first], names[cp.second]
             if a.startswith(f"{arm_prefix}_finger") and b.startswith(f"{arm_prefix}_finger"):
                 continue
             if a.startswith(arm_prefix) or b.startswith(arm_prefix):
-                self.geom.addCollisionPair(cp)
-        arm_ids = [i for i, n in enumerate(names) if n.startswith(arm_prefix)]
+                out.addCollisionPair(cp)
+        return out, names, [i for i, n in enumerate(names) if n.startswith(arm_prefix)]
+
+    def __init__(self, kin: B601Kinematics, env: list[Box] = (), arm_prefix: str = "right_arm",
+                 margin: float = 0.02, finger_openings: tuple[float, ...] | None = None):
+        self.kin = kin
+        self.model = kin.model
+        self.data = self.model.createData()
+        key = (str(Path(kin.urdf_path).resolve()), arm_prefix, id(kin.model))
+        if key not in _ROBOT_GEOM_CACHE:          # 메시 읽기 (~2 s) 는 한 번만, 이후 복사
+            _ROBOT_GEOM_CACHE[key] = self._robot_geometry(Path(kin.urdf_path), arm_prefix)
+        base, names, arm_ids = _ROBOT_GEOM_CACHE[key]
+        self.geom = base.copy()
         self.env = list(env)
         self.margin = float(margin)
         self.finger_openings = (0.0, kin.finger_max) if finger_openings is None else tuple(finger_openings)

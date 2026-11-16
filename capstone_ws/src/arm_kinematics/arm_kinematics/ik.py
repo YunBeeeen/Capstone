@@ -23,6 +23,7 @@ DEFAULT_WEIGHTS = {
     "load": 1.0,       # 중력 보상 포화: 부하(최대 |τ|/보상 상한) 0.8 까지 0, 0.8→1.0 에서 0→1 (뻗는 것 자체는 벌점 없음)
     "limit": 1.0,      # 한계 여유 10° 미만부터 0→1
     "move": 0.3,       # 시작 자세에서 움직인 양 [rad 합] / π
+    "lift": 0.5,       # 리프트 이동량 (총) / 630 mm — 리프트는 느리므로 팔로 되면 덜 쓰게 (lift_free 일 때)
 }
 
 
@@ -106,13 +107,19 @@ class B601IK:
             return np.cross(a, a_des), P @ Jw, float(np.degrees(np.arccos(np.clip(a @ a_des, -1, 1))))
         return None, None, 0.0
 
-    def _solve_one(self, q0, lift, target, orient, iters, tol_mm, tol_deg):
+    LIFT_COL = 0.5   # 리프트 열 가중 (작을수록 DLS 가 팔을 먼저 쓴다)
+
+    def _solve_one(self, q0, lift, target, orient, iters, tol_mm, tol_deg, free_lift=False):
+        """반환: (팔 q[rad], 리프트 단 이동량 s, 위치 오차 mm, 각도 오차 °, 수렴).
+        free_lift: 리프트를 7 번째 변수로 같이 푼다 (두 단이 같이 움직여 위치 열 = 기준축 z × 2)."""
         kin = self.kin
         lo, hi = kin.arm_lower, kin.arm_upper
         q = np.clip(q0.copy(), lo, hi)
-        q_full = kin.configuration(list(np.degrees(q)), lift)
+        s = float(np.clip(lift, 0.0, kin.lift_stage_max))
+        q_full = kin.configuration(list(np.degrees(q)), s)
         for _ in range(iters):
             q_full[kin._arm_q] = q
+            q_full[kin._lift_q] = s
             T, R_ref = self._pose(q_full)
             e_pos = target - T.translation
             pin.computeJointJacobians(self.model, self.data, q_full)
@@ -121,17 +128,24 @@ class B601IK:
             e_rot, J_rot, ang = self._orient(T, Jw, orient)
             e = e_pos if e_rot is None else np.concatenate((e_pos, e_rot))
             J = Jv if J_rot is None else np.vstack((Jv, J_rot))
+            if free_lift:
+                col = np.zeros((J.shape[0], 1))
+                col[:3, 0] = R_ref.T @ np.array([0.0, 0.0, 2.0]) * self.LIFT_COL
+                J = np.hstack((J, col))
             err_mm = float(np.linalg.norm(e_pos) * 1000)
             if err_mm < tol_mm and ang < tol_deg:
-                return q, err_mm, ang, True
+                return q, s, err_mm, ang, True
             lam = 0.02 + 0.2 * min(1.0, np.linalg.norm(e))
-            dq = J.T @ np.linalg.solve(J @ J.T + lam ** 2 * np.eye(len(e)), e)
-            q = np.clip(q + np.clip(dq, -0.2, 0.2), lo, hi)
+            dx = J.T @ np.linalg.solve(J @ J.T + lam ** 2 * np.eye(len(e)), e)
+            q = np.clip(q + np.clip(dx[:6], -0.2, 0.2), lo, hi)
+            if free_lift:
+                s = float(np.clip(s + np.clip(dx[6] * self.LIFT_COL, -0.05, 0.05), 0.0, kin.lift_stage_max))
         q_full[kin._arm_q] = q
+        q_full[kin._lift_q] = s
         T, R_ref = self._pose(q_full)
         err_mm = float(np.linalg.norm(target - T.translation) * 1000)
         _, _, ang = self._orient(T, np.zeros((3, 6)), orient)
-        return q, err_mm, ang, err_mm < tol_mm and ang < tol_deg
+        return q, s, err_mm, ang, err_mm < tol_mm and ang < tol_deg
 
     # ---- candidates ---------------------------------------------------------------------------
     def solve(self, target_xyz: Sequence[float], lift_stage_m: float | Iterable[float] = 0.0,
@@ -139,8 +153,15 @@ class B601IK:
               heading: Sequence[float] | None = None, tilt_deg: tuple[float, float] = (-10.0, 45.0),
               seed: Mapping | Sequence[float] | None = None, n_random: int = 24, iters: int = 150,
               tol_mm: float = 1.0, tol_deg: float = 1.0, weights: Mapping[str, float] | None = None,
-              dedupe_deg: float = 3.0, rng: np.random.Generator | None = None) -> list[IKCandidate]:
+              dedupe_deg: float = 3.0, rng: np.random.Generator | None = None,
+              lift_free: bool = False, start_lift_stage_m: float | None = None) -> list[IKCandidate]:
         """후보 목록을 비용 순으로 돌려준다 (수렴·충돌 없음 → 먼저).
+
+        lift_stage_m: 리프트 단 이동량 (하나 또는 여러 개). lift_free=False 면 그 높이들에 고정해서 푼다.
+        lift_free:    리프트도 같이 고른다. 0 ~ 최대를 13 단계(총 52.5 mm 간격) + 주어진 높이로 고정해 풀고,
+                      각 높이에서 리프트를 7 번째 변수로 한 번 더 풀어 격자 사이 높이도 찾는다.
+                      (연속 변수만으로는 DLS 가 리프트를 범위 끝으로 미는 경우가 많아 해를 놓침)
+        start_lift_stage_m: 지금 리프트 높이 — lift 비용(이동량) 기준. None 이면 0 비용.
 
         heading: 수평 방향 (예: 선반 안쪽). 그리퍼 접근축이 이 방향의 수직면 안에서 앞을 보고,
                  수평에서 tilt_deg (아래 +, 위 −) 범위로만 기울어진다.
@@ -171,20 +192,33 @@ class B601IK:
             starts.append(q_seed)
         starts += [rng.uniform(lo, hi) for _ in range(n_random)]
         out: list[IKCandidate] = []
-        for lift in lifts:
-            found: list[np.ndarray] = []
-            for q0 in starts:
-                q, err_mm, ang, conv = self._solve_one(q0, lift, target, orient, iters, tol_mm, tol_deg)
-                if not conv and err_mm > 20:
-                    continue
-                if any(np.max(np.abs(np.degrees(q - f))) < dedupe_deg for f in found):
-                    continue
-                found.append(q)
-                out.append(self._score(q, lift, err_mm, ang, conv, q_seed, w))
+        if lift_free:
+            grid = np.linspace(0.0, self.kin.lift_stage_max, 13)
+            lifts = sorted({round(float(v), 5) for v in list(lifts) + list(grid)})
+            per_level = max(8, n_random // 2)
+            starts = starts[:1 + per_level] if q_seed is not None else starts[:per_level]
+        jobs = [(lift, q0, False) for lift in lifts for q0 in starts]
+        if lift_free:
+            jobs += [(lift, starts[0], True) for lift in lifts]          # 격자 사이 높이
+        found: list[tuple[np.ndarray, float]] = []
+        last_lift = None
+        for lift, q0, free in jobs:
+            if not lift_free and lift != last_lift:
+                found = []                       # 고정 높이마다 따로 중복 제거
+            last_lift = lift
+            q, s, err_mm, ang, conv = self._solve_one(q0, lift, target, orient, iters, tol_mm, tol_deg,
+                                                      free_lift=free)
+            if not conv and err_mm > 20:
+                continue
+            # 같은 해: 관절 3° 안 + 리프트 총 높이 3 cm 안
+            if any(np.max(np.abs(np.degrees(q - f))) < dedupe_deg and abs(2 * (s - fs)) < 0.03 for f, fs in found):
+                continue
+            found.append((q, s))
+            out.append(self._score(q, s, err_mm, ang, conv, q_seed, w, start_lift_stage_m))
         out.sort(key=lambda c: (not c.ok, c.cost))
         return out
 
-    def _score(self, q, lift, err_mm, ang, conv, q_seed, w) -> IKCandidate:
+    def _score(self, q, lift, err_mm, ang, conv, q_seed, w, start_lift=None) -> IKCandidate:
         deg = list(np.degrees(q))
         mm = self.kin.manipulability(deg, lift, self.frame)
         load = self.gravity.load(deg)
@@ -196,6 +230,8 @@ class B601IK:
             "limit": w["limit"] * float(np.clip((10.0 - margin) / 10.0, 0.0, 1.0)),
             "move": w["move"] * move / np.pi,
         }
+        if start_lift is not None:
+            terms["lift"] = w["lift"] * abs(2 * (lift - start_lift)) / (2 * self.kin.lift_stage_max)
         cand = IKCandidate(
             motors_deg={n: round(float(d), 2) for n, d in zip(MOTORS, deg)}, lift_stage_m=lift,
             pos_err_mm=round(err_mm, 3), ang_err_deg=round(ang, 3), converged=conv,
