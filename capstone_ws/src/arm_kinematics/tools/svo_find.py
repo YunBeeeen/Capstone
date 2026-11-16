@@ -27,7 +27,8 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-from arm_kinematics.vision import camera_pose, estimate_object, floor_height, level_to_floor  # noqa: E402
+from arm_kinematics.vision import (camera_pose, estimate_object, floor_height, horizontal_planes,  # noqa: E402
+                                   level_to_floor)
 
 ZED_HEIGHT_AT_LIFT0, OPTICAL_ABOVE_SCREW, CAM_X, LEFT_LENS_Y = 0.675, 0.03, 0.167, 0.06
 
@@ -146,7 +147,7 @@ def once(args, svo, cam, screw):
     if screw is None:                                     # --zed-height auto
         h = floor_height(depth, K, camera_pose(roll, pitch, [CAM_X, LEFT_LENS_Y, 0.0]))
         if h is None:
-            print("⚠ 바닥이 안 보여 카메라 높이를 못 잼 — --zed-height 로 주세요")
+            print("⚠ 바닥이 충분히 안 보여 카메라 높이를 못 잼 — 바닥이 보이게 물러서거나 --zed-height <줄자 m> 로 주세요")
             return {}
     else:
         h = screw + OPTICAL_ABOVE_SCREW
@@ -156,6 +157,9 @@ def once(args, svo, cam, screw):
     print(f"\n{src}, {bgr.shape[1]}×{bgr.shape[0]}, IMU 숙임 {math.degrees(pitch):.1f}° 옆 {math.degrees(roll):+.1f}°, "
           f"카메라 높이 {h:.3f} m" + (" (바닥으로 잼, 삼각대 나사 ≈ %.3f m)" % (h - OPTICAL_ABOVE_SCREW) if screw is None else "") + (f" → 바닥 보정 숙임 {lv[0]:+.1f}° 옆 {lv[1]:+.1f}° 높이 {100 * lv[2]:+.1f} cm"
                                    if lv else " (바닥이 충분히 안 보여 보정 안 함)"))
+    planes = horizontal_planes(depth, K, T)
+    big = [pl for pl in planes if pl[2] >= 0.3]
+    print("수평면 (높이 cm, 넓이 m): " + (", ".join(f"{100 * z:.1f} ({e:.1f})" for z, _, e in big) if big else "없음"))
     queries = [phrase(w) for w in args.words]
     ok, jpg = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, 92])
     u = f"{args.url}/find?q={urllib.parse.quote('|'.join(queries))}&sam={0 if args.no_sam else 1}"
@@ -174,7 +178,7 @@ def once(args, svo, cam, screw):
         mask = None
         if m:
             mask = cv2.imdecode(np.frombuffer(base64.b64decode(m), np.uint8), cv2.IMREAD_GRAYSCALE) > 0
-        est = estimate_object(depth, K, T, b, mask=mask, step=2)
+        est = estimate_object(depth, K, T, b, mask=mask, step=2, planes=planes)
         if est is None:
             print(f"{q:24s} {b[4]:.2f}  3D 실패 (점 부족)")
             continue

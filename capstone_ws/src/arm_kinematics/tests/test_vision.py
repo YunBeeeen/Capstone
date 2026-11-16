@@ -23,8 +23,8 @@ def camera(height=1.23, pitch_deg=21.6):
     return (fy, fy, W / 2, H / 2), T
 
 
-def render_depth(K, T, box_c, box_size, yaw):
-    """책상(윗면 DESK_TOP, x 범위 DESK_X) + 그 뒤 바닥 + yaw 돌린 상자 하나의 깊이 (광축 방향 거리)."""
+def render_depth(K, T, box_c, box_size, yaw, extra=()):
+    """책상(윗면 DESK_TOP, x 범위 DESK_X) + 그 뒤 바닥 + yaw 돌린 상자 하나 (+ extra 상자들 [(c, size, yaw)]) 의 깊이 (광축 방향 거리)."""
     fx, fy, cx, cy = K
     vs, us = np.mgrid[0:H, 0:W]
     d_cam = np.stack([(us - cx) / fx, (vs - cy) / fy, np.ones_like(us, float)], axis=-1)   # 광축 거리 1 당 방향
@@ -37,19 +37,20 @@ def render_depth(K, T, box_c, box_size, yaw):
         px = o[0] + t * d[..., 0]
         ok = (t > 0) & (px >= xr[0]) & (px <= xr[1])
         best = np.where(ok & (t < best), t, best)
-    # 상자 (상자 좌표로 돌려 slab 교차)
-    c, s = math.cos(-yaw), math.sin(-yaw)
-    Rz = np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]])
-    ol = Rz @ (o - box_c)
-    dl = d @ Rz.T
-    half = np.array(box_size) / 2
-    with np.errstate(divide="ignore", invalid="ignore"):
-        t1 = (-half - ol) / dl
-        t2 = (half - ol) / dl
-    tn = np.nanmax(np.minimum(t1, t2), axis=-1)
-    tf = np.nanmin(np.maximum(t1, t2), axis=-1)
-    hit = (tn <= tf) & (tn > 0)
-    best = np.where(hit & (tn < best), tn, best)
+    # 상자들 (상자 좌표로 돌려 slab 교차)
+    for bc, bs, by in [(np.asarray(box_c), box_size, yaw), *[(np.asarray(c_), s_, y_) for c_, s_, y_ in extra]]:
+        c, s = math.cos(-by), math.sin(-by)
+        Rz = np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]])
+        ol = Rz @ (o - bc)
+        dl = d @ Rz.T
+        half = np.array(bs) / 2
+        with np.errstate(divide="ignore", invalid="ignore"):
+            t1 = (-half - ol) / dl
+            t2 = (half - ol) / dl
+        tn = np.nanmax(np.minimum(t1, t2), axis=-1)
+        tf = np.nanmin(np.maximum(t1, t2), axis=-1)
+        hit = (tn <= tf) & (tn > 0)
+        best = np.where(hit & (tn < best), tn, best)
     best[~np.isfinite(best)] = 0.0
     return best                                                                           # t = 광축 거리 (d_cam z = 1)
 
@@ -103,6 +104,36 @@ class VisionTests(unittest.TestCase):
                 self.assertAlmostEqual(floor_height(d, K, T_zero), h, delta=0.01, msg=f"책상 {desk}, 높이 {h}")
         finally:
             globals()["DESK_X"] = saved
+
+    def test_floor_height_ignores_glossy_reflections(self):
+        # 반짝이는 바닥: 바닥 픽셀 20 % 의 깊이를 5~60 % 멀게 (바닥 아래로 흩어진 반사 점) → 그래도 바닥 높이
+        from arm_kinematics.vision import camera_pose, floor_height
+        saved = globals()["DESK_X"]
+        try:
+            globals()["DESK_X"] = (-1.0, -0.9)
+            K, T = camera(height=0.93)
+            d = render_depth(K, T, np.array([5.0, 5.0, 0.03]), (0.01, 0.01, 0.01), 0.0)
+            rng = np.random.default_rng(0)
+            pick = (d > 0) & (rng.random(d.shape) < 0.2)
+            d[pick] *= rng.uniform(1.05, 1.6, pick.sum())
+            h = floor_height(d, K, camera_pose(0, math.radians(21.6), [0.167, 0.06, 0.0]))
+            self.assertAlmostEqual(h, 0.93, delta=0.01)
+        finally:
+            globals()["DESK_X"] = saved
+
+    def test_cluttered_neighbor_not_taken_as_support(self):
+        # 작은 물체 (높이 3.5 cm) 바로 옆에 조금 낮은 넓적한 물체 (3 cm): 둘레 띠만 쓰면 이웃 윗면을 받침면으로 잡음 (실기 바나나·옥수수)
+        from arm_kinematics.vision import horizontal_planes
+        K, T = camera()
+        c = np.array([0.55, 0.0, DESK_TOP + 0.0175])
+        size = (0.12, 0.035, 0.035)
+        extra = [((0.55, 0.06, DESK_TOP + 0.015), (0.14, 0.06, 0.03), 0.0)]
+        depth = render_depth(K, T, c, size, 0.0, extra)
+        planes = horizontal_planes(depth, K, T)
+        est = estimate_object(depth, K, T, box_of(K, T, c, size, 0.0), planes=planes)
+        self.assertIsNotNone(est)
+        self.assertAlmostEqual(est.support_z, DESK_TOP, delta=0.006)
+        self.assertLess(abs(est.center[2] - c[2]), 0.01)
 
     def test_support_height_alone(self):
         K, T = camera()

@@ -76,8 +76,10 @@ def support_height(depth, K, T, box, ring=0.35, step=2, below=None):
     return float(np.median(sel)) if len(sel) >= 15 else None
 
 
-def estimate_object(depth, K, T, box, mask=None, min_above=0.01, step=1) -> ObjectEstimate | None:
-    """상자(+마스크) → 물체 3D. 점이 너무 적으면 None."""
+def estimate_object(depth, K, T, box, mask=None, min_above=0.01, step=1, planes=None) -> ObjectEstimate | None:
+    """상자(+마스크) → 물체 3D. 점이 너무 적으면 None.
+    planes (horizontal_planes 결과) 를 주면 받침면 = 그중 물체 윗면보다 낮은 가장 높은 면 (옆 물체 윗면에 안 속음),
+    없으면 상자 둘레 띠에서 구함."""
     if mask is not None:
         vs, us = np.nonzero(mask)
         if step > 1:
@@ -93,7 +95,8 @@ def estimate_object(depth, K, T, box, mask=None, min_above=0.01, step=1) -> Obje
     r0 = np.percentile(r, 10)
     p = p[r < r0 + 0.25]
     top = float(np.percentile(p[:, 2], 95))
-    sup = support_height(depth, K, T, box, below=top - 0.005)
+    below = [pl[0] for pl in (planes or []) if pl[0] < top - 0.005]
+    sup = max(below) if below else support_height(depth, K, T, box, below=top - 0.005)
     if sup is not None:
         p = p[p[:, 2] > sup + min_above]
     if len(p) < 20:
@@ -164,20 +167,37 @@ def camera_pose(roll, pitch, cam_xyz):
     return T
 
 
+def horizontal_planes(depth, K, T, step=4, min_count=300, sharpness=0.6, min_extent=0.3):
+    """화면 전체에서 수평면 (바닥·책상·선반 판) 찾기 → [(높이 m, 점 수, 넓이 m)] 높이 순.
+    높이 1 cm 칸 분포에서 뾰족한 봉우리 (±1 칸에 ±5 칸 점의 sharpness 이상) 이면서 점이 min_count 넘고 가로·세로 중
+    한쪽이 min_extent 넘게 퍼진 것만. 반짝이는 바닥·책상의 반사 점 (실기 2026-11-17) 은 높이가 넓게 퍼져 봉우리가 안 됨."""
+    vs, us = np.mgrid[0:depth.shape[0]:step, 0:depth.shape[1]:step]
+    p = pixels_to_points(depth, K, T, us.ravel(), vs.ravel())
+    if len(p) < min_count:
+        return []
+    bins = np.floor(p[:, 2] / 0.01).astype(int)
+    lo = bins.min()
+    hist = np.bincount(bins - lo)
+    planes = []
+    for i in range(len(hist)):
+        c3 = hist[max(0, i - 1):i + 2].sum()
+        if c3 < min_count or hist[i] < hist[max(0, i - 2):i + 3].max():
+            continue                                        # 점이 적거나 봉우리 꼭대기가 아님
+        c11 = hist[max(0, i - 5):i + 6].sum()
+        if c3 < sharpness * c11:
+            continue
+        sel = p[np.abs(bins - (i + lo)) <= 1]
+        ext = max(np.ptp(np.percentile(sel[:, 0], [5, 95])), np.ptp(np.percentile(sel[:, 1], [5, 95])))
+        if ext >= min_extent:
+            planes.append((float(np.median(sel[:, 2])), int(c3), float(ext)))
+    return sorted(planes)
+
+
 def floor_height(depth, K, T, step=4):
-    """카메라 높이 [m] 를 보이는 바닥으로 추정: T 의 카메라 높이를 0 으로 놓고, 로봇 앞 0.45~6 m·좌우 2 m 점들 중
-    점이 충분히 모인 가장 낮은 높이 (1 cm 칸) = 바닥 → 그 깊이만큼이 카메라 높이. 바닥이 안 보이면 None.
+    """카메라 높이 [m] 를 보이는 바닥으로 추정: T 의 카메라 높이를 0 으로 놓고 수평면들 (horizontal_planes) 중
+    카메라 30 cm 넘게 아래의 가장 낮은 넓은 면 (60 cm 넘게 퍼짐) = 바닥 → 그 깊이가 카메라 높이. 바닥이 안 보이면 None.
     리프트가 오르내려 카메라 높이를 모를 때 쓴다 (그다음 level_to_floor 로 기울기까지 맞춤)."""
     T0 = np.array(T, float)
     T0[2, 3] = 0.0
-    vs, us = np.mgrid[0:depth.shape[0]:step, 0:depth.shape[1]:step]
-    p = pixels_to_points(depth, K, T0, us.ravel(), vs.ravel())
-    p = p[(p[:, 0] > 0.45) & (p[:, 0] < 6.0) & (np.abs(p[:, 1]) < 2.0) & (p[:, 2] < -0.3)]
-    if len(p) < 1000:
-        return None
-    bins = np.floor(p[:, 2] / 0.01).astype(int)
-    vals, counts = np.unique(bins, return_counts=True)
-    dense = vals[counts >= max(100, 0.05 * counts.max())]     # 책상이 화면 대부분이어도 그 뒤로 보이는 바닥을 잡게
-    k = dense.min()
-    sel = p[(bins >= k - 1) & (bins <= k + 1), 2]
-    return float(-np.median(sel))
+    floors = [pl for pl in horizontal_planes(depth, K, T0, step) if pl[0] < -0.3 and pl[2] >= 0.6]
+    return -floors[0][0] if floors else None
