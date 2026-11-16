@@ -209,7 +209,9 @@ def main():
     ap.add_argument("--start-tol", type=float, default=5.0, help="현재 자세 ↔ 경로 시작 허용 차 [도]")
     ap.add_argument("--lag-pause", type=float, default=10.0, help="이만큼 늦으면 경로 시간 멈춤 [도] (끌림 정지 15° 보다 작게)")
     ap.add_argument("--insert-lag", type=float, default=5.0, help="삽입 단계에서 멈추는 지연 [도]")
-    ap.add_argument("--settle", type=float, default=2.0, help="끝 도착 후 2° 안으로 들어올 때까지 기다리는 시간 [s]")
+    ap.add_argument("--settle", type=float, default=2.0, help="끝 도착 후 --settle-deg 안으로 들어올 때까지 기다리는 시간 [s]")
+    ap.add_argument("--settle-deg", type=float, default=2.0,
+                    help="끝 도착으로 인정하는 오차 [도]. 실기 정상 오차(4번 처짐 등)로 끝에서 멈추면 4~5 로")
     ap.add_argument("--stall", type=float, default=1.0, help="이만큼 [s] 계속 늦으면 부딪힘으로 보고 고정·정지")
     ap.add_argument("--gravity-scale", default="wrist_flex=0.85", help="관절별 중력 배율, 예 'wrist_flex=0.85' 또는 '4=0.85', 빈 값이면 안 검")
     args = ap.parse_args()
@@ -273,13 +275,13 @@ def main():
                                 {"phase": "align", "motors_deg": {str(i): start[i - 1] for i in range(1, 7)}}],
                                v_limit_deg=10.0, a_limit_deg=a_limit)
             play(robot, align, gripper, args.rate, args.lag_pause, label="[시작 맞춤] ", stall_s=args.stall,
-                 settle_s=args.settle)
+                 settle_s=args.settle, settle_deg=args.settle_deg)
             robot.hold()          # ENTER 를 기다리는 동안 명령 끊김(0.25 s) 오류가 걸리지 않게 측정 자세 고정
         input("\n경로 재생 시작: ENTER (멈추려면 Ctrl+C — 자세 유지)\n")
         t_back_from = t_end
         try:
             play(robot, tl, gripper, args.rate, args.lag_pause, t_end=t_end, stall_s=args.stall,
-                 insert_lag_deg=args.insert_lag, settle_s=args.settle)
+                 insert_lag_deg=args.insert_lag, settle_s=args.settle, settle_deg=args.settle_deg)
             q_end, _ = measured(robot)
             print("도착. 측정 모터 1~6:", ",".join(f"{v:.1f}" for v in q_end))
             robot.hold()
@@ -294,7 +296,7 @@ def main():
                               a_limit_deg=a_limit)
             try:
                 play(robot, back, gripper, args.rate, args.lag_pause, label="[복귀] ", stall_s=args.stall,
-                     insert_lag_deg=args.insert_lag, settle_s=args.settle)
+                     insert_lag_deg=args.insert_lag, settle_s=args.settle, settle_deg=args.settle_deg)
             except Stalled as e:
                 print(f"\n⚠ 복귀 중에도 멈춤: {e} — 고정한 채 종료합니다. 팔을 받치고 직접 빼 주세요.")
             robot.hold()
