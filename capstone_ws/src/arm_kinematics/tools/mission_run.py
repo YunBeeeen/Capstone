@@ -3,9 +3,10 @@
 지정한 자리에 바구니 놓기. **팔 연결 하나로 끝까지** (play_plan 을 단계마다 따로 부르면 끝날 때 토크가 풀려 든 것을 놓침).
 
   cd ~/arm && PY=~/rebot_env/venv/bin/python
-  $PY tools/mission_run.py pumpkin --place 0.50 -0.05 --board 1.05
-  $PY tools/mission_run.py pumpkin --place 0.50 -0.05 --board 1.05 --from basket_grab     # 그 단계부터
-  $PY tools/mission_run.py pumpkin --place 0.50 -0.05 --board 1.05 --dry-run --vision v.json   # 팔·Jetson 없이 계획·순서만
+  $PY tools/mission_run.py pumpkin --tier 3          # 3 층 (1.00 m) 에 놓기
+  $PY tools/mission_run.py pumpkin --tier 4          # 4 층 꼭대기 (1.35 m)
+  $PY tools/mission_run.py pumpkin --tier 3 --from basket_grab     # 그 단계부터 (find 결과가 필요 → --from find)
+  $PY tools/mission_run.py pumpkin --tier 3 --dry-run --vision v.json   # 팔·Jetson 없이 계획·순서만
 
 단계 (--from / --to 이름): nav_desk → lift_up → find → pick → drop → basket_grab → carry → lift_down → nav_shelf →
   lift_place → place → finish
@@ -19,12 +20,15 @@
 동작 (오른팔, 로봇 바닥 기준 m):
   pick        물체 중심 6 cm 위 → 곧게 내려와 닫기 → 곧게 6 cm 올림
   drop        바구니 가운데 위 (손끝 = 테두리 + 3 cm) 9 cm 위 → 곧게 내려와 열기 → 곧게 올림
-  basket_grab 바구니 짧은 벽 (로봇 쪽 먼저) 가운데, 손끝 = 테두리 − 3 cm. 거의 수직 (70~89°) 으로 내려와 손가락이 벽을
-              가로지르게 (IK 손가락 방향 조건) → 닫기 → 6 cm 올림
-  carry       바구니를 든 채 로봇 오른쪽 앞 (카메라 시야 밖) 으로
-  place       --place X Y 위, 판 높이 --board (잰 수평면 중 가장 가까운 것) 에 바구니 바닥이 1 cm 위가 되게 → 내려와 열기 →
-              올림 → 같은 길로 carry 자세
-바구니: 21×13×10 cm (--basket), 벽 두께 6 mm 가정. 바구니를 든 상태의 충돌은 계획이 모름 → 단계마다 눈으로 확인.
+  basket_grab 바구니의 가장 오른쪽 벽 가운데, 손끝 = 테두리 − 3 cm. 손을 30~50° 앞으로 기울여 위에서 내려와 손가락이 벽을
+              가로지르게 (IK 손가락 방향 조건) → 닫기 → 6 cm 올림. 바구니가 손 왼쪽 옆에 옴.
+              **바구니는 긴 면이 로봇을 보게 (긴 축이 좌우)** 두면 잘 됨
+  carry       바구니를 든 채 (손 기울기 그대로 → 바구니 수평) 로봇 오른쪽 앞으로
+  place       --tier 층 판 (잰 수평면 중 가장 가까운 것) 앞 모서리에서 3 cm 안쪽에 바구니 바닥이 1 cm 위가 되게, 같은 손
+              방향으로 선반 앞에서 수평으로 밀어 넣기 → 열기 → 빼기 → carry 자세. 선반 (시뮬 모양, 판 높이 --shelf-tops)
+              과 든 바구니를 충돌 검사에 넣음. **shelf_A 설 자리는 선반 앞면이 로봇 중심에서 0.44~0.52 m (차체와 18~26 cm)**,
+              리프트: 3 층 ZED 약 1.1 m, 4 층 약 1.2~1.25 m (최대 1.305)
+바구니: 21×13×10 cm (--basket-size), 벽 두께 6 mm 가정. 잡은 뒤 (carry·place) 는 바구니를 손에 붙은 상자로 충돌 검사.
 """
 import argparse
 import json
@@ -46,6 +50,8 @@ WALL = 0.006
 GRIP_BELOW_RIM = 0.03          # 바구니 벽을 테두리에서 이만큼 아래까지 손가락으로
 DROP_ABOVE_RIM = 0.03          # 물체 놓을 때 손끝 = 테두리 + 이만큼
 PLACE_CLEAR = 0.01             # 놓을 때 바구니 바닥 ↔ 판
+GRAB_TILTS = ("30,50", "20,40", "40,60")   # 바구니 벽 잡을 손 기울기 [도] — 선반에 앞에서 넣을 때와 같아야 바구니가 수평
+SHELF_FRONT_OK = (0.44, 0.52)              # 선반에 앞에서 넣을 수 있는 선반 앞면 거리 [m] (계획·MuJoCo 검사 2026-11-17)
 
 
 def phrase(word):
@@ -243,11 +249,17 @@ def nav(a, name):
         raise Stop(f"{name} 로 이동 실패 (위 출력)")
 
 
-def plan(a, arm, name, xyz, desk_top, front, lateral, zed, descend=None, extra=()):
+def plan(a, arm, name, xyz, desk_top, front, lateral, zed, descend=None, extra=(), target="desk", held=None):
+    """ik_sim_run --no-sim. target = desk (책상, 윗면 desk_top) 또는 shelf3/shelf4 (시뮬 선반 모양, 판 높이 --shelf-tops).
+    held = (L, W, H, rel 16 개) 면 든 상자도 충돌 검사."""
     out = Path(f"/tmp/mission_{name}.json")
     out.unlink(missing_ok=True)
     start = ",".join(f"{v:.2f}" for v in arm.q())
-    cmd = [PY, str(HERE / "ik_sim_run.py"), "--target", "desk", "--desk-top", f"{desk_top:.3f}", "--front", f"{front:.3f}",
+    if target.startswith("shelf"):
+        extra = [f"--shelf-tops={a.shelf_tops}", *extra]
+    if held:
+        extra = [*extra, "--held", ",".join(f"{v:.3f}" for v in held[:3]), "--held-rel=" + ",".join(f"{v:.6f}" for v in held[3])]
+    cmd = [PY, str(HERE / "ik_sim_run.py"), "--target", target, "--desk-top", f"{desk_top:.3f}", "--front", f"{front:.3f}",
            f"--lateral={lateral:.3f}", "--xyz", *(f"{v:.3f}" for v in xyz), "--zed-height", f"{zed:.3f}",
            f"--start={start}", "--no-sim", "--save-plan", str(out), *extra]
     if descend:
@@ -275,14 +287,34 @@ def tool_axes(plan_path):
     return T.rotation[:, 0].copy(), T.rotation[:, 1].copy()
 
 
+def held_rel(plan_path, center_xy, yaw, bottom_z, size):
+    """잡은 순간 (계획 마지막 자세) 의 바구니 상자 가운데 자세 = 그리퍼 끝 링크 기준 4×4 (16 개). 손에 단단히 붙었다고 봄."""
+    import pinocchio as pin
+    sys.path.insert(0, str(HERE.parent))
+    from arm_kinematics import B601Kinematics
+    from arm_kinematics.ik import B601IK
+    w = json.loads(Path(plan_path).read_text())["waypoints"][-1]
+    kin = B601Kinematics()
+    ik = B601IK(kin)
+    ik._pose(kin.configuration([w["motors_deg"][str(i)] for i in range(1, 7)], w["lift_total_mm"] / 2000))
+    ref, end = ik.data.oMf[ik._rid], ik.data.oMf[kin._frame("right_arm_end_link")]
+    c, s_ = math.cos(yaw), math.sin(yaw)
+    B = pin.SE3(np.array([[c, -s_, 0], [s_, c, 0], [0, 0, 1.0]]), np.array([center_xy[0], center_xy[1], bottom_z + size[2] / 2]))
+    return (end.actInv(ref * B)).homogeneous.reshape(-1).tolist()
+
+
 # ---------------------------------------------------------------------------------------------- 임무
 def main():
     global YES
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("word", help="집을 물체 (한 단어면 a/an 붙임). 예: pumpkin, \"a toy corn\"")
-    ap.add_argument("--place", type=float, nargs=2, required=True, metavar=("X", "Y"),
-                    help="선반에 바구니를 놓을 자리 (shelf_A 설 자리에서 로봇 기준 손끝 x, y [m])")
-    ap.add_argument("--board", type=float, required=True, help="놓을 판 높이 (바닥 → 판 윗면 m, 대략. 잰 수평면 중 ±6 cm 안 가장 가까운 것)")
+    ap.add_argument("--place", type=float, nargs=2, metavar=("X", "Y"),
+                    help="바구니 가운데를 놓을 자리 (shelf_A 에서 로봇 기준 [m]). 기본: 판 앞 모서리에서 3 cm 들어간 곳, y = --shelf-lateral")
+    ap.add_argument("--tier", type=int, choices=(3, 4), default=3, help="놓을 층 (3 = 1.00 m, 4 = 1.35 m 꼭대기)")
+    ap.add_argument("--shelf-tops", default="0.21,0.55,1.00,1.35",
+                    help="선반 판 윗면 1~4 층 [m] (실기: 3 층 1.00, 4 층 1.35. 모양은 시뮬 선반 — 폭 0.6·깊이 0.33·기둥)")
+    ap.add_argument("--board", type=float, help="놓을 판 높이 대략 (기본 = --shelf-tops 의 --tier 층). 잰 수평면 중 ±6 cm 안 가장 가까운 것")
+    ap.add_argument("--shelf-lateral", type=float, default=0.0, help="shelf_A 설 자리에서 본 선반 가운데 y [m] (− = 오른쪽)")
     ap.add_argument("--desk", default="desk_1")
     ap.add_argument("--shelf", default="shelf_A")
     ap.add_argument("--shelf-view", default="shelf_A_view", help="선반 앞에서 먼저 들를 장소 (없으면 '')")
@@ -302,6 +334,8 @@ def main():
     ap.add_argument("--start", help="--dry-run 시작 자세 모터 1~6")
     a = ap.parse_args()
     YES = a.yes
+    if a.board is None:
+        a.board = float(a.shelf_tops.split(",")[a.tier - 1])
     steps = STEPS[STEPS.index(a.from_):STEPS.index(a.to) + 1]
     L, W, H = a.basket_size
     q_obj, q_bk = phrase(a.word), phrase(a.basket)
@@ -355,34 +389,46 @@ def main():
                 need(st, "bk")
                 b, yaw = st["bk"]["center"], st["bk"].get("yaw") or 0.0
                 u = np.array([math.cos(yaw), math.sin(yaw)])
-                v_ = np.array([-u[1], u[0]])                          # 짧은 벽이 뻗은 방향
+                v_ = np.array([-u[1], u[0]])
                 top = st["desk"] + H
-                walls = sorted([np.array(b[:2]) + k * (L / 2 - WALL / 2) * u for k in (-1, 1)], key=lambda w: w[0])
+                # 네 벽 중 가장 오른쪽 (−y) 벽 가운데: 바구니가 손 왼쪽 옆에 와서 선반에 앞에서 밀어 넣을 수 있음
+                # (로봇 쪽 벽을 잡으면 바구니가 손 앞으로 21 cm 나와 선반 앞에서 기다릴 자리가 없음 — 계획 검사 2026-11-17)
+                walls = [(np.array(b[:2]) + k * (L / 2 - WALL / 2) * u, v_) for k in (-1, 1)] + \
+                        [(np.array(b[:2]) + k * (W / 2 - WALL / 2) * v_, u) for k in (-1, 1)]
+                walls.sort(key=lambda t: t[0][1])
                 p = None
-                for wxy in walls:                                       # 로봇에 가까운 벽부터
-                    for hd in ("1,0", f"{v_[0]:.3f},{v_[1]:.3f}", f"{-v_[0]:.3f},{-v_[1]:.3f}"):
+                for wxy, wd in walls[:2]:
+                    fp = f"--finger-perp={wd[0]:.3f},{wd[1]:.3f}"
+                    for tl_ in GRAB_TILTS:
                         p = plan(a, arm, "grab", (wxy[0], wxy[1], top - GRIP_BELOW_RIM), st["desk"], st["front"], wxy[1],
-                                 st["zed"], a.descend, extra=["--tilt=70,89", f"--heading={hd}",
-                                                              f"--finger-perp={v_[0]:.3f},{v_[1]:.3f}"])
+                                 st["zed"], a.descend, extra=[f"--tilt={tl_}", "--heading=1,0", fp])
                         if p:
                             break
                     if p:
                         break
-                if not p or ask("   바구니 벽: 열기 → 위에서 내려와 닫기 → 6 cm 올림. ENTER: ") == "s":
+                if not p or ask("   바구니 오른쪽 벽: 열기 → 기울여 위에서 내려와 닫기 → 6 cm 올림. ENTER: ") == "s":
                     raise Stop("바구니 잡기 계획 실패" if not p else "바구니 잡기 건너뜀")
                 tl, t = arm.run(p, "바구니 잡기", grip_before="open", grip_after="close")
-                st["grab_axes"] = tool_axes(p)
-                print(f"   그리퍼 {arm.gripper():.0f}° (벽이 얇으면 거의 닫힘 — 눈으로 확인)")
+                ax, _ = tool_axes(p)
+                pitch = math.degrees(math.asin(max(-1.0, min(1.0, -ax[2]))))
+                tip = np.array(json.loads(Path(p).read_text())["target_xyz"])
+                # 들고 있는 동안 이 손 방향 그대로 (기울기 ±3°, 앞, 손가락) → 바구니가 수평 유지
+                st["hold_orient"] = [f"--tilt={pitch - 3:.1f},{pitch + 3:.1f}", "--heading=1,0", fp]
+                st["held"] = (L, W, H, held_rel(p, b[:2], yaw, st["desk"], (L, W, H)))
+                st["held_d"] = (b[0] - tip[0], b[1] - tip[1], tip[2] - st["desk"])     # 바구니 가운데 − 손끝, 손끝 − 바닥
+                st["held_ext_x"] = abs(L * math.cos(yaw)) + abs(W * math.sin(yaw))       # 바구니 앞뒤 길이
+                print(f"   그리퍼 {arm.gripper():.0f}° (벽이 얇으면 거의 닫힘 — 눈으로 확인), 손 기울기 {pitch:.0f}°")
                 if ask("   바구니가 손가락 사이에 잘 끼었나? ENTER = 들어 올림, q = 멈춤: ", allow_skip=False, always=True) == "":
                     arm.back(tl, t, phases=("insert",), label="바구니 들기")
             elif s == "carry":
-                need(st, "desk")
+                need(st, "hold_orient")
                 p = None
                 for x, y, dz in CARRY:
-                    p = plan(a, arm, "carry", (x, y, st["desk"] + dz), st["desk"], st["front"], 0.0, st["zed"])
+                    p = plan(a, arm, "carry", (x, y, st["desk"] + dz), st["desk"], st["front"], 0.0, st["zed"],
+                             extra=st["hold_orient"], held=st["held"])
                     if p:
                         break
-                if not p or ask("   바구니를 든 채 오른쪽 앞 (카메라 시야 밖) 으로. ENTER: ") == "s":
+                if not p or ask("   바구니를 든 채 (손 기울기 그대로) 오른쪽 앞으로. ENTER: ") == "s":
                     raise Stop("들고 다닐 자세 계획 실패" if not p else "건너뜀")
                 arm.run(p, "들고 다닐 자세")
             elif s == "lift_down":
@@ -405,25 +451,25 @@ def main():
                     raise Stop(f"판 {100 * bd['z']:.1f} cm 의 앞 모서리를 못 잼")
                 st.update(board=bd["z"], board_front=bd["front_x"], zed_shelf=v["zed_height"])
                 print(f"   판 {100 * bd['z']:.1f} cm, 앞 모서리 {100 * bd['front_x']:.1f} cm, ZED {v['zed_height']:.3f} m")
+                lo, hi = SHELF_FRONT_OK
+                if not lo <= bd["front_x"] <= hi:
+                    print(f"   ⚠ 선반 앞면 {100 * bd['front_x']:.0f} cm — {100 * lo:.0f}~{100 * hi:.0f} cm 밖이면 앞에서 넣는 계획이 잘 안 나옴 "
+                          f"(차체 앞면과 선반 사이 {100 * (lo - 0.26):.0f}~{100 * (hi - 0.26):.0f} cm)")
             elif s == "place":
                 need(st, "board")
-                tip = (a.place[0], a.place[1], st["board"] + H - GRIP_BELOW_RIM + PLACE_CLEAR)
-                extra = []
-                if "grab_axes" in st:                                  # 잡을 때 기울기 그대로 (바구니가 수평으로)
-                    ax = st["grab_axes"][0]
-                    pitch = math.degrees(math.asin(max(-1.0, min(1.0, -ax[2]))))
-                    hz = ax[:2] / max(1e-6, float(np.linalg.norm(ax[:2])))
-                    extra = [f"--tilt={max(-10.0, pitch - 4):.1f},{min(89.5, pitch + 4):.1f}",
-                             f"--heading={hz[0]:.3f},{hz[1]:.3f}"]
-                p = plan(a, arm, "place", tip, st["board"], st["board_front"], a.place[1], st["zed_shelf"], a.descend, extra)
-                if not p and extra:
-                    p = plan(a, arm, "place", tip, st["board"], st["board_front"], a.place[1], st["zed_shelf"], a.descend,
-                             ["--tilt=60,89"])
-                if not p or ask("   판 위 → 내려와 열기 → 올림 → 들고 다닐 자세로. ENTER: ") == "s":
-                    raise Stop("놓기 계획 실패" if not p else "놓기 건너뜀")
+                need(st, "hold_orient")
+                dx, dy, dz = st["held_d"]
+                cx, cy = a.place if a.place else (st["board_front"] + st["held_ext_x"] / 2 + 0.03, a.shelf_lateral)
+                tip = (cx - dx, cy - dy, st["board"] + PLACE_CLEAR + dz)
+                print(f"   바구니 가운데 ({100 * cx:.1f}, {100 * cy:.1f}) cm ← 손끝 ({', '.join(f'{100 * v:.1f}' for v in tip)}) cm, "
+                      f"앞에서 수평으로 밀어 넣기")
+                p = plan(a, arm, "place", tip, st["board"], st["board_front"], a.shelf_lateral, st["zed_shelf"], None,
+                         [*st["hold_orient"], "--standoffs=0.20,0.15,0.12"], target=f"shelf{a.tier}", held=st["held"])
+                if not p or ask("   선반 앞 → 수평으로 넣기 → 열기 → 빼기 → 들고 다닐 자세로. ENTER: ") == "s":
+                    raise Stop("놓기 계획 실패 (선반 앞면이 0.44~0.52 m 인지, 리프트 높이) " if not p else "놓기 건너뜀")
                 tl, t = arm.run(p, "놓기", grip_after="open")
-                arm.back(tl, t, phases=("insert",), label="올림")
-                arm.back(tl, tl.phase_end("approach"), label="빠지기")
+                arm.back(tl, t, phases=("insert",), label="빼기")
+                arm.back(tl, tl.phase_end("approach"), label="들고 다닐 자세로")
             elif s == "finish":
                 ask("게임패드로 리프트를 최저로 → ENTER (끝): ", allow_skip=False, always=True)
         print("\n임무 끝.")

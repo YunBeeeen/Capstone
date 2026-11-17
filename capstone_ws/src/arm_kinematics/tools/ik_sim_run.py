@@ -49,6 +49,11 @@ def main():
     ap.add_argument("--approach", default="heading", help=APPROACH_HELP)
     ap.add_argument("--tilt", default="-10,45", help="heading 모드 기울기 범위 [도] (아래 +)")
     ap.add_argument("--heading", help="heading 모드 수평 방향 hx,hy (기본: 가구 안쪽 +x). 그리퍼가 이쪽으로 기울어짐")
+    ap.add_argument("--standoffs", help="접근점 거리 후보 [m] 쉼표 (기본 0.15,0.12,0.10,0.07,0.05 / --descend 면 D). "
+                    "든 물체가 손 앞으로 길게 나오면 그만큼 더 뒤에서 (예 0.32,0.28)")
+    ap.add_argument("--shelf-tops", help="선반 판 윗면 높이 z1,z2,z3,z4 [m] (기본 시뮬 0.21,0.55,0.88,1.31). 실기 선반에 맞출 때 — 모양 (폭·깊이·기둥) 은 시뮬 그대로")
+    ap.add_argument("--held", help="든 물체 상자 L,W,H [m] — 충돌 검사에 넣음 (--held-rel 과 같이)")
+    ap.add_argument("--held-rel", help="든 상자 가운데 자세 = 그리퍼 끝 링크 (right_arm_end_link) 기준 4×4 행렬 16 개 (행 우선, 쉼표)")
     ap.add_argument("--finger-perp", help="손가락 벌림축이 이 수평 방향 wx,wy 에 수직 (heading 모드) — 얇은 벽을 끼워 잡을 때 벽이 뻗은 방향")
     ap.add_argument("--front", type=float, default=FRONT, help="로봇 중심 → 가구 앞면 [m] (설 자리 거리)")
     ap.add_argument("--descend", type=float, metavar="D",
@@ -102,6 +107,8 @@ def main():
         hx, hy = (float(v) for v in args.heading.split(","))
         into = np.array([hx, hy, 0.0]) / math.hypot(hx, hy)
     ik_kw, plan_kw, approach = orientation_args(args.approach, into, tilt)
+    if args.standoffs:
+        plan_kw = dict(plan_kw, standoffs=tuple(float(v) for v in args.standoffs.split(",")))
     if args.finger_perp:
         if "heading" not in ik_kw:
             raise SystemExit("--finger-perp 는 --approach heading 과 같이")
@@ -112,6 +119,15 @@ def main():
         plan_kw = dict(plan_kw, move_dir=(0.0, 0.0, -1.0), standoffs=(args.descend,))
         print(f"위에서 내려와 집기: 접근점 {100 * args.descend:.0f} cm 위, 손가락 {tilt[0]:.0f}~{tilt[1]:.0f}° 아래로")
 
+    if args.shelf_tops:
+        import arm_kinematics.scene as scene_mod
+        tops = tuple(float(v) for v in args.shelf_tops.split(","))
+        if len(tops) != 4:
+            raise SystemExit("--shelf-tops 는 4 개")
+        scene_mod.SHELF_TOPS = tops
+        scene_mod.SHELF_BOARDS = tuple(t - scene_mod.SHELF_TH / 2 for t in tops)
+        scene_mod.SHELF_H = tops[-1] + 0.167                     # 시뮬처럼 맨 위 판 위로 기둥·윗막대
+        print(f"선반 판 윗면 {', '.join(f'{100 * t:.0f}' for t in tops)} cm (실기)")
     env_room = [] if args.no_env else env_for(args.target, args.front, args.lateral)
     support = "desk_top" if args.target == "desk" else f"shelf_board{args.target[-1]}" if args.target.startswith("shelf") else None
     env_room = [type(b)(b.name, b.size, b.center, b.yaw, args.support_margin if b.name == support else b.margin)
@@ -126,7 +142,14 @@ def main():
         sim_lim = {i: (max(real[i][0], math.degrees(model.jnt_range[jid[i]][0])),
                        min(real[i][1], math.degrees(model.jnt_range[jid[i]][1]))) for i in MOTORS}
 
-    checker = CollisionChecker(kin, to_robot(env_room, robot), margin=args.margin)   # 손가락 닫힘·벌림 둘 다 검사
+    attached = []
+    if args.held:
+        import pinocchio as pin
+        size = tuple(float(v) for v in args.held.split(","))
+        M = np.array([float(v) for v in args.held_rel.split(",")]).reshape(4, 4)
+        attached = [("held", size, pin.SE3(M[:3, :3], M[:3, 3]))]
+        print(f"든 물체 {'×'.join(f'{100 * v:.0f}' for v in size)} cm 도 충돌 검사 (가구·몸체)")
+    checker = CollisionChecker(kin, to_robot(env_room, robot), margin=args.margin, attached=attached)   # 손가락 닫힘·벌림 둘 다 검사
     ik = B601IK(kin, collision=checker)
     if args.zed_height is not None:
         total = args.zed_height - ZED_HEIGHT_AT_LIFT0
