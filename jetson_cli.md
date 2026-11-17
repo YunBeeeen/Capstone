@@ -120,8 +120,26 @@ python3 $NAV/place_tour.py shelf_A desk_1 --loops 3 --wait 5   # 여러 곳 왕�
 
 ## 4. 팔 CLI (IK · 찾기 · 집기) — 나중에 하나로 합칠 단계별 정리
 
-**순서: 도착 → 리프트 올림 (책상 위가 보이게, 1 m 책상: 리프트 약 470 mm) → 찾기 → 계획 → 실행 → 리프트 내림 → 다음 장소.**
+**순서 (4-A 가 이걸 한 번에): 도착 → 리프트 올림 (책상 위가 보이게, 1 m 책상: 리프트 약 470 mm) → 찾기 → 계획 → 실행 → 리프트 내림 → 다음 장소.**
 지금은 **물체 찾기가 ZED 를 직접 열어서 J1 (ROS ZED) 을 꺼야 함** (ROS 영상으로 찾게 바꾸는 건 다음 작업).
+
+### 4-A. 전체 임무 한 번에 (`mission_run.py`, 라파) — 모의 통과, 실기 미확인
+
+desk_1 → 물체 찾기 → 집기 → 바구니에 넣기 → 바구니 짧은 벽 잡고 들기 → shelf_A_view → shelf_A → 지정한 자리에 놓기.
+팔 연결 하나로 끝까지 (play_plan 을 단계마다 부르면 끝날 때 토크가 풀림). 물체 찾기는 **ROS 영상 (`ros_find`) — 내비 켠 채로 됨**.
+```bash
+# 준비: Jetson 내비 (2·3 장) + docker start arm_vision_server, 라파 can_arm_r 올림, 라파 6 번 패드
+cd ~/arm && PY=~/rebot_env/venv/bin/python
+$PY tools/mission_run.py pumpkin --place 0.50 -0.05 --board 1.02      # 놓을 자리: shelf_A 에서 로봇 기준 손끝 x y, 판 높이 (대략)
+$PY tools/mission_run.py pumpkin --place 0.50 -0.05 --board 1.02 --from basket_grab   # 중간부터 (find 결과가 필요하면 find 부터)
+$PY tools/mission_run.py pumpkin --place 0.50 -0.05 --board 1.02 --to drop            # 넣기까지만
+```
+단계: `nav_desk → lift_up → find → pick → drop → basket_grab → carry → lift_down → nav_shelf → lift_place → place → finish`
+- 단계마다 ENTER (s = 건너뜀, q = 지금 자세 유지하고 끝). **이동 중엔 RT 당기기**, 리프트는 안내에 따라 게임패드로
+- 막히거나 Ctrl+C → 팔 고정 → ENTER = 그 동작 시작 자세로 복귀, q = 그대로
+- 바구니 벽은 거의 위에서 (70~89°) 손가락이 벽을 가로지르게 잡음. 잡은 뒤 "잘 끼었나?" 를 눈으로 확인하고 ENTER
+- 끝날 때 팀 팔로워가 "팔을 받친 뒤 ENTER" 를 물음 (바구니를 들고 있으면 먼저 받치기)
+- 노트북 모의: `--dry-run --yes --vision v.json --vision-shelf s.json --start=0,0,0,0,0,0` (`yes "" |` 로 ENTER)
 
 ### 4-0. 준비
 ```bash
