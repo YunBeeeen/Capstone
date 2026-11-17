@@ -3,8 +3,8 @@
 지정한 자리에 바구니 놓기. **팔 연결 하나로 끝까지** (play_plan 을 단계마다 따로 부르면 끝날 때 토크가 풀려 든 것을 놓침).
 
   cd ~/arm && PY=~/rebot_env/venv/bin/python
-  $PY tools/mission_run.py pumpkin --tier 3          # 3 층 (1.00 m) 에 놓기
-  $PY tools/mission_run.py pumpkin --tier 4          # 4 층 꼭대기 (1.35 m)
+  $PY tools/mission_run.py pumpkin                   # 리프트 100 mm 고정, 선반 3 층 (1.00 m) 에 놓기
+  $PY tools/mission_run.py pumpkin --tier 4 --lift-mm 0   # 4 층 꼭대기 (1.35 m): 리프트를 단계마다 올리고 내림
   $PY tools/mission_run.py pumpkin --tier 3 --from basket_grab     # 그 단계부터 (find 결과가 필요 → --from find)
   $PY tools/mission_run.py pumpkin --tier 3 --dry-run --vision v.json   # 팔·Jetson 없이 계획·순서만
 
@@ -12,7 +12,8 @@
   lift_place → place → finish
   - 단계마다 할 일을 보여 주고 ENTER (s = 건너뛰기, q = 지금 자세 유지하고 끝). --yes 면 안 물음 (리프트 안내는 늘 물음)
   - 이동 (Nav2) 은 Jetson 의 nav_goal_ahead 를 부름 → **가는 동안 게임패드 RT 를 당기고 있어야 함**
-  - 리프트는 사람이 게임패드로 (RB+Y/X 올림, RB+A/B 내림). 주행은 반드시 리프트 최저 (내비가 카메라 높이를 최저로 가정)
+  - 리프트: 기본은 처음부터 100 mm 고정 (책상 70 cm·선반 3 층, 계획 검사 2026-11-17) — 내비는 cam_z:=0.775 로 켜야 함
+    (jetson_nav.launch.py map:=X cam_z:=0.775). --lift-mm 0 이면 단계마다 게임패드로 올리고 내리라고 안내 (주행은 최저)
   - 물체 찾기 = Jetson ros_find (ZED ROS 를 켠 채로, 카메라 높이는 보이는 바닥으로 잼). OWLv2 서버 필요 (docker start arm_vision_server)
   - 팔이 막히거나 (Stalled) Ctrl+C: 그 자리 고정 → ENTER = 그 동작의 시작 자세로 같은 길 복귀, q = 그대로 끝
   - 끝날 때 팀 팔로워가 "팔을 받친 뒤 ENTER" 를 물은 다음 토크를 끔 (바구니를 든 채면 먼저 받칠 것)
@@ -20,8 +21,8 @@
 동작 (오른팔, 로봇 바닥 기준 m):
   pick        물체 중심 6 cm 위 → 곧게 내려와 닫기 → 곧게 6 cm 올림
   drop        바구니 가운데 위 (손끝 = 테두리 + 3 cm) 9 cm 위 → 곧게 내려와 열기 → 곧게 올림
-  basket_grab 바구니의 가장 오른쪽 벽 가운데, 손끝 = 테두리 − 3 cm. 손을 30~50° 앞으로 기울여 위에서 내려와 손가락이 벽을
-              가로지르게 (IK 손가락 방향 조건) → 닫기 → 6 cm 올림. 바구니가 손 왼쪽 옆에 옴.
+  basket_grab 바구니의 로봇 쪽 벽 가운데 (안 되면 가장 오른쪽 벽), 손끝 = 테두리 − 3 cm. 손을 30~50° 앞으로 기울여 위에서
+              내려와 손가락이 벽을 가로지르게 (IK 손가락 방향 조건) → 닫기 → 6 cm 올림.
               **바구니는 긴 면이 로봇을 보게 (긴 축이 좌우)** 두면 잘 됨
   carry       바구니를 든 채 (손 기울기 그대로 → 바구니 수평) 로봇 오른쪽 앞으로
   place       --tier 층 판 (잰 수평면 중 가장 가까운 것) 앞 모서리에서 3 cm 안쪽에 바구니 바닥이 1 cm 위가 되게, 같은 손
@@ -310,7 +311,9 @@ def main():
     ap.add_argument("word", help="집을 물체 (한 단어면 a/an 붙임). 예: pumpkin, \"a toy corn\"")
     ap.add_argument("--place", type=float, nargs=2, metavar=("X", "Y"),
                     help="바구니 가운데를 놓을 자리 (shelf_A 에서 로봇 기준 [m]). 기본: 판 앞 모서리에서 3 cm 들어간 곳, y = --shelf-lateral")
-    ap.add_argument("--tier", type=int, choices=(3, 4), default=3, help="놓을 층 (3 = 1.00 m, 4 = 1.35 m 꼭대기)")
+    ap.add_argument("--tier", type=int, choices=(3, 4), default=3, help="놓을 층 (3 = 1.00 m, 4 = 1.35 m 꼭대기 — 4 층은 리프트 525 mm 이상 필요)")
+    ap.add_argument("--lift-mm", type=float, default=100.0,
+                    help="리프트를 처음부터 이 높이 [mm] 로 고정 (기본 100 — 책상 70 cm·선반 3 층 둘 다 됨). 0 = 단계마다 올리고 내리기 안내")
     ap.add_argument("--shelf-tops", default="0.21,0.55,1.00,1.35",
                     help="선반 판 윗면 1~4 층 [m] (실기: 3 층 1.00, 4 층 1.35. 모양은 시뮬 선반 — 폭 0.6·깊이 0.33·기둥)")
     ap.add_argument("--board", type=float, help="놓을 판 높이 대략 (기본 = --shelf-tops 의 --tier 층). 잰 수평면 중 ±6 cm 안 가장 가까운 것")
@@ -348,10 +351,12 @@ def main():
             print(f"\n=== {s} ===")
             arm.hold()
             if s == "nav_desk":
-                if ask(f"리프트 최저·팔 접힘 확인 → {a.desk} 로 이동. ENTER (s = 건너뜀): ") != "s":
+                lift_msg = f"리프트 {a.lift_mm:.0f} mm (내비는 cam_z {0.675 + a.lift_mm / 1000:.3f} 로 켰는지)" if a.lift_mm else "리프트 최저"
+                if ask(f"{lift_msg}·팔 접힘 확인 → {a.desk} 로 이동. ENTER (s = 건너뜀): ") != "s":
                     nav(a, a.desk)
             elif s == "lift_up":
-                ask("게임패드로 리프트를 올려 책상 위가 보이게 (RB+Y/X) → ENTER: ", allow_skip=False, always=True)
+                if not a.lift_mm:
+                    ask("게임패드로 리프트를 올려 책상 위가 보이게 (RB+Y/X) → ENTER: ", allow_skip=False, always=True)
             elif s == "find":
                 v = find(a, [a.word, a.basket])
                 ob, bk = v["objects"].get(q_obj), v["objects"].get(q_bk)
@@ -391,13 +396,16 @@ def main():
                 u = np.array([math.cos(yaw), math.sin(yaw)])
                 v_ = np.array([-u[1], u[0]])
                 top = st["desk"] + H
-                # 네 벽 중 가장 오른쪽 (−y) 벽 가운데: 바구니가 손 왼쪽 옆에 와서 선반에 앞에서 밀어 넣을 수 있음
-                # (로봇 쪽 벽을 잡으면 바구니가 손 앞으로 21 cm 나와 선반 앞에서 기다릴 자리가 없음 — 계획 검사 2026-11-17)
+                # 로봇 쪽 벽 가운데 먼저 (손이 바구니 앞에서 들어감 — 자연스러움), 안 되면 가장 오른쪽 벽.
+                # 바구니 긴 면이 로봇을 보면 손 앞으로 13 cm 만 나와 선반 3층에 앞에서 넣을 수 있음 (긴 축이 앞뒤면 21 cm → 못 넣음,
+                # 계획 검사 2026-11-17). 손 기울기 30~50° 는 선반 3층 (윗판까지 35 cm) 에 바구니를 수평으로 넣기 위한 조건.
                 walls = [(np.array(b[:2]) + k * (L / 2 - WALL / 2) * u, v_) for k in (-1, 1)] + \
                         [(np.array(b[:2]) + k * (W / 2 - WALL / 2) * v_, u) for k in (-1, 1)]
-                walls.sort(key=lambda t: t[0][1])
+                near = min(walls, key=lambda t: t[0][0])
+                rightmost = min(walls, key=lambda t: t[0][1])
+                order = [near] + ([rightmost] if rightmost[0] is not near[0] else [])
                 p = None
-                for wxy, wd in walls[:2]:
+                for wxy, wd in order:
                     fp = f"--finger-perp={wd[0]:.3f},{wd[1]:.3f}"
                     for tl_ in GRAB_TILTS:
                         p = plan(a, arm, "grab", (wxy[0], wxy[1], top - GRIP_BELOW_RIM), st["desk"], st["front"], wxy[1],
@@ -406,7 +414,8 @@ def main():
                             break
                     if p:
                         break
-                if not p or ask("   바구니 오른쪽 벽: 열기 → 기울여 위에서 내려와 닫기 → 6 cm 올림. ENTER: ") == "s":
+                which = "로봇 쪽" if wxy is near[0] else "오른쪽"
+                if not p or ask(f"   바구니 {which} 벽: 열기 → 손 기울여 위에서 내려와 닫기 → 6 cm 올림. ENTER: ") == "s":
                     raise Stop("바구니 잡기 계획 실패" if not p else "바구니 잡기 건너뜀")
                 tl, t = arm.run(p, "바구니 잡기", grip_before="open", grip_after="close")
                 ax, _ = tool_axes(p)
@@ -432,15 +441,17 @@ def main():
                     raise Stop("들고 다닐 자세 계획 실패" if not p else "건너뜀")
                 arm.run(p, "들고 다닐 자세")
             elif s == "lift_down":
-                ask("게임패드로 리프트를 최저로 (RB+A/B) — 바구니가 차체에 닿지 않는지 보면서 → ENTER: ",
-                    allow_skip=False, always=True)
+                if not a.lift_mm:
+                    ask("게임패드로 리프트를 최저로 (RB+A/B) — 바구니가 차체에 닿지 않는지 보면서 → ENTER: ",
+                        allow_skip=False, always=True)
             elif s == "nav_shelf":
                 if ask(f"{a.shelf_view or '-'} → {a.shelf} 로 이동. ENTER (s = 건너뜀): ") != "s":
                     if a.shelf_view:
                         nav(a, a.shelf_view)
                     nav(a, a.shelf)
             elif s == "lift_place":
-                ask(f"게임패드로 리프트를 올려 놓을 판 ({100 * a.board:.0f} cm) 위가 보이게 → ENTER: ", allow_skip=False, always=True)
+                if not a.lift_mm:
+                    ask(f"게임패드로 리프트를 올려 놓을 판 ({100 * a.board:.0f} cm) 위가 보이게 → ENTER: ", allow_skip=False, always=True)
                 v = find(a, [])
                 pl = [p_ for p_ in v.get("planes", []) if abs(p_["z"] - a.board) < 0.06]
                 if not pl:
@@ -471,7 +482,8 @@ def main():
                 arm.back(tl, t, phases=("insert",), label="빼기")
                 arm.back(tl, tl.phase_end("approach"), label="들고 다닐 자세로")
             elif s == "finish":
-                ask("게임패드로 리프트를 최저로 → ENTER (끝): ", allow_skip=False, always=True)
+                if not a.lift_mm:
+                    ask("게임패드로 리프트를 최저로 → ENTER (끝): ", allow_skip=False, always=True)
         print("\n임무 끝.")
     except Stop as e:
         print(f"\n■ 멈춤: {e}. 팔은 지금 자세 유지. 다시: --from <단계> (위 === 이름 ===)")

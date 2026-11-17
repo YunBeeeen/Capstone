@@ -123,35 +123,36 @@ python3 $NAV/place_tour.py shelf_A desk_1 --loops 3 --wait 5   # 여러 곳 왕�
 **순서 (4-A 가 이걸 한 번에): 도착 → 리프트 올림 (책상 위가 보이게, 1 m 책상: 리프트 약 470 mm) → 찾기 → 계획 → 실행 → 리프트 내림 → 다음 장소.**
 지금은 **물체 찾기가 ZED 를 직접 열어서 J1 (ROS ZED) 을 꺼야 함** (ROS 영상으로 찾게 바꾸는 건 다음 작업).
 
-### 4-A. 전체 임무 한 번에 (`mission_run.py`, 라파) — 계획·MuJoCo 검증 통과, 실기 미확인
+### 4-A. 전체 임무 한 번에 (`mission_run.py`, 라파) — 계획·MuJoCo·대회장 시뮬 통과, 실기 미확인
 
-desk_1 → 물체 찾기 → 집기 → 바구니에 넣기 → 바구니 오른쪽 벽 잡고 들기 → shelf_A_view → shelf_A → 선반 3·4 층에 앞에서 밀어 넣기.
-팔 연결 하나로 끝까지 (play_plan 을 단계마다 부르면 끝날 때 토크가 풀림). 물체 찾기는 **ROS 영상 (`ros_find`) — 내비 켠 채로 됨**.
+desk_1 → 물체 찾기 → 집기 → 바구니에 넣기 → 바구니 로봇 쪽 벽 잡고 들기 → shelf_A_view → shelf_A → **선반 3 층 (1.00 m)** 에 앞에서 밀어 넣기.
+**리프트는 처음부터 100 mm 고정** (책상 70 cm·선반 3 층 둘 다 이 높이에서 계획됨). 팔 연결 하나로 끝까지. 물체 찾기는 ROS 영상 (`ros_find`).
 ```bash
-# 준비: Jetson 내비 (2·3 장) + docker start arm_vision_server, 라파 can_arm_r 올림, 라파 6 번 패드
+# 준비 — 리프트를 100 mm 로 올려 두고 시작 (게임패드 RB+X/Y)
+#   Jetson 내비는 카메라 높이를 맞춰서:  ros2 launch capstone_navigation jetson_nav.launch.py map:=X cam_z:=0.775
+#   docker start arm_vision_server, 라파 can_arm_r 올림, 라파 6 번 패드
 cd ~/arm && PY=~/rebot_env/venv/bin/python
-$PY tools/mission_run.py pumpkin --tier 3      # 3 층 (1.00 m)
-$PY tools/mission_run.py pumpkin --tier 4      # 4 층 꼭대기 (1.35 m)
-$PY tools/mission_run.py pumpkin --tier 3 --to drop             # 바구니에 넣기까지만
-$PY tools/mission_run.py pumpkin --tier 3 --from find           # 중간부터 (바구니·선반 단계는 find 결과가 필요)
+$PY tools/mission_run.py pumpkin                 # 기본: 리프트 100 mm 고정, 3 층
+$PY tools/mission_run.py pumpkin --to drop       # 바구니에 넣기까지만
+$PY tools/mission_run.py pumpkin --from find     # 중간부터 (바구니·선반 단계는 find 결과가 필요)
 ```
 단계: `nav_desk → lift_up → find → pick → drop → basket_grab → carry → lift_down → nav_shelf → lift_place → place → finish`
+(리프트 고정이면 lift_* 단계는 안 묻고 지나감)
 
-**놓는 자리·높이 (계획 검사로 정한 조건, 2026-11-17)**
-| | 값 |
+| 조건 (계획 검사 2026-11-17) | 값 |
 |---|---|
-| 바구니 두는 방향 (책상) | **긴 면이 로봇을 보게** (긴 축 좌우). 가장 오른쪽 벽을 잡아 바구니가 손 왼쪽 옆에 옴 |
-| 손 기울기 | 잡을 때 30~50° 앞으로 → 들고 다니고 넣을 때도 그대로 (바구니 수평) |
-| **shelf_A 설 자리** | **선반 앞면이 로봇 중심에서 0.44~0.52 m = 차체 앞면과 선반 사이 18~26 cm** (예전 10~15 cm 는 바구니를 넣을 공간이 없음 → 다시 저장) |
-| 리프트 (선반) | 3 층: ZED 약 1.1 m (리프트 약 425 mm) / 4 층: ZED 약 1.2~1.25 m (약 575 mm, 최대 1.305) |
-| 리프트 (책상 70 cm) | ZED 약 0.95 m (리프트 약 275 mm) |
-| 선반 모양 | 시뮬 선반 (폭 0.6·깊이 0.33·기둥) 에 판 높이만 0.21/0.55/1.00/1.35 (`--shelf-tops`) |
+| 리프트 | **100 mm 고정** → 내비 `cam_z:=0.775`. 4 층 (1.35 m) 은 이 높이로 안 닿음 (525 mm 이상 필요 → `--tier 4 --lift-mm 0`) |
+| 바구니 두는 방향 (책상) | **긴 면이 로봇을 보게**. 로봇 쪽 벽 가운데를 잡음 (손 앞으로 13 cm 만 나와야 선반에 들어감) |
+| 손 기울기 | 잡을 때 30~50° 앞으로 → 들고 다니고 넣을 때도 그대로 (선반 3 층은 윗판까지 35 cm 라 위에서 수직으로는 못 넣음) |
+| **shelf_A 설 자리** | **선반 앞면이 로봇 중심에서 0.44~0.52 m = 차체 앞면과 선반 사이 18~26 cm** (예전 10~15 cm 는 못 넣음 → 다시 저장) |
+| 선반 모양 | 시뮬 선반 (폭 0.6·깊이 0.33·기둥) 에 판 높이 0.21/0.55/1.00/1.35 (`--shelf-tops`) — 계획 때 선반·든 바구니 충돌 검사 |
+| ZED 깊이 | 리프트 100 mm 면 ZED 0.775 m — 책상 앞 모서리가 카메라에서 0.3 m 보다 가까우면 깊이가 안 나올 수 있음 → 처음엔 `ros_find` 로 따로 확인 |
 
-- 단계마다 ENTER (s = 건너뜀, q = 지금 자세 유지하고 끝). **이동 중엔 RT 당기기**, 리프트는 안내에 따라 게임패드로
+- 단계마다 ENTER (s = 건너뜀, q = 지금 자세 유지하고 끝). **이동 중엔 RT 당기기**
 - 막히거나 Ctrl+C → 팔 고정 → ENTER = 그 동작 시작 자세로 복귀, q = 그대로
-- 바구니 벽을 잡은 뒤 "잘 끼었나?" 를 눈으로 확인하고 ENTER. 들고 있는 바구니는 계획 때 손에 붙은 상자로 충돌 검사함
+- 바구니 벽을 잡은 뒤 "잘 끼었나?" 를 눈으로 확인하고 ENTER
 - 끝날 때 팀 팔로워가 "팔을 받친 뒤 ENTER" 를 물음 (바구니를 들고 있으면 먼저 받치기)
-- 노트북 모의: `yes "" | python3 tools/mission_run.py pumpkin --tier 3 --dry-run --yes --vision v.json --vision-shelf s.json --start=0,0,0,0,0,0`
+- 노트북 모의: `yes "" | python3 tools/mission_run.py pumpkin --dry-run --yes --vision v.json --vision-shelf s.json --start=0,0,0,0,0,0`
 
 ### 4-0. 준비
 ```bash
