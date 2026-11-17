@@ -53,5 +53,36 @@ class TestSpeedLimits(unittest.TestCase):
         self.assertEqual(adjust_limits(0.6, 2.0, 1, 1), (0.6, 2.0))      # 상한
 
 
+class TestNavUdp(unittest.TestCase):
+    def test_nav_roundtrip_and_not_mixed_with_pad(self):
+        import udp_packet as up
+        d = up.encode_nav(7, 0.1, -0.05, 0.3)
+        seq, vx, vy, w = up.decode_nav(d)
+        self.assertEqual(seq, 7)
+        self.assertAlmostEqual(vx, 0.1, places=6)
+        self.assertAlmostEqual(w, 0.3, places=6)
+        self.assertIsNone(up.decode(d))                       # 라파 브리지가 Nav 패킷을 패드 명령으로 받지 않음
+        self.assertIsNone(up.decode_nav(up.encode(1, 0.1, 0, 0)))
+        self.assertIsNone(up.decode_nav(up.encode_nav(1, float("nan"), 0, 0)))
+
+    def test_source_fresh_stale_and_reorder(self):
+        import socket
+        import time
+        import udp_packet as up
+        from virtual_pad import NavUdpSource
+        src = NavUdpSource(0)
+        port = src.sock.getsockname()[1]
+        tx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        for seq, vx in ((5, 0.1), (4, 0.9), (6, 0.2)):        # 4 = 순서 뒤집힌 옛 패킷 → 버림
+            tx.sendto(up.encode_nav(seq, vx, 0.0, 0.0), ("127.0.0.1", port))
+        time.sleep(0.05)
+        src.poll()
+        self.assertAlmostEqual(src.latest(0.5)[0], 0.2, places=6)
+        time.sleep(0.12)
+        self.assertIsNone(src.latest(0.1))                    # 오래되면 None (패드가 0 을 냄)
+        src.close()
+        tx.close()
+
+
 if __name__ == "__main__":
     unittest.main()

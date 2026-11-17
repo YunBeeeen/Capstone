@@ -35,6 +35,9 @@
   python3 virtual_pad.py --udp raspberrypi.local --nav-topic /nav/cmd_vel --max-lin 0.2 --max-ang 0.5
   N (키보드) 또는 게임패드 RT 를 반 넘게 당기고 있는 동안만 Nav2 명령을 보냄 (데드맨). 놓으면 0.
   N 은 창 포커스가 있어야 읽힘 (잃으면 0). 게임패드는 창 포커스와 상관없이 읽힘.
+  Nav2 가 다른 컴퓨터 (Jetson, ROS 배포판이 다름) 에 있고 패드는 라파에 꽂을 때 — ROS 대신 UDP 로 받기:
+    Jetson: python3 nav_cmd_udp.py --to <라파>          (/nav/cmd_vel → UDP 5006)
+    라파:   SDL_VIDEODRIVER=dummy python3 virtual_pad.py --udp 127.0.0.1 --nav-udp 5006 --max-lin 0.15 --max-ang 0.4
   마우스 패드·Q/E·게임패드(RB)를 쓰면 사람 입력이 우선. Nav2 명령도 --max-lin / --max-ang 로 다시 자름.
 
 패드에서 손을 떼도 0 을 계속 보냄 (rate Hz) → swerve_controller 는 ACTIVE 유지(속도 0 = 제자리).
@@ -281,6 +284,51 @@ class NavSource:
             self.rclpy.shutdown()
 
 
+class NavUdpSource:
+    """NavSource 와 같은 역할을 UDP 로 (--nav-udp PORT). Jetson nav_cmd_udp.py 가 /nav/cmd_vel 을 보냄. ROS 필요 없음.
+    순서가 뒤집힌 옛 패킷은 버림 (보내는 쪽이 다시 켜져 seq 가 작아지면 1 초 뒤부터 다시 받음)."""
+
+    def __init__(self, port, allow_from=None):
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock.bind(("0.0.0.0", int(port)))
+        self.sock.setblocking(False)
+        self.allow = socket.gethostbyname(allow_from) if allow_from else None
+        self.last, self.t, self.seq = (0.0, 0.0, 0.0), 0.0, None
+        self.src = None
+        print(f"[nav] UDP {port} 에서 Nav2 명령 받는 중" + (f" ({self.allow} 에서 온 것만)" if self.allow else "")
+              + " — Jetson 에서 nav_cmd_udp.py 실행 중이어야 함")
+
+    def poll(self):
+        while True:
+            try:
+                data, addr = self.sock.recvfrom(64)
+            except (BlockingIOError, OSError):
+                return
+            if self.allow and addr[0] != self.allow:
+                continue
+            d = up.decode_nav(data)
+            if d is None:
+                continue
+            seq, vx, vy, w = d
+            now = time.monotonic()
+            fresh = self.seq is None or now - self.t > 1.0 or ((seq - self.seq) & 0xFFFFFFFF) < 0x80000000
+            if not fresh:
+                continue
+            if addr[0] != self.src:
+                print(f"[nav] {addr[0]} 에서 Nav2 명령 수신 시작")
+                self.src = addr[0]
+            self.seq, self.last, self.t = seq, (vx, vy, w), now
+
+    def latest(self, max_age):
+        return self.last if time.monotonic() - self.t < max_age else None
+
+    def age(self):
+        return time.monotonic() - self.t if self.t else float("inf")
+
+    def close(self):
+        self.sock.close()
+
+
 class UdpSink:
     """노트북 → 라파 udp_teleop_bridge.py. 패킷 udp_packet.py (v2: 속도 + 리프트), 라파가 5 Hz 로 JSON 상태를 돌려줌."""
 
@@ -355,7 +403,9 @@ def run(args):
     import pygame
 
     sink = UdpSink(args.udp) if args.udp else RosSink(args.topic)
-    nav = NavSource(args.nav_topic) if args.nav_topic else None
+    nav = (NavUdpSource(args.nav_udp, args.nav_udp_from) if args.nav_udp
+           else NavSource(args.nav_topic) if args.nav_topic else None)
+    nav_label = f"udp {args.nav_udp}" if args.nav_udp else args.nav_topic
     pygame.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption(f"capstone virtual pad → {args.topic}")
@@ -483,8 +533,8 @@ def run(args):
             if nav is not None:
                 a = nav.age()
                 held = keys[pygame.K_n] or (gpad is not None and gpad.nav_held())
-                screen.blit(font.render(f"NAV: hold N or RT = autonomous ({args.nav_topic}, last cmd {a:.1f}s ago)"
-                                        if a < 1e6 else f"NAV: hold N = autonomous ({args.nav_topic}, no cmd yet)",
+                screen.blit(font.render(f"NAV: hold N or RT = autonomous ({nav_label}, last cmd {a:.1f}s ago)"
+                                        if a < 1e6 else f"NAV: hold N = autonomous ({nav_label}, no cmd yet)",
                                         True, (120, 230, 120) if held and source == "nav" else (200, 180, 90)), (16, 96))
             gname = gpad.name() if gpad is not None else None
             screen.blit(font.render(f"gamepad: {gname}  (hold RB + sticks)" if gname else "gamepad: none",
@@ -522,6 +572,9 @@ def main():
     ap.add_argument("--no-gamepad", action="store_true", help="게임패드 읽지 않음")
     ap.add_argument("--nav-topic", metavar="TOPIC",
                     help="Nav2 속도 토픽 (예 /nav/cmd_vel). 주면 N 또는 게임패드 RT 를 당기는 동안만 그 값을 로봇에 보냄 (ROS source 필요)")
+    ap.add_argument("--nav-udp", type=int, metavar="PORT",
+                    help="Nav2 명령을 ROS 대신 이 UDP 포트로 받음 (Jetson nav_cmd_udp.py, 기본 5006). --nav-topic 대신")
+    ap.add_argument("--nav-udp-from", metavar="HOST", help="--nav-udp 에서 이 주소에서 온 것만 받음 (예 Jetson)")
     ap.add_argument("--nav-timeout", type=float, default=0.5, help="Nav2 명령이 이보다 오래되면 0 [s]")
     ap.add_argument("--rate", type=float, default=20.0, help="발행 주기 [Hz] (swerve cmd_timeout 0.3 s 보다 충분히 빠르게)")
     ap.add_argument("--max-lin", type=float, default=0.3, help="패드 끝 |vx|,|vy| [m/s] (swerve max_wheel_mps 0.6)")

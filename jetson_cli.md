@@ -1,6 +1,6 @@
 # Jetson CLI — 대회장: 1. 매핑 → 2. 이동 자동화
 
-구성 (2026-11-17~): **Jetson = ZED·매핑·Nav2·가상 패드(게임패드)**, **라파 = 주행·리프트 브리지**, 둘은 iDLE 유선 (Jetson 192.168.1.11, 라파 192.168.1.12).
+구성 (2026-11-17~): **Jetson = ZED·매핑·Nav2 (+ Nav2 명령 UDP 중계)**, **라파 = 게임패드·주행·리프트 브리지**, 둘은 iDLE 유선 (Jetson 192.168.1.11, 라파 192.168.1.12).
 노트북은 접속·RViz 용 (랜선으로 iDLE 에 꽂으면 `ssh jetson` 이 바로 붙음).
 
 > Jetson 에서 확인한 것: ZED ROS (영상 13 Hz·깊이 15 Hz·자세 30 Hz), 게임패드 주행. **매핑·Nav2 주행은 Jetson 에서 아직 안 돌려 봄** — 대회장에서 처음이면 짧게 먼저 시험.
@@ -20,6 +20,7 @@ ros2 launch wheel_can_bridge wheel_can_bridge.launch.py      # 2: 구동
 ros2 launch swerve_controller swerve_controller.launch.py    # 3: cmd_vel → 조향·구동
 ros2 run capstone_teleop udp_teleop_bridge.py                # 4: 패드 UDP 수신 ← 빠지면 안 움직임
 ros2 run lift_bridge lift_bridge_node.py                     # 5: 리프트
+~/pad/scripts/pad_pi.sh                                      # 6: 게임패드 (라파 USB, ROS source 필요 없음)
 ```
 
 ### Jetson
@@ -32,10 +33,12 @@ source ~/nav_env.sh        # ROS + ZED + capstone_ws, ROS_DOMAIN_ID=21, 라파 �
 | 터미널 | 명령 | |
 |---|---|---|
 | J1 ZED | `ros2 launch capstone_navigation zed.launch.py` | 영상·깊이·자세 (깊이 모델 최적화는 끝나 있음) |
-| J4 패드 | `pad` | 게임패드 (Jetson USB, X-Box 모드). SSH·화면 없이 됨. Jetson 모니터 앞이면 `$NAV/pad.sh` = 창 |
+| J4 Nav2 중계 | `python3 ~/capstone_ws/src/teleop/scripts/nav_cmd_udp.py` | Nav2 속도 (`/nav/cmd_vel`) → UDP 5006 → 라파 6번 패드. 매핑만 할 땐 없어도 됨 |
 
 게임패드: **RB 누른 채 스틱 = 수동**, **RT 당기고 있기 = Nav2 명령 통과** (떼면 정지), 십자키 = 속도 상한, RB+Y/A/X/B = 리프트.
-안 움직이면: 라파 4번 켜졌나 → `pad` 첫 줄에 `Xbox 360 Controller` 나오나 (안 나오면 게임패드 다시 꽂기).
+안 움직이면: 라파 4번 켜졌나 → 라파 6번 첫 줄에 `[gamepad] ...` 이름이 나오나 (안 나오면 게임패드 다시 꽂기).
+RT 를 당겨도 Nav2 로 안 가면: Jetson J4 가 `N 개/s` 를 세고 있나, 라파 6번에 `[nav] 192.168.1.11 에서 Nav2 명령 수신 시작` 이 나왔나.
+(예전처럼 게임패드를 Jetson 에 꽂을 때: J4 에서 `pad` — 그땐 라파 6번·J4 중계는 끔. 패드는 하나만)
 
 ---
 
@@ -71,7 +74,7 @@ python3 $NAV/place_mark.py --delete desk_1
 
 ## 2. 이동 자동화 (재위치 + Nav2)
 
-J1 (ZED) · J4 (패드) 는 그대로.
+J1 (ZED) · J4 (Nav2 중계) · 라파 6번 (패드) 은 그대로.
 
 ```bash
 # J2 — 재위치 (지도 고정)
@@ -147,7 +150,7 @@ scp jetson:maps/X.db ~/maps/X_jetson.db && source /opt/ros/humble/setup.bash && 
 ## 끄기
 
 Jetson: J5 → J3 (Nav2) → J2 (매핑이면 **저장 끝날 때까지 기다림**) → J1 → J4 순서로 Ctrl+C.
-라파: 5 (리프트, 최하단까지 내려가며 꺼짐 — 기다림) → 4 → 3 → 2 → 1.
+라파: 6 (패드) → 5 (리프트, 최하단까지 내려가며 꺼짐 — 기다림) → 4 → 3 → 2 → 1.
 
 ---
 
@@ -157,8 +160,8 @@ Jetson: J5 → J3 (Nav2) → J2 (매핑이면 **저장 끝날 때까지 기다�
 |---|---|
 | 경로 | 노트북 `~/capstone/capstone_ws/...` 대신 Jetson `~/capstone_ws/...` (`$NAV`). 지도 `~/maps/` (노트북 지도는 없음). `unable to open database file` 이면 `mkdir -p ~/maps` |
 | 인터넷 | Jetson 은 인터넷 없음. 설치가 더 필요하면 노트북을 랜선으로 꽂고 터널 (`ssh -N -R 127.0.0.1:1080 jetson`), apt 에 `-o Acquire::http::Proxy=socks5h://127.0.0.1:1080 -o Acquire::https::Proxy=socks5h://127.0.0.1:1080` |
-| 게임패드 | Jetson 커널에 X-Box 드라이버를 직접 빌드해 넣음 (`~/xpad_build`, 부팅 때 자동). JetPack 업데이트하면 다시 빌드 |
+| 게임패드 | 지금은 라파에 꽂음 (`~/pad` = 노트북 레포 teleop/scripts + config 복사본). Jetson 에 꽂을 때: Jetson 커널에 X-Box 드라이버를 직접 빌드해 넣음 (`~/xpad_build`, 부팅 때 자동). JetPack 업데이트하면 다시 빌드 |
 | ZED 한 대 | 매핑·Nav2 가 ZED 를 쓰는 동안 물체 찾기 `svo_find --live` 는 ZED 를 못 엶 (ROS 영상으로 찾는 건 다음 작업) |
 | 선반 글자 찾기 | OWLv2 선반 서버 (5577) 는 Jetson 에 아직 안 띄움 → place_mark/place_go 는 예전 방식으로 동작 |
-| 리프트 경고 | `pad` 의 `[lift] 경고: Pico mm/count 0.10980 ≠ 브리지 0.21574` = 리프트 높이 단위 불일치 (라파 리프트 설정). 주행·조그엔 영향 없음, 높이 mm 표시가 틀림 |
+| 리프트 경고 | 패드의 `[lift] 경고: Pico mm/count 0.10980 ≠ 브리지 0.21574` = 리프트 높이 단위 불일치 (라파 리프트 설정). 주행·조그엔 영향 없음, 높이 mm 표시가 틀림 |
 | 패드 오류 | `source ~/nav_env.sh` 에서 `syntax error near '('` 가 나오면 옛 `pad` 별칭이 남은 터미널 — 고쳐 둠, 새 터미널에서 다시 |
