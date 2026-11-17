@@ -14,7 +14,7 @@
   4) 요약을 보여 주고 y 를 입력해야 움직임
   5) play_plan (시작 점검·enable 확인·Ctrl+C 복귀·막힘 정지 그대로)
 목표 = 물체 중심 (+ --dz). IK 가 맞추는 점은 손가락 끝 — 위에서 내려오면 손가락 끝이 물체 중심 높이까지 내려옴.
-Jetson 접속: 라파의 ~/.ssh/id_ed25519_jetson 으로 idle@192.168.1.11 (수집기와 같은 키).
+Jetson 접속: 라파의 ~/.ssh/id_ed25519_jetson 으로 idle@jetson.local (수집기와 같은 키, 이름이라 주소가 바뀌어도 됨).
 """
 import argparse
 import json
@@ -47,7 +47,7 @@ def main():
     ap.add_argument("--descend", type=float, default=0.06, help="접근점 높이 = 목표 위 [m]")
     ap.add_argument("--dz", type=float, default=0.0, help="목표 높이 보정 [m] (− = 더 깊이)")
     ap.add_argument("--min-score", type=float, default=0.15)
-    ap.add_argument("--jetson", default="idle@192.168.1.11")
+    ap.add_argument("--jetson", default="idle@jetson.local")
     ap.add_argument("--speed", type=float, default=1.0, help="play_plan 속도 배율 (1.0 = 팔로워 한계 30°/s·120°/s²)")
     ap.add_argument("--settle-deg", type=float, default=2.0, help="play_plan 끝 도착 인정 오차 [도]")
     ap.add_argument("--yes", action="store_true", help="확인 질문 없이 바로 움직임")

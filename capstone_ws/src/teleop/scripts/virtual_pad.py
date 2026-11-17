@@ -292,7 +292,12 @@ class NavUdpSource:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind(("0.0.0.0", int(port)))
         self.sock.setblocking(False)
-        self.allow = socket.gethostbyname(allow_from) if allow_from else None
+        self.allow = None
+        if allow_from:
+            try:
+                self.allow = socket.gethostbyname(allow_from)
+            except OSError:
+                print(f"[nav] {allow_from} 주소를 못 찾음 — 아무 데서 온 Nav2 명령이나 받음")
         self.last, self.t, self.seq = (0.0, 0.0, 0.0), 0.0, None
         self.src = None
         print(f"[nav] UDP {port} 에서 Nav2 명령 받는 중" + (f" ({self.allow} 에서 온 것만)" if self.allow else "")
