@@ -44,7 +44,7 @@ class ZedBaseTf(Node):
         super().__init__("zed_base_tf")
         self.cx = self.declare_parameter("cam_x", 0.0).value   # 차체 중심 → 카메라 (앞 +) [m]
         self.cy = self.declare_parameter("cam_y", 0.0).value   # (왼 +)
-        self.cz = self.declare_parameter("cam_z", 1.0).value   # 바닥 → zed_camera_link 높이
+        self.declare_parameter("cam_z", 1.0)   # 바닥 → zed_camera_link 높이 (매 콜백 읽음 — ros2 param set /zed_base_tf cam_z 1.0)
         # ZED 가 추정한 숙임·옆 기울기에 더할 보정 [deg]. 실측 2026-11-12: ZED pose 의 숙임 20.9° 로는 바닥이 1 m 당 1.9 cm 씩
         #  떠 보임 (2.5 m 에서 +5 cm → 8 cm 기준에 가까워져 가짜 장애물). tools/zed_floor_level.py 가 권장값을 알려 줌.
         #  매 콜백마다 읽으므로 ros2 param set /zed_base_tf pitch_offset_deg 1.1 로 켠 채 바꿀 수 있음
@@ -80,7 +80,7 @@ class ZedBaseTf(Node):
         (t1.transform.rotation.x, t1.transform.rotation.y, t1.transform.rotation.z, t1.transform.rotation.w) = qb
         t2 = TransformStamped()
         t2.header.stamp, t2.header.frame_id, t2.child_frame_id = m.header.stamp, self.base_frame, self.cam_frame
-        t2.transform.translation.x, t2.transform.translation.y, t2.transform.translation.z = self.cx, self.cy, self.cz
+        t2.transform.translation.x, t2.transform.translation.y, t2.transform.translation.z = self.cx, self.cy, self.get_parameter("cam_z").value  # 켠 채 바뀜 (lift_cam_z.py 가 리프트 높이로 넣음)
         (t2.transform.rotation.x, t2.transform.rotation.y, t2.transform.rotation.z, t2.transform.rotation.w) = qc
         self.tf.sendTransform([t1, t2])
 

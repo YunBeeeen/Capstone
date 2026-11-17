@@ -5,7 +5,7 @@ find_package(ament_cmake REQUIRED)
 
 install(DIRECTORY config launch DESTINATION share/${PROJECT_NAME})
 # 가상 패드 (pygame) — joystick_math.py 는 같은 폴더에서 import
-install(PROGRAMS scripts/virtual_pad.py scripts/gamepad_teleop.py scripts/udp_teleop_bridge.py scripts/nav_cmd_udp.py scripts/estop.py DESTINATION lib/${PROJECT_NAME})
+install(PROGRAMS scripts/virtual_pad.py scripts/gamepad_teleop.py scripts/udp_teleop_bridge.py scripts/nav_cmd_udp.py scripts/estop.py scripts/lift_udp.py scripts/lift_cam_z.py DESTINATION lib/${PROJECT_NAME})
 install(FILES scripts/joystick_math.py scripts/gamepad_map.py scripts/udp_packet.py DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)

@@ -21,7 +21,8 @@
 | **L1** | 노트북 | 비상정지 `estop.py` — **실험 내내 이 창에 포커스, 손은 Space 위** |
 | L2 | 노트북 | 배포 비교·사진 받기 (`~/capstone` 에서) |
 | **R0~R6** | 라파 (`ssh raspberrypi` 7 개) | 0 CAN, 1 조향, 2 구동, 3 swerve, 4 UDP 브리지, 5 리프트, 6 패드 (아래 "0. 켜기" 와 같음) |
-| R7 | 라파 | 팔 (`mission_run`, 시험 E) |
+| **R7** | 라파 | 리프트 높이 → Jetson (`lift_udp.py`) — Jetson 이 카메라 높이 cam_z 를 리프트에 맞춤 (못 받으면 1.0) |
+| R8 | 라파 | 팔 (`mission_run`, 시험 E) |
 | **J1** | Jetson (`ssh jetson`) | `jetson_nav.launch.py` (ZED + 재위치 + 바닥 보정 + Nav2 + Nav2→라파 중계, 한 번에) |
 | **J2** | Jetson | 위치 찾기 → Nav2 목표·장소 저장 |
 | **J3** | Jetson | 속도 직접 보내기 (시험 A·B), 물체 찾기 (시험 D) |
@@ -30,7 +31,8 @@ Jetson 창은 열자마자 `source ~/nav_env.sh` 먼저.
 ### 0. 출발 전 — 내 코드만 비교해서 넣기 (L2)
 **넣는 것 = 내가 쓰던 폴더의 내 파일만**:
 - 라파 `~/arm` (= `~/arm_play/ws/arm_kinematics`): `tools/mission_run.py`, `tools/ik_sim_run.py` (+ 다르면 `tools/play_plan.py`, `arm_kinematics/ik.py`)
-- 라파 `~/pad/scripts`: `virtual_pad.py`, `udp_packet.py`, `pad_pi.sh`, `nav_to.sh` (새 파일 — `navigation/tools/nav_to.sh`)
+- 라파 `~/pad/scripts`: `virtual_pad.py`, `udp_packet.py`, `pad_pi.sh`, `lift_udp.py` (새), `nav_to.sh` (새 — `navigation/tools/nav_to.sh`)
+- Jetson `~/capstone_ws/src`: `navigation/scripts/zed_base_tf.py`, `navigation/launch/jetson_nav.launch.py`, `teleop/scripts/{udp_packet,lift_cam_z,virtual_pad,estop}.py`, `teleop/CMakeLists.txt` → **넣은 뒤 Jetson 에서 `cd ~/capstone_ws && colcon build --packages-select capstone_navigation capstone_teleop`**
 - Jetson `~/capstone_ws/src/navigation/tools/nav_goal_ahead.py`, `~/arm_vision/tools/ros_find.py`
 
 **안 건드림**: 라파 `~/rebot_env` (팀 lerobot·동료 팔 스크립트·venv), `~/collector_run`, `~/capstone` (R1~R5 주행·리프트), `~/lift` · Jetson `arm_vision_server` 도커, launch·config, 내가 노트북에서만 고친 내비 파일 (place_mark·map.launch 등).
@@ -65,9 +67,10 @@ ssh raspberrypi "cp arm/tools/mission_run.py arm/tools/mission_run.py.bak_1119" 
 | 1 | R0 | `~/capstone/capstone_ws/can/can_up.sh` | 에러 없이 끝 |
 | 2 | R1~R5 | "0. 켜기" 의 1~5 번 (각 창 `source …` 먼저) | R4 `udp_teleop_bridge` 떠 있음 |
 | 3 | R6 | `~/pad/scripts/pad_pi.sh` | 첫 줄 `[nav] 자동 (데드맨 없음)…`, `[gamepad] Xbox 360 Controller` |
-| 4 | 패드 | RB+X/Y 로 리프트 **325 mm = 카메라 렌즈 바닥에서 1.00 m** (줄자) | |
+| 4 | R7 | `source /opt/ros/jazzy/setup.bash && source ~/capstone/capstone_ws/install/setup.bash && python3 ~/pad/scripts/lift_udp.py` | `높이 N mm` (2 초마다). R5 가 꺼져 있으면 `/lift_state 아직 없음` |
+| 4-1 | 패드 | RB+X/Y 로 리프트 **325 mm = 카메라 렌즈 바닥에서 1.00 m** (줄자) | |
 | 5 | **L1** | `python3 ~/capstone/capstone_ws/src/teleop/scripts/estop.py` | `■ 정지  라파 연결 OK`, R6 에 `[estop] … 노트북 비상정지 연결` |
-| 6 | J1 | `ros2 launch capstone_navigation jetson_nav.launch.py map:=X cam_z:=1.0` (로봇 앞 2 m 빈 바닥) | 20 초 `[바닥 보정] 끝`, 25 초 `Managed nodes are active`, `… 12 로 보냄` |
+| 6 | J1 | `ros2 launch capstone_navigation jetson_nav.launch.py map:=X cam_z:=1.0` (로봇 앞 2 m 빈 바닥) | `[lift_cam_z] 리프트 325 mm → cam_z 1.000`, 20 초 `[바닥 보정] 끝`, 25 초 `Managed nodes are active`, `… 12 로 보냄` |
 | 7 | J2 | `python3 $NAV/rtabmap_loc_monitor.py` → 패드 **RB** 로 살짝 움직이거나 돌림 | `위치 찾음` → Ctrl+C |
 | 8 | J3 | `docker start arm_vision_server` (시험 D 용, 지금 켜 둠) | |
 L1 이 안 붙으면 `estop.py --to 192.168.0.12`. R6 에 `[nav] … 수신 시작` 은 J1 중계가 처음 보낼 때 뜸.
@@ -133,7 +136,7 @@ scp jetson:/tmp/v.jpg jetson:/tmp/v.json ~/ && xdg-open ~/v.jpg                 
 ```
 확인: `zed_height` ≈ 1.00, 책상 `support_z` ≈ 0.70, 호박·바구니 위치가 맞나, 바구니 `yaw` ≈ 0° (짧은 변이 로봇)
 
-### 6. 시험 E — 팔 단계별 (R7, desk_1 에 선 채로 — `--from find` 는 이동 안 함)
+### 6. 시험 E — 팔 단계별 (R8, desk_1 에 선 채로 — `--from find` 는 이동 안 함)
 ```bash
 sudo ~/capstone/capstone_ws/can/can_up.sh && cd ~/arm && PY=~/rebot_env/venv/bin/python
 $PY tools/mission_run.py pumpkin --from find --to pick          # ① 집기만 (집고 올림)
@@ -141,7 +144,7 @@ $PY tools/mission_run.py pumpkin --from find --to drop          # ② 바구니�
 $PY tools/mission_run.py pumpkin --from find --to basket_grab   # ③ 바구니 짧은 벽 잡고 10 cm 들기
 $PY tools/mission_run.py pumpkin                                # ④ 전체 (desk_1 → … → 선반 3 층)
 ```
-- 단계마다 ENTER, 이상하면 R7 에서 **Ctrl+C** (팔 고정 → ENTER = 왔던 길로 복귀). 끝에 "팔을 받친 뒤 ENTER"
+- 단계마다 ENTER, 이상하면 R8 에서 **Ctrl+C** (팔 고정 → ENTER = 왔던 길로 복귀). 끝에 "팔을 받친 뒤 ENTER"
 - 계획 실패 원인: 라파 `/tmp/mission_<단계>.log`
 - ④ 이동 구간은 L1 ▶ 이어야 감. 선반: 보는 자리에서 팔이 바구니를 판 위 높이로 → Nav2 로 다가감 → **바구니가 판 위로 들어가는지 L1 Space 에 손 올리고 보기**
 
@@ -354,7 +357,7 @@ Jetson (두뇌): 장소 도착 → 리프트 올림 → ② 찾기 → 라파에
 
 ## 높이 주의 (리프트·카메라)
 1. 리프트 최저면 ZED 약 0.7 m — 책상 윗면 1.0 m 는 1.25 m 밖에서부터, 선반 위 판은 약 2.5 m 밖에서부터 보임 → 매핑 때 멀리서 한 번씩.
-2. 내비는 카메라 높이를 리프트 최저 (`cam_z 0.675`) 로 가정 → **리프트 올린 채 주행 금지.** `place_mark --view` 사진도 리프트 최저에서.
+2. 내비 카메라 높이 (cam_z) 는 **라파 R7 `lift_udp.py` 가 켜져 있으면 리프트를 따라 바뀜** (Jetson `lift_cam_z`, 0.675 + mm/1000). 못 받거나 이상하면 1.0 m. 리프트 다른 높이로 주행할 거면 R7 필수.
 3. 팔 작업 때만 리프트 올림 → 끝나면 내리고 이동.
 
 ## 끄기

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """노트북 패드 ↔ 라파 UDP 패킷 (v1 호환 + v2 리프트)."""
 import struct
+import math
 import unittest
 
 import udp_packet as up
@@ -122,6 +123,18 @@ class TestNavUdp(unittest.TestCase):
         self.assertEqual(src.estop(), "stop")                   # 끊긴 뒤엔 진행 신호가 다시 와야 감
         src.close()
         tx.close()
+
+
+class TestLiftHeight(unittest.TestCase):
+    def test_lift_packets(self):
+        self.assertEqual(up.decode_lift_req(up.encode_lift_req(7)), 7)
+        seq, h, flags, age = up.decode_lift(up.encode_lift(7, 325.0, up.LIFT_HAVE | up.LIFT_CONNECTED | up.LIFT_HOMED, 0.1))
+        self.assertEqual((seq, round(h, 1), flags, age), (7, 325.0, 7, 0.1))
+        _, h, flags, age = up.decode_lift(up.encode_lift(1, None, 0, None))
+        self.assertTrue(math.isnan(h))
+        self.assertEqual((flags, age), (0, 65.535))
+        self.assertIsNone(up.decode_lift(up.encode_estop(1, True)))
+        self.assertIsNone(up.decode_lift_req(up.encode_lift(1, 0.0, 0, 0)))
 
 
 if __name__ == "__main__":

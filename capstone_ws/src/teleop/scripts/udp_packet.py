@@ -8,6 +8,11 @@ Nav2 중계 (Jetson nav_cmd_udp.py → 라파 virtual_pad.py --nav-udp, 기본 �
 NAV (20 B): b"NAV2" + <I seq> + <f vx> <f vy> <f omega>   — 패드가 RT 를 당기는 동안만 로봇에 넘김
 ESTOP (9 B): b"STOP" + <I seq> + <B run>  — 노트북 estop.py → 라파 패드 (NAV 와 같은 포트). run 0 = 정지, 1 = 진행.
   라파는 같은 주소로 b"STAK" + <I seq> 를 돌려줌 (연결 확인)
+
+리프트 높이 (Jetson lift_cam_z.py ↔ 라파 lift_udp.py, 포트 5007) — Jetson 이 묻고 라파가 같은 주소로 답함:
+LREQ (8 B):  b"LREQ" + <I seq>
+LIFT (15 B): b"LIFT" + <I seq> + <f height_mm> + <B flags> + <H age_ms>
+  flags: 1 = /lift_state 받은 적 있음, 2 = Pico 연결, 4 = 원점 등록 (height_mm 유효). age_ms = 마지막 /lift_state 뒤 시간 (최대 65535)
 """
 import math
 import struct
@@ -21,6 +26,11 @@ NAV_PORT = 5006
 ESTOP_MAGIC, ESTOP_ACK = b"STOP", b"STAK"
 ESTOP_PKT = struct.Struct("<4sIB")
 ESTOP_ACK_PKT = struct.Struct("<4sI")
+LIFT_PORT = 5007
+LIFT_REQ, LIFT_REP = b"LREQ", b"LIFT"
+LIFT_REQ_PKT = struct.Struct("<4sI")
+LIFT_REP_PKT = struct.Struct("<4sIfBH")
+LIFT_HAVE, LIFT_CONNECTED, LIFT_HOMED = 1, 2, 4
 
 # lift_flags 비트
 LIFT_STOP = 1   # 리프트 정지 + 주차 취소
@@ -85,3 +95,28 @@ def decode_estop_ack(data):
         return None
     magic, seq = ESTOP_ACK_PKT.unpack(data)
     return seq if magic == ESTOP_ACK else None
+
+
+def encode_lift_req(seq):
+    return LIFT_REQ_PKT.pack(LIFT_REQ, seq & 0xFFFFFFFF)
+
+
+def decode_lift_req(data):
+    if len(data) != LIFT_REQ_PKT.size:
+        return None
+    magic, seq = LIFT_REQ_PKT.unpack(data)
+    return seq if magic == LIFT_REQ else None
+
+
+def encode_lift(seq, height_mm, flags, age_s):
+    h = height_mm if height_mm is not None and math.isfinite(height_mm) else float("nan")
+    age = 65535 if age_s is None else max(0, min(65535, int(age_s * 1000)))
+    return LIFT_REP_PKT.pack(LIFT_REP, seq & 0xFFFFFFFF, h, flags & 0xFF, age)
+
+
+def decode_lift(data):
+    """→ (seq, height_mm, flags, age_s) 또는 None. height_mm 은 NaN 일 수 있음."""
+    if len(data) != LIFT_REP_PKT.size:
+        return None
+    magic, seq, h, flags, age = LIFT_REP_PKT.unpack(data)
+    return (seq, h, flags, age / 1000.0) if magic == LIFT_REP else None
