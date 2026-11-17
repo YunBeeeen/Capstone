@@ -6,7 +6,9 @@
   python3 src/navigation/tools/nav_goal_ahead.py --abs 3.2 -1.0 180   # map 좌표 (x, y, yaw°) 그대로
   python3 src/navigation/tools/nav_goal_ahead.py --name shelf_A       # place_mark.py 로 기억한 자리 (지도 옆 places.yaml)
   python3 src/navigation/tools/nav_goal_ahead.py --name shelf_A --dry # 목표만 계산해 보여 주고 안 보냄
-진행 중 남은 거리를 1 초마다 출력. Ctrl+C = 목표 취소 (로봇은 가상 패드 N 을 떼면 바로 멈춤).
+진행 중 남은 거리를 1 초마다 출력. Ctrl+C = 목표 취소.
+도착할 때까지 안 끝남 (sh 에서 쓰기 좋게). 종료 코드: 0 = 도착 (Nav2 성공), 1 = 실패·취소·거절, 2 = 준비 안 됨 (TF·지도·Nav2·장소 없음), 130 = Ctrl+C.
+--dry 는 0.
 """
 import argparse
 import math
@@ -55,7 +57,7 @@ def main():
             pass
     if cur is None:
         print("TF map→base_footprint 없음 — slam.launch(재위치)가 떠 있나?")
-        return
+        return 2
     if a.name:
         mc = places.MapClient(n)
         path = Path(a.places).expanduser() if a.places else None
@@ -63,12 +65,12 @@ def main():
             db = mc.db_path()
             if not db:
                 print("RTAB-Map 에서 지도 경로를 못 얻음 — slam.launch 가 떠 있나? (또는 --places 로 지정)")
-                return
+                return 2
             path = places.places_path(db)
         pl = places.load(path)
         if a.name not in pl:
             print(f"'{a.name}' 이 {path} 에 없음. 있는 것: {', '.join(pl) or '(없음)'}")
-            return
+            return 2
         (gx, gy, gyaw), how = places.resolve(pl[a.name], mc.graph())
         if a.back:
             gx, gy = gx - a.back * math.cos(gyaw), gy - a.back * math.sin(gyaw)
@@ -78,7 +80,7 @@ def main():
             # 이어서 매핑한 새 세션이 아직 옛 지도와 안 이어졌거나 다른 지도를 띄운 경우: 저장 좌표는 지금 지도와 기준이 다를 수 있음
             print("  기준 노드가 지금 지도에 없음 → 보내지 않음. 옛 지도와 아직 안 이어졌거나(이어서 매핑 중) 다른 지도일 수 있음."
                   " 그래도 저장 좌표로 보내려면 --force")
-            return
+            return 2
         if not pl[a.name].get("static", True):
             print("  주의: 옮겨질 수 있는 물체로 표시됨 — 도착 후 실제로 있는지 확인 필요")
     elif a.abs:
@@ -89,11 +91,11 @@ def main():
     print(f"지금 map ({cur[0]:.2f}, {cur[1]:.2f}, {math.degrees(cur[2]):.0f}°) → 목표 ({gx:.2f}, {gy:.2f}, {math.degrees(gyaw):.0f}°)"
           f"  직선 {math.hypot(gx - cur[0], gy - cur[1]):.2f} m")
     if a.dry:
-        return
+        return 0
     cli = ActionClient(n, NavigateToPose, "navigate_to_pose")
     if not cli.wait_for_server(timeout_sec=10.0):
         print("navigate_to_pose 액션 없음 — nav.launch 가 떠 있나?")
-        return
+        return 2
     g = NavigateToPose.Goal()
     g.pose = PoseStamped()
     g.pose.header.frame_id = "map"
@@ -104,7 +106,7 @@ def main():
     h = places.send_goal(n, cli, g, lambda m: fb.__setitem__("d", m.feedback.distance_remaining))
     if h is None or not h.accepted:
         print("목표 거절됨")
-        return
+        return 1
     print("목표 수락 — 라파 패드: 자동이면 그냥 감 (RT = 정지, Start = 다시), 데드맨 모드면 RT 를 누르고 있기")
     res = h.get_result_async()
     last = 0.0
@@ -117,7 +119,7 @@ def main():
     except KeyboardInterrupt:
         h.cancel_goal_async()
         print("취소")
-        return
+        return 130
     st = {4: "성공", 5: "취소됨", 6: "실패(중단)"}.get(res.result().status, str(res.result().status))
     try:
         tr = tf.lookup_transform("map", "base_footprint", rclpy.time.Time()).transform
@@ -125,7 +127,8 @@ def main():
         print(f"결과: {st}, 목표까지 남은 오차 {e * 100:.0f} cm (map 기준)")
     except Exception:
         print(f"결과: {st}")
+    return 0 if res.result().status == 4 else 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

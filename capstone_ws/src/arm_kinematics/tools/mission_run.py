@@ -263,7 +263,7 @@ def nav(a, name, back=0.0):
 def nav_cancel(a):
     """Jetson 의 Nav2 목표를 모두 취소 (ssh 가 끊겨도 Jetson 쪽 nav_goal_ahead·목표는 살아 있을 수 있어서)."""
     print("  Nav2 목표 취소 중…")
-    r = jetson(a, "pkill -INT -f nav_goal_ahead.py; ros2 service call /navigate_to_pose/_action/cancel_goal "
+    r = jetson(a, "pkill -INT -f '[n]av_goal_ahead.py'; ros2 service call /navigate_to_pose/_action/cancel_goal "
                   "action_msgs/srv/CancelGoal '{}' | tail -1")
     print("   " + (r.stdout.strip().splitlines() or ["(응답 없음)"])[-1])
 
@@ -368,7 +368,7 @@ def main():
     ap.add_argument("--from", dest="from_", choices=STEPS, default=STEPS[0])
     ap.add_argument("--to", choices=STEPS, default=STEPS[-1])
     ap.add_argument("--yes", action="store_true", help="단계마다 묻지 않음 (리프트 안내는 물음)")
-    ap.add_argument("--jetson", default="idle@192.168.1.11")
+    ap.add_argument("--jetson", default="idle@jetson.local")
     ap.add_argument("--dry-run", action="store_true", help="팔·Jetson 없이: --vision json 으로 계획·순서만")
     ap.add_argument("--vision", help="--dry-run 용 ros_find json")
     ap.add_argument("--vision-shelf", help="--dry-run 용 선반 앞 ros_find json (없으면 --vision)")

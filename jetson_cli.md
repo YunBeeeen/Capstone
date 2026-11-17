@@ -30,7 +30,7 @@ Jetson 창은 열자마자 `source ~/nav_env.sh` 먼저.
 ### 0. 출발 전 — 내 코드만 비교해서 넣기 (L2)
 **넣는 것 = 내가 쓰던 폴더의 내 파일만**:
 - 라파 `~/arm` (= `~/arm_play/ws/arm_kinematics`): `tools/mission_run.py`, `tools/ik_sim_run.py` (+ 다르면 `tools/play_plan.py`, `arm_kinematics/ik.py`)
-- 라파 `~/pad/scripts`: `virtual_pad.py`, `udp_packet.py`, `pad_pi.sh`
+- 라파 `~/pad/scripts`: `virtual_pad.py`, `udp_packet.py`, `pad_pi.sh`, `nav_to.sh` (새 파일 — `navigation/tools/nav_to.sh`)
 - Jetson `~/capstone_ws/src/navigation/tools/nav_goal_ahead.py`, `~/arm_vision/tools/ros_find.py`
 
 **안 건드림**: 라파 `~/rebot_env` (팀 lerobot·동료 팔 스크립트·venv), `~/collector_run`, `~/capstone` (R1~R5 주행·리프트), `~/lift` · Jetson `arm_vision_server` 도커, launch·config, 내가 노트북에서만 고친 내비 파일 (place_mark·map.launch 등).
@@ -41,6 +41,7 @@ cd ~/capstone/capstone_ws/src
 same() { [ "$(ssh $1 "sha256sum $2" 2>/dev/null | cut -c1-64)" = "$(sha256sum $3 | cut -c1-64)" ] && echo "  = $1:$2" || echo "  ≠ $1:$2"; }
 for f in tools/mission_run.py tools/ik_sim_run.py tools/play_plan.py arm_kinematics/ik.py arm_kinematics/collision.py; do same raspberrypi arm/$f arm_kinematics/$f; done
 for f in virtual_pad.py udp_packet.py pad_pi.sh; do same raspberrypi pad/scripts/$f teleop/scripts/$f; done
+same raspberrypi pad/scripts/nav_to.sh navigation/tools/nav_to.sh     # 없으면 ≠ → scp navigation/tools/nav_to.sh raspberrypi:pad/scripts/
 same jetson capstone_ws/src/navigation/tools/nav_goal_ahead.py navigation/tools/nav_goal_ahead.py
 same jetson arm_vision/tools/ros_find.py arm_kinematics/tools/ros_find.py
 ```
@@ -261,6 +262,17 @@ python3 $NAV/place_tour.py shelf_A desk_1 --loops 3 --wait 5   # 여러 곳 왕�
 ```
 안 움직이면: J4 가 `N 개/s` 를 세나 (0 이면 Nav2 가 명령 안 냄 → J3 확인) → 라파 6 번에 `[nav] ... 수신 시작` 이 나왔나 → RB 를 같이 누르고 있지 않나.
 책상에 10 cm 붙는 자리는 Nav2 가 덜 가서 멈출 수 있음 (장애물 여유) — 정상.
+
+---
+
+### 3-1. 다른 sh 에서 이동 (팔 정책과 이어 붙이기) — `nav_to.sh`
+라파·노트북에서 부르면 ssh 로 Jetson Nav2 를 부르고, **도착할 때까지 기다린 뒤 종료 코드**로 알려 줌 (0 도착, 1 실패·취소, 2 준비 안 됨, 3 Jetson 접속 안 됨, 130 Ctrl+C → Nav2 목표도 취소).
+```bash
+~/pad/scripts/nav_to.sh desk_1                 # 라파
+~/pad/scripts/nav_to.sh shelf_A --back 0.6     # 선반 보는 자리
+JETSON=idle@192.168.0.11 ~/pad/scripts/nav_to.sh desk_1   # jetson.local 이 안 풀릴 때
+```
+조건: Jetson J1 (`jetson_nav.launch.py`) + "위치 찾음", 라파 R6 패드, 노트북 L1 ▶ 진행.
 
 ---
 
