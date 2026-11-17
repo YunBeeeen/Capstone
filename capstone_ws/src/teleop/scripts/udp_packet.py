@@ -6,6 +6,8 @@ v2 (22 B): v1 + <b lift_pwm> (리프트 조그 PWM %, + 위 / − 아래 / 0 정
 
 Nav2 중계 (Jetson nav_cmd_udp.py → 라파 virtual_pad.py --nav-udp, 기본 포트 5006):
 NAV (20 B): b"NAV2" + <I seq> + <f vx> <f vy> <f omega>   — 패드가 RT 를 당기는 동안만 로봇에 넘김
+ESTOP (9 B): b"STOP" + <I seq> + <B run>  — 노트북 estop.py → 라파 패드 (NAV 와 같은 포트). run 0 = 정지, 1 = 진행.
+  라파는 같은 주소로 b"STAK" + <I seq> 를 돌려줌 (연결 확인)
 """
 import math
 import struct
@@ -16,6 +18,9 @@ PKT_V2 = struct.Struct("<4sIfffbB")
 
 NAV_MAGIC = b"NAV2"
 NAV_PORT = 5006
+ESTOP_MAGIC, ESTOP_ACK = b"STOP", b"STAK"
+ESTOP_PKT = struct.Struct("<4sIB")
+ESTOP_ACK_PKT = struct.Struct("<4sI")
 
 # lift_flags 비트
 LIFT_STOP = 1   # 리프트 정지 + 주차 취소
@@ -55,3 +60,28 @@ def decode_nav(data):
     if magic != NAV_MAGIC or not all(math.isfinite(v) for v in (vx, vy, w)):
         return None
     return seq, vx, vy, w
+
+
+def encode_estop(seq, run):
+    return ESTOP_PKT.pack(ESTOP_MAGIC, seq & 0xFFFFFFFF, 1 if run else 0)
+
+
+def decode_estop(data):
+    """→ (seq, run bool) 또는 None."""
+    if len(data) != ESTOP_PKT.size:
+        return None
+    magic, seq, run = ESTOP_PKT.unpack(data)
+    if magic != ESTOP_MAGIC or run not in (0, 1):
+        return None
+    return seq, bool(run)
+
+
+def encode_estop_ack(seq):
+    return ESTOP_ACK_PKT.pack(ESTOP_ACK, seq & 0xFFFFFFFF)
+
+
+def decode_estop_ack(data):
+    if len(data) != ESTOP_ACK_PKT.size:
+        return None
+    magic, seq = ESTOP_ACK_PKT.unpack(data)
+    return seq if magic == ESTOP_ACK else None

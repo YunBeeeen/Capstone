@@ -29,6 +29,15 @@ ros2 run lift_bridge lift_bridge_node.py                     # 5  리프트
 게임패드: **RB 누른 채 스틱 = 수동**, **Nav2 는 누를 것 없이 통과 (실기 배포). RT 한 번 = 정지 (걸어 둠, 놓아도 그대로), Start (RB 없이) = 다시**, RB 수동이 우선, **패드가 빠지면 정지** (예전 데드맨: `NAV_DEADMAN=1 ~/pad/scripts/pad_pi.sh`), 십자키 = 속도 상한, RB+Y/A/X/B = 리프트.
 6 번 첫 줄에 `[gamepad] Xbox 360 Controller` 가 나와야 함 (안 나오면 다시 꽂기). 리프트 **최저**, 팔 **접힘** 으로 시작.
 
+### 노트북 — 비상정지 (패드를 안 쥘 때, 실기 배포)
+```bash
+python3 ~/capstone/capstone_ws/src/teleop/scripts/estop.py      # Space = ■ 정지, g = ▶ 진행, q = 끝 (처음엔 정지)
+```
+- 한 번 켜면 라파는 **노트북의 진행 신호가 1 초 안에 계속 와야** Nav2 를 넘김 → 노트북 꺼짐·Wi-Fi 끊김·창 닫기 = 정지 (다시 켜고 g)
+- 정지 = Nav2·패드 수동·리프트 모두 0. 끊김 = Nav2 만 0 (패드로 수습 가능)
+- 라파 6 번 창에 `[estop] ... 노트북 비상정지 연결` 이 떠야 함. 화면에 `라파 연결 OK` 가 안 뜨면 `--to 192.168.0.12`
+- 팔은 별개: 팔을 멈추려면 mission_run 창에서 Ctrl+C (그 자리 고정)
+
 ### Jetson — 터미널마다 첫 줄
 ```bash
 source ~/nav_env.sh        # ROS + ZED + capstone_ws, ROS_DOMAIN_ID=21, $NAV = 내비 도구 폴더

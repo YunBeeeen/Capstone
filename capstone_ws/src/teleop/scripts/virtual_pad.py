@@ -315,6 +315,7 @@ class NavUdpSource:
                 print(f"[nav] {allow_from} 주소를 못 찾음 — 아무 데서 온 Nav2 명령이나 받음")
         self.last, self.t, self.seq = (0.0, 0.0, 0.0), 0.0, None
         self.src = None
+        self.es_run, self.es_t, self.es_src = False, None, None     # 노트북 비상정지 (estop.py)
         print(f"[nav] UDP {port} 에서 Nav2 명령 받는 중" + (f" ({self.allow} 에서 온 것만)" if self.allow else "")
               + " — Jetson 에서 nav_cmd_udp.py 실행 중이어야 함")
 
@@ -324,6 +325,19 @@ class NavUdpSource:
                 data, addr = self.sock.recvfrom(64)
             except (BlockingIOError, OSError):
                 return
+            e = up.decode_estop(data)
+            if e is not None:                 # 노트북 비상정지: 주소 거르지 않음 (Jetson 이 아니라 노트북에서 옴)
+                if addr[0] != self.es_src:
+                    print(f"[estop] {addr[0]} 노트북 비상정지 연결" + (" (정지)" if not e[1] else " (진행)"), flush=True)
+                    self.es_src = addr[0]
+                elif e[1] != self.es_run:
+                    print("[estop] ▶ 진행 (노트북)" if e[1] else "[estop] ■ 정지 (노트북)", flush=True)
+                self.es_run, self.es_t = e[1], time.monotonic()
+                try:
+                    self.sock.sendto(up.encode_estop_ack(e[0]), addr)
+                except OSError:
+                    pass
+                continue
             if self.allow and addr[0] != self.allow:
                 continue
             d = up.decode_nav(data)
@@ -338,6 +352,17 @@ class NavUdpSource:
                 print(f"[nav] {addr[0]} 에서 Nav2 명령 수신 시작")
                 self.src = addr[0]
             self.seq, self.last, self.t = seq, (vx, vy, w), now
+
+    def estop(self, max_age=1.0):
+        """노트북 비상정지: None = 한 번도 안 옴, "run", "stop" (정지 명령), "lost" (끊김 → 정지)."""
+        if self.es_t is None:
+            return None
+        if time.monotonic() - self.es_t > max_age:
+            if self.es_run:
+                print("[estop] ■ 노트북 신호 끊김 → 정지 (노트북에서 다시 진행해야 감)", flush=True)
+                self.es_run = False
+            return "lost"
+        return "run" if self.es_run else "stop"
 
     def latest(self, max_age):
         return self.last if time.monotonic() - self.t < max_age else None
@@ -442,7 +467,8 @@ def run(args):
     period = 1.0 / args.rate
     nav_stopped = False          # --nav-auto: RT 를 한 번 당기면 걸리고 Start 로 풂
     if args.nav_auto:
-        print("[nav] 자동 (데드맨 없음): RT 한 번 = 정지 (걸어 둠), Start (RB 없이) = 다시, RB = 수동. 패드가 빠지면 정지")
+        print("[nav] 자동 (데드맨 없음): RT 한 번 = 정지 (걸어 둠), Start (RB 없이) = 다시, RB = 수동. "
+              "노트북 estop.py 를 쓰면 그 진행 신호가 있어야 감, 안 쓰면 패드가 꽂혀 있어야 감")
     next_send = time.monotonic()
     last_dir = None
     dpad_last, dpad_next = (0, 0), 0.0
@@ -520,7 +546,10 @@ def run(args):
                     elif pad_ok and nav_stopped and gpad.start_alone() and not gpad.rt_pulled():
                         nav_stopped = False
                         print("[nav] ▶ 다시 (Start)", flush=True)
-                    nav_hold = pad_ok and not nav_stopped
+                    es = nav.estop() if hasattr(nav, "estop") else None
+                    # 노트북 비상정지 (estop.py) 를 한 번이라도 받았으면 그게 기준: 진행 신호가 1 초 안에 계속 와야 감.
+                    # 안 쓰면 게임패드가 꽂혀 있어야 감 (멈출 수단이 없으면 안 감)
+                    nav_hold = (es == "run" if es is not None else pad_ok) and not nav_stopped
                 else:
                     nav_hold = keys[pygame.K_n] or (gpad is not None and gpad.nav_held())
                 if nav_hold and not manual:
@@ -532,7 +561,8 @@ def run(args):
                         lim = lambda v, m: max(-m, min(m, v))  # noqa: E731
                         vx, vy, omega = lim(c[0], args.max_lin), lim(c[1], args.max_lin), lim(c[2], args.max_ang)
                         source = "nav"
-            if keys[pygame.K_SPACE]:
+            es_stop = nav is not None and hasattr(nav, "estop") and nav.estop() == "stop"
+            if keys[pygame.K_SPACE] or es_stop:    # 노트북 정지 명령 = 수동 조종도 막음 (끊김은 Nav2 만 막음 → 패드로 수습 가능)
                 vx = vy = omega = 0.0
 
             # 리프트
@@ -545,7 +575,7 @@ def run(args):
                 gj, gf = gpad.lift(args.lift_fast, args.lift_slow)
                 lift_jog = lift_jog or gj
                 lift_flags |= gf
-            if keys[pygame.K_SPACE]:
+            if keys[pygame.K_SPACE] or es_stop:
                 lift_jog, lift_flags = 0, up.LIFT_STOP
 
             now = time.monotonic()

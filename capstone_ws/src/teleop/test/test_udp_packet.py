@@ -83,6 +83,37 @@ class TestNavUdp(unittest.TestCase):
         src.close()
         tx.close()
 
+    def test_estop_states_and_ack(self):
+        import socket
+        import time
+        import udp_packet as up
+        from virtual_pad import NavUdpSource
+        self.assertEqual(up.decode_estop(up.encode_estop(3, True)), (3, True))
+        self.assertIsNone(up.decode_nav(up.encode_estop(3, True)))
+        self.assertIsNone(up.decode_estop(up.encode_nav(3, 0, 0, 0)))
+        src = NavUdpSource(0, allow_from="127.0.0.2")          # Jetson 주소만 받는 설정이어도 노트북 정지는 받음
+        port = src.sock.getsockname()[1]
+        self.assertIsNone(src.estop())                           # 안 썼으면 None (패드 기준)
+        tx = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        tx.settimeout(0.5)
+        tx.sendto(up.encode_estop(1, True), ("127.0.0.1", port))
+        time.sleep(0.05)
+        src.poll()
+        self.assertEqual(src.estop(), "run")
+        self.assertEqual(up.decode_estop_ack(tx.recvfrom(64)[0]), 1)
+        tx.sendto(up.encode_estop(2, False), ("127.0.0.1", port))
+        time.sleep(0.05)
+        src.poll()
+        self.assertEqual(src.estop(), "stop")
+        tx.sendto(up.encode_estop(3, True), ("127.0.0.1", port))
+        time.sleep(0.05)
+        src.poll()
+        time.sleep(0.06)
+        self.assertEqual(src.estop(max_age=0.03), "lost")        # 끊기면 정지
+        self.assertEqual(src.estop(), "stop")                   # 끊긴 뒤엔 진행 신호가 다시 와야 감
+        src.close()
+        tx.close()
+
 
 if __name__ == "__main__":
     unittest.main()
