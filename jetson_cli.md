@@ -15,64 +15,124 @@
 
 ## ★ 실험 순서 (2026-11-19) — 위에서부터, 통과해야 다음
 
-### 0. 출발 전 (노트북)
+### 터미널 배치 (이 실험 동안 계속 이 번호로 부름)
+| 창 | 어디 | 띄울 것 |
+|---|---|---|
+| **L1** | 노트북 | 비상정지 `estop.py` — **실험 내내 이 창에 포커스, 손은 Space 위** |
+| L2 | 노트북 | 배포 비교·사진 받기 (`~/capstone` 에서) |
+| **R0~R6** | 라파 (`ssh raspberrypi` 7 개) | 0 CAN, 1 조향, 2 구동, 3 swerve, 4 UDP 브리지, 5 리프트, 6 패드 (아래 "0. 켜기" 와 같음) |
+| R7 | 라파 | 팔 (`mission_run`, 시험 E) |
+| **J1** | Jetson (`ssh jetson`) | `jetson_nav.launch.py` (ZED + 재위치 + 바닥 보정 + Nav2 + Nav2→라파 중계, 한 번에) |
+| **J2** | Jetson | 위치 찾기 → Nav2 목표·장소 저장 |
+| **J3** | Jetson | 속도 직접 보내기 (시험 A·B), 물체 찾기 (시험 D) |
+Jetson 창은 열자마자 `source ~/nav_env.sh` 먼저.
+
+### 0. 출발 전 — 내 코드만 비교해서 넣기 (L2)
+**넣는 것 = 내가 쓰던 폴더의 내 파일만**:
+- 라파 `~/arm` (= `~/arm_play/ws/arm_kinematics`): `tools/mission_run.py`, `tools/ik_sim_run.py` (+ 다르면 `tools/play_plan.py`, `arm_kinematics/ik.py`)
+- 라파 `~/pad/scripts`: `virtual_pad.py`, `udp_packet.py`, `pad_pi.sh`
+- Jetson `~/capstone_ws/src/navigation/tools/nav_goal_ahead.py`, `~/arm_vision/tools/ros_find.py`
+
+**안 건드림**: 라파 `~/rebot_env` (팀 lerobot·동료 팔 스크립트·venv), `~/collector_run`, `~/capstone` (R1~R5 주행·리프트), `~/lift` · Jetson `arm_vision_server` 도커, launch·config, 내가 노트북에서만 고친 내비 파일 (place_mark·map.launch 등).
+
+① 같은지만 보기 (읽기만):
 ```bash
-cd ~/capstone && ./deploy_robot.sh            # 라파·Jetson 에 뭐가 바뀌었나 (확인만)
-./deploy_robot.sh --apply                     # 넣기. "⚠ 거기서 고친 것" 이 나오면 그 파일은 안 넣음 → 알려 주기
+cd ~/capstone/capstone_ws/src
+same() { [ "$(ssh $1 "sha256sum $2" 2>/dev/null | cut -c1-64)" = "$(sha256sum $3 | cut -c1-64)" ] && echo "  = $1:$2" || echo "  ≠ $1:$2"; }
+for f in tools/mission_run.py tools/ik_sim_run.py tools/play_plan.py arm_kinematics/ik.py arm_kinematics/collision.py; do same raspberrypi arm/$f arm_kinematics/$f; done
+for f in virtual_pad.py udp_packet.py pad_pi.sh; do same raspberrypi pad/scripts/$f teleop/scripts/$f; done
+same jetson capstone_ws/src/navigation/tools/nav_goal_ahead.py navigation/tools/nav_goal_ahead.py
+same jetson arm_vision/tools/ros_find.py arm_kinematics/tools/ros_find.py
 ```
+② `≠` 인 것만 무엇이 다른지 보기 (`<` = 거기, `>` = 내 것):
+```bash
+ssh raspberrypi cat arm/tools/mission_run.py | diff - arm_kinematics/tools/mission_run.py | less
+```
+`<` 쪽에 **내가 안 쓴 줄** (거기서 누가 고친 것) 이 있으면 넣지 말고 가져와서 합치기. 내 예전 버전이면 ③.
+③ 백업하고 넣기 (파일마다):
+```bash
+ssh raspberrypi "cp arm/tools/mission_run.py arm/tools/mission_run.py.bak_1119" && scp arm_kinematics/tools/mission_run.py raspberrypi:arm/tools/
+```
+(Claude 에게 "라파·Jetson 켰음, 비교해서 넣어" 라고 하면 위 순서로 파일마다 diff 를 보여 주고 넣음)
+
 - 대역이 192.168.**0**.x 면 Jetson 에서 한 번: `sed -i 's/^from="192.168.1.12" /from="192.168.1.12,192.168.0.12" /' ~/.ssh/authorized_keys`
 - 준비물: 책상 ~70 cm, 선반 (3 층 판 1.00 m), 바구니 21×13×10, 호박. **바구니는 짧은 변이 로봇을 보게**
 
 ### 1. 켜기
-- 라파 0~6 (아래 "0. 켜기"). 6 번 첫 줄에 `[nav] 자동 (데드맨 없음)…` 이 나와야 새 패드
-- **리프트 325 mm = 카메라 렌즈 바닥에서 1.00 m** (RB+X/Y, 줄자로 확인)
-- Jetson: `ros2 launch capstone_navigation jetson_nav.launch.py map:=X cam_z:=1.0` → `python3 $NAV/rtabmap_loc_monitor.py` (패드로 살짝 → "위치 찾음")
-- Jetson: `docker start arm_vision_server`
-- **노트북: `python3 ~/capstone/capstone_ws/src/teleop/scripts/estop.py`** → `라파 연결 OK` 확인 (처음엔 ■ 정지)
+| 순서 | 창 | 명령 / 할 것 | 확인 |
+|---|---|---|---|
+| 1 | R0 | `~/capstone/capstone_ws/can/can_up.sh` | 에러 없이 끝 |
+| 2 | R1~R5 | "0. 켜기" 의 1~5 번 (각 창 `source …` 먼저) | R4 `udp_teleop_bridge` 떠 있음 |
+| 3 | R6 | `~/pad/scripts/pad_pi.sh` | 첫 줄 `[nav] 자동 (데드맨 없음)…`, `[gamepad] Xbox 360 Controller` |
+| 4 | 패드 | RB+X/Y 로 리프트 **325 mm = 카메라 렌즈 바닥에서 1.00 m** (줄자) | |
+| 5 | **L1** | `python3 ~/capstone/capstone_ws/src/teleop/scripts/estop.py` | `■ 정지  라파 연결 OK`, R6 에 `[estop] … 노트북 비상정지 연결` |
+| 6 | J1 | `ros2 launch capstone_navigation jetson_nav.launch.py map:=X cam_z:=1.0` (로봇 앞 2 m 빈 바닥) | 20 초 `[바닥 보정] 끝`, 25 초 `Managed nodes are active`, `… 12 로 보냄` |
+| 7 | J2 | `python3 $NAV/rtabmap_loc_monitor.py` → 패드 **RB** 로 살짝 움직이거나 돌림 | `위치 찾음` → Ctrl+C |
+| 8 | J3 | `docker start arm_vision_server` (시험 D 용, 지금 켜 둠) | |
+L1 이 안 붙으면 `estop.py --to 192.168.0.12`. R6 에 `[nav] … 수신 시작` 은 J1 중계가 처음 보낼 때 뜸.
 
-### 2. 시험 A — 멈추는지 (앞 2 m 비우고)
-Jetson 에서 Nav2 대신 속도를 직접 3 초 (`/nav/cmd_vel` → 라파 패드):
+### 2. 시험 A — 멈추는지 (앞 2 m 비우고, 3 초 = 30 cm)
+J3 에서 먼저 한 줄 (함수 만들기):
 ```bash
-timeout 3 ros2 topic pub -r 10 /nav/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.10}}"
+go() { timeout $1 ros2 topic pub -r 10 /nav/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.10}}" >/dev/null; }   # go 3 = 3 초 앞으로
 ```
-| 할 것 | 기대 |
-|---|---|
-| estop ■ 정지 상태로 위 명령 | 안 움직임 |
-| estop **g** → 위 명령 | 3 초 앞으로 |
-| 움직이는 중 estop **Space** | 바로 멈춤 |
-| g → 위 명령 중에 **estop 창 닫기 (q)** | 1 초 안에 멈춤, 다시 켜고 g 해야 감 |
-| (패드가 꽂혀 있으면) 움직이는 중 **RT** → **Start** | 멈춤 → 다시 |
+| # | L1 (estop) | J3 | 기대 |
+|---|---|---|---|
+| A1 | ■ 정지 그대로 | `go 3` | **안 움직임** |
+| A2 | **g** (▶ 진행) | `go 3` | 3 초 앞으로 → 끝나고 0.5 초 안에 멈춤 |
+| A3 | ▶ 상태 | `go 10` → 2 초쯤 뒤 L1 에서 **Space** | 바로 멈춤 (J3 은 계속 보내는 중이어도). 다시 **g** 면 다시 감 → Space |
+| A4 | **g** | `go 10` → 2 초 뒤 L1 에서 **q** (창 끄기) | **1 초 안에 멈춤**. L1 다시 `estop.py` → ■ 로 시작 → g 해야 감 |
+| A5 | **g** | `go 10` → 패드 **RT** 한 번 → **Start** | RT = 멈춤 (걸어 둠), Start = 다시 |
+A3·A4 에서 안 멈추면 **실험 중단** (R6 출력 사진 찍어 오기).
 
-### 3. 시험 B — 마찰: 몇부터 움직이나 (가장 뻑뻑한 바닥에서)
+### 3. 시험 B — 마찰: 몇부터 움직이나 (가장 뻑뻑한 바닥, L1 ▶ 진행)
+J3 (한 줄씩, 값마다 3 초 보내고 2 초 쉼 — 처음 **제대로** 움직인 값 적기):
 ```bash
-for v in 0.03 0.05 0.08 0.10 0.12; do echo "x $v"; timeout 3 ros2 topic pub -r 10 /nav/cmd_vel geometry_msgs/msg/Twist "{linear: {x: $v}}"; sleep 2; done
-for v in 0.03 0.05 0.08 0.10; do echo "y $v"; timeout 3 ros2 topic pub -r 10 /nav/cmd_vel geometry_msgs/msg/Twist "{linear: {y: $v}}"; sleep 2; done
-for w in 0.1 0.2 0.3 0.4; do echo "w $w"; timeout 3 ros2 topic pub -r 10 /nav/cmd_vel geometry_msgs/msg/Twist "{angular: {z: $w}}"; sleep 2; done
+for v in 0.03 0.05 0.08 0.10 0.12; do echo "== x $v"; timeout 3 ros2 topic pub -r 10 /nav/cmd_vel geometry_msgs/msg/Twist "{linear: {x: $v}}" >/dev/null; sleep 2; done
+for v in 0.03 0.05 0.08 0.10; do echo "== y $v"; timeout 3 ros2 topic pub -r 10 /nav/cmd_vel geometry_msgs/msg/Twist "{linear: {y: $v}}" >/dev/null; sleep 2; done
+for w in 0.1 0.2 0.3 0.4; do echo "== w $w"; timeout 3 ros2 topic pub -r 10 /nav/cmd_vel geometry_msgs/msg/Twist "{angular: {z: $w}}" >/dev/null; sleep 2; done
 ```
-처음 제대로 움직인 값 + 0.01~0.02 를 라파 6 번에 (Ctrl+C 후 다시):
+찾은 값 + 0.01~0.02 로 **R6** 다시 (Ctrl+C → L1 은 그대로 둬도 됨):
 ```bash
 ~/pad/scripts/pad_pi.sh --nav-min-lin 0.08 --nav-min-ang 0.25      # 예 — 잰 값으로
 ```
-(상한은 0.25 m/s·0.5 rad/s. 더 필요하면 `--max-lin 0.3` — Nav2 쪽 상한도 0.3)
+확인 (J3): 아까 안 움직이던 작은 값이 이제 움직여야 함
+```bash
+timeout 3 ros2 topic pub -r 10 /nav/cmd_vel geometry_msgs/msg/Twist "{linear: {x: 0.03}}"
+```
+(상한은 0.25 m/s·0.5 rad/s. 더 필요하면 R6 에 `--max-lin 0.3` — Nav2 쪽 상한도 0.3)
 
-### 4. 시험 C — Nav2 짧게 → 장소 저장
+### 4. 시험 C — Nav2 짧게 → 장소 저장 (L1 ▶, 손은 Space 위)
+J2:
 ```bash
 python3 $NAV/nav_goal_ahead.py 0.5                    # 0.5 m 앞 → "결과: 성공, 오차 N cm"
 python3 $NAV/nav_goal_ahead.py 0 0 90                 # 제자리 90°
+python3 $NAV/nav_goal_ahead.py 0 0 -90                # 되돌기
 ```
-장소 저장 (패드로 세우고):
-- `python3 $NAV/place_mark.py desk_1 --kind desk` — **책상 정면, 책상 앞면이 차체 앞면에서 ~5 cm (로봇 중심 0.30 m)**. 호박·바구니는 앞 모서리에서 15~25 cm 안쪽
-- `python3 $NAV/place_mark.py shelf_A` — **선반 정면, 차체 앞면과 선반 18~26 cm**
-- 확인: `nav_goal_ahead.py --name shelf_A --back 0.6` (보는 자리) → `--name shelf_A` → `--name desk_1` 왕복, 오차 기록
+목표 근처에서 멈칫하며 안 들어가면 시험 B 값을 조금 올림 (R6).
+
+장소 저장 — 패드 **RB** 로 세우고 J2 에서:
+```bash
+python3 $NAV/place_mark.py desk_1 --kind desk    # 책상 정면, 책상 앞면이 차체 앞면에서 ~5 cm (로봇 중심 0.30 m)
+python3 $NAV/place_mark.py shelf_A               # 선반 정면, 차체 앞면과 선반 18~26 cm
+python3 $NAV/place_mark.py --list
+```
+왕복 (J2, 하나씩 — 매번 도착 오차 적기):
+```bash
+python3 $NAV/nav_goal_ahead.py --name shelf_A --back 0.6     # 선반 보는 자리 (shelf_A 0.6 m 뒤)
+python3 $NAV/nav_goal_ahead.py --name shelf_A                # 똑바로 다가가는지
+python3 $NAV/nav_goal_ahead.py --name desk_1
+```
+J2 Ctrl+C = Nav2 목표 취소. 이상하면 먼저 L1 Space.
 
 ### 5. 시험 D — 물체 찾기만 (desk_1 에 서서)
 ```bash
-cd ~/arm_vision && python3 tools/ros_find.py pumpkin basket --json /tmp/v.json --out /tmp/v.jpg   # Jetson
-scp jetson:/tmp/v.jpg ~/ && xdg-open ~/v.jpg                                                   # 노트북
+cd ~/arm_vision && python3 tools/ros_find.py pumpkin basket --json /tmp/v.json --out /tmp/v.jpg   # J3
+scp jetson:/tmp/v.jpg jetson:/tmp/v.json ~/ && xdg-open ~/v.jpg                                # L2
 ```
 확인: `zed_height` ≈ 1.00, 책상 `support_z` ≈ 0.70, 호박·바구니 위치가 맞나, 바구니 `yaw` ≈ 0° (짧은 변이 로봇)
 
-### 6. 시험 E — 팔 단계별 (라파, desk_1 에 선 채로 — `--from find` 는 이동 안 함)
+### 6. 시험 E — 팔 단계별 (R7, desk_1 에 선 채로 — `--from find` 는 이동 안 함)
 ```bash
 sudo ~/capstone/capstone_ws/can/can_up.sh && cd ~/arm && PY=~/rebot_env/venv/bin/python
 $PY tools/mission_run.py pumpkin --from find --to pick          # ① 집기만 (집고 올림)
@@ -80,9 +140,9 @@ $PY tools/mission_run.py pumpkin --from find --to drop          # ② 바구니�
 $PY tools/mission_run.py pumpkin --from find --to basket_grab   # ③ 바구니 짧은 벽 잡고 10 cm 들기
 $PY tools/mission_run.py pumpkin                                # ④ 전체 (desk_1 → … → 선반 3 층)
 ```
-- 단계마다 ENTER, 이상하면 **Ctrl+C** (팔 고정 → ENTER = 왔던 길로 복귀). 끝에 "팔을 받친 뒤 ENTER"
+- 단계마다 ENTER, 이상하면 R7 에서 **Ctrl+C** (팔 고정 → ENTER = 왔던 길로 복귀). 끝에 "팔을 받친 뒤 ENTER"
 - 계획 실패 원인: 라파 `/tmp/mission_<단계>.log`
-- ④ 선반: 보는 자리 (shelf_A 0.6 m 뒤) 에서 팔이 바구니를 판 위 높이로 → Nav2 로 다가감 → **바구니가 판 위로 들어가는지 estop 에 손 올리고 보기**
+- ④ 이동 구간은 L1 ▶ 이어야 감. 선반: 보는 자리에서 팔이 바구니를 판 위 높이로 → Nav2 로 다가감 → **바구니가 판 위로 들어가는지 L1 Space 에 손 올리고 보기**
 
 ### 7. 적어 올 것
 최소 속도 (x·y·회전), Nav2 도착 오차, ros_find 결과 (v.json·v.jpg), 실패한 단계와 `/tmp/mission_*.log`, 팔이 처지거나 막힌 곳 (어느 단계·모터)
