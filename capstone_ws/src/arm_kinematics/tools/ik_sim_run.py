@@ -49,6 +49,8 @@ def main():
     ap.add_argument("--approach", default="heading", help=APPROACH_HELP)
     ap.add_argument("--tilt", default="-10,45", help="heading 모드 기울기 범위 [도] (아래 +)")
     ap.add_argument("--heading", help="heading 모드 수평 방향 hx,hy (기본: 가구 안쪽 +x). 그리퍼가 이쪽으로 기울어짐")
+    ap.add_argument("--rotation", help="그리퍼 (IK 끝점) 자세를 통째로 고정: 로봇 기준 회전 행렬 9 개 (행 우선, 쉼표). 든 물체가 있을 때 "
+                    "손이 접근축 둘레로 뒤집히지 않게 (--finger-perp 는 부호가 자유). --heading 을 같이 주면 그 방향으로 수평 접근")
     ap.add_argument("--standoffs", help="접근점 거리 후보 [m] 쉼표 (기본 0.15,0.12,0.10,0.07,0.05 / --descend 면 D). "
                     "든 물체가 손 앞으로 길게 나오면 그만큼 더 뒤에서 (예 0.32,0.28)")
     ap.add_argument("--shelf-tops", help="선반 판 윗면 높이 z1,z2,z3,z4 [m] (기본 시뮬 0.21,0.55,0.88,1.31). 실기 선반에 맞출 때 — 모양 (폭·깊이·기둥) 은 시뮬 그대로")
@@ -107,9 +109,14 @@ def main():
         hx, hy = (float(v) for v in args.heading.split(","))
         into = np.array([hx, hy, 0.0]) / math.hypot(hx, hy)
     ik_kw, plan_kw, approach = orientation_args(args.approach, into, tilt)
+    if args.rotation:
+        Rfix = np.array([float(v) for v in args.rotation.split(",")]).reshape(3, 3)
+        ik_kw = {"rotation": Rfix}
+        plan_kw = {k: v for k, v in plan_kw.items() if k == "heading" and args.heading}
+        print(f"그리퍼 자세 고정: 접근축 {np.round(Rfix[:, 0], 2).tolist()}, 손가락축 {np.round(Rfix[:, 1], 2).tolist()}")
     if args.standoffs:
         plan_kw = dict(plan_kw, standoffs=tuple(float(v) for v in args.standoffs.split(",")))
-    if args.finger_perp:
+    if args.finger_perp and not args.rotation:
         if "heading" not in ik_kw:
             raise SystemExit("--finger-perp 는 --approach heading 과 같이")
         wx, wy = (float(v) for v in args.finger_perp.split(","))

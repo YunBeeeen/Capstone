@@ -277,6 +277,17 @@ def plan(a, arm, name, xyz, desk_top, front, lateral, zed, descend=None, extra=(
     return out
 
 
+def tool_rot(plan_path):
+    """계획 마지막 자세의 그리퍼 (IK 끝점) 회전 3×3 (로봇 기준)."""
+    sys.path.insert(0, str(HERE.parent))
+    from arm_kinematics import B601Kinematics
+    from arm_kinematics.ik import B601IK
+    w = json.loads(Path(plan_path).read_text())["waypoints"][-1]
+    kin = B601Kinematics()
+    T, _ = B601IK(kin)._pose(kin.configuration([w["motors_deg"][str(i)] for i in range(1, 7)], w["lift_total_mm"] / 2000))
+    return T.rotation.copy()
+
+
 def tool_axes(plan_path):
     """계획 마지막 자세의 (접근축, 손가락축) — 바구니를 든 자세를 놓을 때 유지하려고."""
     sys.path.insert(0, str(HERE.parent))
@@ -399,11 +410,10 @@ def main():
                 # 로봇 쪽 벽 가운데 먼저 (손이 바구니 앞에서 들어감 — 자연스러움), 안 되면 가장 오른쪽 벽.
                 # 바구니 긴 면이 로봇을 보면 손 앞으로 13 cm 만 나와 선반 3층에 앞에서 넣을 수 있음 (긴 축이 앞뒤면 21 cm → 못 넣음,
                 # 계획 검사 2026-11-17). 손 기울기 30~50° 는 선반 3층 (윗판까지 35 cm) 에 바구니를 수평으로 넣기 위한 조건.
-                walls = [(np.array(b[:2]) + k * (L / 2 - WALL / 2) * u, v_) for k in (-1, 1)] + \
-                        [(np.array(b[:2]) + k * (W / 2 - WALL / 2) * v_, u) for k in (-1, 1)]
-                near = min(walls, key=lambda t: t[0][0])
-                rightmost = min(walls, key=lambda t: t[0][1])
-                order = [near] + ([rightmost] if rightmost[0] is not near[0] else [])
+                # 짧은 벽만 (바구니는 짧은 변을 잡음): 로봇 쪽 먼저, 그다음 다른 쪽
+                walls = [(np.array(b[:2]) + k * (L / 2 - WALL / 2) * u, v_) for k in (-1, 1)]
+                order = sorted(walls, key=lambda t: t[0][0] - 0.5 * t[0][1])
+                near = order[0]
                 p = None
                 for wxy, wd in order:
                     fp = f"--finger-perp={wd[0]:.3f},{wd[1]:.3f}"
@@ -414,15 +424,17 @@ def main():
                             break
                     if p:
                         break
-                which = "로봇 쪽" if wxy is near[0] else "오른쪽"
-                if not p or ask(f"   바구니 {which} 벽: 열기 → 손 기울여 위에서 내려와 닫기 → 6 cm 올림. ENTER: ") == "s":
+                which = "로봇 쪽" if wxy is near[0] else "먼 쪽"
+                if not p or ask(f"   바구니 {which} 짧은 벽: 열기 → 손 기울여 위에서 내려와 닫기 → 6 cm 올림. ENTER: ") == "s":
                     raise Stop("바구니 잡기 계획 실패" if not p else "바구니 잡기 건너뜀")
                 tl, t = arm.run(p, "바구니 잡기", grip_before="open", grip_after="close")
                 ax, _ = tool_axes(p)
                 pitch = math.degrees(math.asin(max(-1.0, min(1.0, -ax[2]))))
                 tip = np.array(json.loads(Path(p).read_text())["target_xyz"])
-                # 들고 있는 동안 이 손 방향 그대로 (기울기 ±3°, 앞, 손가락) → 바구니가 수평 유지
-                st["hold_orient"] = [f"--tilt={pitch - 3:.1f},{pitch + 3:.1f}", "--heading=1,0", fp]
+                # 들고 있는 동안 손 자세를 통째로 고정 (기울기·손가락 방향·부호까지) → 바구니가 그대로 수평.
+                # 기울기·손가락 '수직' 조건만 주면 손이 접근축 둘레로 180° 뒤집힌 해가 나와 바구니가 돌아감 (시뮬 2026-11-17)
+                Rg = tool_rot(p)
+                st["hold_orient"] = ["--rotation=" + ",".join(f"{x:.6f}" for x in Rg.reshape(-1)), "--heading=1,0"]
                 st["held"] = (L, W, H, held_rel(p, b[:2], yaw, st["desk"], (L, W, H)))
                 st["held_d"] = (b[0] - tip[0], b[1] - tip[1], tip[2] - st["desk"])     # 바구니 가운데 − 손끝, 손끝 − 바닥
                 st["held_ext_x"] = abs(L * math.cos(yaw)) + abs(W * math.sin(yaw))       # 바구니 앞뒤 길이
