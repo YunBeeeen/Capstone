@@ -142,7 +142,6 @@ def main():
 
 
 def once(args, svo, cam, screw):
-    import cv2
     t_start = time.time()
     bgr, depth, K, roll, pitch, pos, n = read_frame(svo, args.frame, args.depth_mode, cam=cam,
                                                     settle=3 if svo is not None else 1)
@@ -154,19 +153,31 @@ def once(args, svo, cam, screw):
     else:
         h = screw + OPTICAL_ABOVE_SCREW
     T0 = camera_pose(roll, pitch, [CAM_X, LEFT_LENS_Y, h])
-    T, lv = level_to_floor(depth, K, T0)
     src = f"{svo.name} 장면 {pos}/{n}" if svo is not None else time.strftime("%H:%M:%S")
-    print(f"\n{src}, {bgr.shape[1]}×{bgr.shape[0]}, IMU 숙임 {math.degrees(pitch):.1f}° 옆 {math.degrees(roll):+.1f}°, "
-          f"카메라 높이 {h:.3f} m" + (" (바닥으로 잼, 삼각대 나사 ≈ %.3f m)" % (h - OPTICAL_ABOVE_SCREW) if screw is None else "") + (f" → 바닥 보정 숙임 {lv[0]:+.1f}° 옆 {lv[1]:+.1f}° 높이 {100 * lv[2]:+.1f} cm"
-                                   if lv else " (바닥이 충분히 안 보여 보정 안 함)"))
+    head = (f"\n{src}, {bgr.shape[1]}×{bgr.shape[0]}, IMU 숙임 {math.degrees(pitch):.1f}° 옆 {math.degrees(roll):+.1f}°, "
+            f"카메라 높이 {h:.3f} m" + (" (바닥으로 잼, 삼각대 나사 ≈ %.3f m)" % (h - OPTICAL_ABOVE_SCREW) if screw is None else ""))
+    return analyze(bgr, depth, K, T0, h, args, head, t_start)
+
+
+def analyze(bgr, depth, K, T0, h, args, head, t_start=None):
+    """한 장 (bgr, depth[m], K, 카메라 자세 T0 = 로봇 바닥 기준, 광학 높이 h) → 바닥 보정 → 수평면 → OWLv2(+SAM) → 3D.
+    svo_find (ZED 직접) 와 ros_find (ROS 토픽) 가 같이 씀. args: words, url, no_sam, min_score, grasp_depth, out, json.
+    반환 {말: {score, box, center, target, size, yaw, support_z, desk_front_x, zed_height}} — json 에는 planes 도."""
+    import cv2
+    t_start = time.time() if t_start is None else t_start
+    T, lv = level_to_floor(depth, K, T0)
+    print(head + (f" → 바닥 보정 숙임 {lv[0]:+.1f}° 옆 {lv[1]:+.1f}° 높이 {100 * lv[2]:+.1f} cm"
+                  if lv else " (바닥이 충분히 안 보여 보정 안 함)"))
     planes = horizontal_planes(depth, K, T)
     big = [pl for pl in planes if pl[2] >= 0.3]
     print("수평면 (높이 cm, 넓이 m): " + (", ".join(f"{100 * z:.1f} ({e:.1f})" for z, _, e in big) if big else "없음"))
     queries = [phrase(w) for w in args.words]
-    ok, jpg = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, 92])
-    u = f"{args.url}/find?q={urllib.parse.quote('|'.join(queries))}&sam={0 if args.no_sam else 1}"
-    with urllib.request.urlopen(urllib.request.Request(u, data=jpg.tobytes()), timeout=60) as r:
-        ans = json.loads(r.read())
+    ans = {"boxes": [], "masks": []}
+    if queries:
+        ok, jpg = cv2.imencode(".jpg", bgr, [cv2.IMWRITE_JPEG_QUALITY, 92])
+        u = f"{args.url}/find?q={urllib.parse.quote('|'.join(queries))}&sam={0 if args.no_sam else 1}"
+        with urllib.request.urlopen(urllib.request.Request(u, data=jpg.tobytes()), timeout=60) as r:
+            ans = json.loads(r.read())
     firsts = {}
     for b, m in zip(ans["boxes"], ans["masks"]):
         if b[5] not in firsts and b[4] >= args.min_score:
@@ -187,7 +198,7 @@ def once(args, svo, cam, screw):
         print(f"{q:24s} {b[4]:.2f}  {est}" + (f", 받침면 {100 * est.support_z:.1f} cm" if est.support_z else ""))
         target = est.center + np.array([args.grasp_depth, 0.0, 0.0])
         front = plane_front_edge(depth, K, T, est.support_z, est.center[1]) if est.support_z else None
-        zed = h - OPTICAL_ABOVE_SCREW
+        zed = float(T[2, 3]) - OPTICAL_ABOVE_SCREW          # 바닥 보정 뒤 광학 중심 높이 → 삼각대 나사
         if front is not None:
             print(f"   IK: python3 tools/ik_sim_run.py --target desk --desk-top {est.support_z:.3f} --front {front:.3f} "
                   f"--lateral={est.center[1]:.3f} --xyz {target[0]:.3f} {target[1]:.3f} {target[2]:.3f} "
@@ -207,7 +218,10 @@ def once(args, svo, cam, screw):
         cv2.imwrite(str(args.out), bgr)
         print("그림:", args.out)
     if args.json:
-        args.json.write_text(json.dumps({"camera_T": T.tolist(), "objects": result}, indent=1, ensure_ascii=False))
+        zed = float(T[2, 3]) - OPTICAL_ABOVE_SCREW
+        pl = [{"z": float(z), "extent": float(e), "front_x": plane_front_edge(depth, K, T, float(z), 0.0)} for z, _, e in big]
+        Path(args.json).write_text(json.dumps({"camera_T": T.tolist(), "zed_height": zed, "planes": pl, "objects": result},
+                                              indent=1, ensure_ascii=False))
     return result
 
 

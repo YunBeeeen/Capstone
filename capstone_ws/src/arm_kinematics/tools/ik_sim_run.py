@@ -48,6 +48,8 @@ def main():
     ap.add_argument("--robot", type=float, nargs=3, metavar=("X", "Y", "YAW_DEG"))
     ap.add_argument("--approach", default="heading", help=APPROACH_HELP)
     ap.add_argument("--tilt", default="-10,45", help="heading 모드 기울기 범위 [도] (아래 +)")
+    ap.add_argument("--heading", help="heading 모드 수평 방향 hx,hy (기본: 가구 안쪽 +x). 그리퍼가 이쪽으로 기울어짐")
+    ap.add_argument("--finger-perp", help="손가락 벌림축이 이 수평 방향 wx,wy 에 수직 (heading 모드) — 얇은 벽을 끼워 잡을 때 벽이 뻗은 방향")
     ap.add_argument("--front", type=float, default=FRONT, help="로봇 중심 → 가구 앞면 [m] (설 자리 거리)")
     ap.add_argument("--descend", type=float, metavar="D",
                     help="위에서 내려와 집기: 접근점 = 목표 D m 위, 그대로 곧게 내려옴 (손가락은 --tilt 범위, 기본 45~89° 아래로). "
@@ -96,7 +98,16 @@ def main():
     tilt = [float(v) for v in args.tilt.split(",")]
     if args.descend is not None and args.tilt == ap.get_default("tilt"):
         tilt = [45.0, 89.0]                               # 손가락이 아래를 봐야 내려오며 물체가 손가락 사이로 들어옴
+    if args.heading:
+        hx, hy = (float(v) for v in args.heading.split(","))
+        into = np.array([hx, hy, 0.0]) / math.hypot(hx, hy)
     ik_kw, plan_kw, approach = orientation_args(args.approach, into, tilt)
+    if args.finger_perp:
+        if "heading" not in ik_kw:
+            raise SystemExit("--finger-perp 는 --approach heading 과 같이")
+        wx, wy = (float(v) for v in args.finger_perp.split(","))
+        ik_kw["finger_perp"] = (wx, wy, 0.0)
+        print(f"손가락 벌림축 ⟂ ({wx:+.2f}, {wy:+.2f}) — 벽을 손가락 사이에")
     if args.descend is not None:
         plan_kw = dict(plan_kw, move_dir=(0.0, 0.0, -1.0), standoffs=(args.descend,))
         print(f"위에서 내려와 집기: 접근점 {100 * args.descend:.0f} cm 위, 손가락 {tilt[0]:.0f}~{tilt[1]:.0f}° 아래로")

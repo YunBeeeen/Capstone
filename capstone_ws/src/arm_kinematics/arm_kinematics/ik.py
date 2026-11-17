@@ -93,18 +93,27 @@ class B601IK:
             P = np.eye(3) - np.outer(a, a)          # 접근축 둘레 회전은 자유
             return e, P @ Jw, float(np.degrees(np.arccos(np.clip(a @ val, -1, 1))))
         if kind == "heading":
-            h, (t_lo, t_hi) = val                    # h: 수평 단위벡터, 기울기 범위 [도] (아래 +)
+            h, (t_lo, t_hi), fp = val if len(val) == 3 else (*val, None)   # h: 수평 단위벡터, 기울기 [도] (아래 +), fp: 아래
             z = np.array([0.0, 0.0, 1.0])
             lat_axis = np.cross(z, h)
             lat = float(a @ lat_axis)
             pitch = float(np.degrees(np.arcsin(np.clip(-a[2], -1, 1))))
             if a @ h > 0 and t_lo <= pitch <= t_hi:
                 # 옆 성분만 0 으로: d(a·l)/dt = ω·(a×l)
-                return np.array([-lat]), (np.cross(a, lat_axis) @ Jw)[None, :], float(np.degrees(np.arcsin(min(1.0, abs(lat)))))
-            pc = np.radians(np.clip(pitch, t_lo, t_hi) if a @ h > 0 else 0.5 * (t_lo + t_hi))
-            a_des = np.cos(pc) * h - np.sin(pc) * z
-            P = np.eye(3) - np.outer(a, a)
-            return np.cross(a, a_des), P @ Jw, float(np.degrees(np.arccos(np.clip(a @ a_des, -1, 1))))
+                e, J, err = np.array([-lat]), (np.cross(a, lat_axis) @ Jw)[None, :], float(np.degrees(np.arcsin(min(1.0, abs(lat)))))
+            else:
+                pc = np.radians(np.clip(pitch, t_lo, t_hi) if a @ h > 0 else 0.5 * (t_lo + t_hi))
+                a_des = np.cos(pc) * h - np.sin(pc) * z
+                P = np.eye(3) - np.outer(a, a)
+                e, J, err = np.cross(a, a_des), P @ Jw, float(np.degrees(np.arccos(np.clip(a @ a_des, -1, 1))))
+            if fp is not None:
+                # 손가락 벌림축 (도구 y) ⟂ fp: 얇은 벽을 손가락 사이에 끼우기 (fp = 벽이 뻗은 방향). d(f·w)/dt = ω·(f×w)
+                f = T.rotation[:, 1]
+                d = float(f @ fp)
+                e = np.r_[e, -d]
+                J = np.vstack([J, (np.cross(f, fp) @ Jw)[None, :]])
+                err = max(err, float(np.degrees(np.arcsin(min(1.0, abs(d))))))
+            return e, J, err
         return None, None, 0.0
 
     LIFT_COL = 0.5   # 리프트 열 가중 (작을수록 DLS 가 팔을 먼저 쓴다)
@@ -151,6 +160,7 @@ class B601IK:
     def solve(self, target_xyz: Sequence[float], lift_stage_m: float | Iterable[float] = 0.0,
               approach: Sequence[float] | None = None, rotation=None,
               heading: Sequence[float] | None = None, tilt_deg: tuple[float, float] = (-10.0, 45.0),
+              finger_perp: Sequence[float] | None = None,
               seed: Mapping | Sequence[float] | None = None, n_random: int = 24, iters: int = 150,
               tol_mm: float = 1.0, tol_deg: float = 1.0, weights: Mapping[str, float] | None = None,
               dedupe_deg: float = 3.0, rng: np.random.Generator | None = None,
@@ -165,6 +175,8 @@ class B601IK:
 
         heading: 수평 방향 (예: 선반 안쪽). 그리퍼 접근축이 이 방향의 수직면 안에서 앞을 보고,
                  수평에서 tilt_deg (아래 +, 위 −) 범위로만 기울어진다.
+        finger_perp: (heading 과 같이) 손가락 벌림축이 이 방향에 수직 — 얇은 벽 (바구니 테두리) 을 손가락 사이에 끼울 때
+                 벽이 뻗은 방향을 줌. 없으면 접근축 둘레 회전은 자유.
         """
         target = np.asarray(target_xyz, dtype=float)
         if sum(v is not None for v in (approach, rotation, heading)) > 1:
@@ -180,7 +192,13 @@ class B601IK:
             h[2] = 0.0
             if np.linalg.norm(h) < 1e-9:
                 raise ValueError("heading must have a horizontal component")
-            orient = ("heading", (h / np.linalg.norm(h), (float(tilt_deg[0]), float(tilt_deg[1]))))
+            fp = None
+            if finger_perp is not None:
+                fp = np.asarray(finger_perp, dtype=float)
+                fp = fp / np.linalg.norm(fp)
+            orient = ("heading", (h / np.linalg.norm(h), (float(tilt_deg[0]), float(tilt_deg[1])), fp))
+        elif finger_perp is not None:
+            raise ValueError("finger_perp needs heading")
         w = {**DEFAULT_WEIGHTS, **(weights or {})}
         rng = rng or np.random.default_rng(0)
         lo, hi = self.kin.arm_lower, self.kin.arm_upper

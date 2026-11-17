@@ -376,7 +376,8 @@ def play(robot, tl, gripper, rate_hz, lag_pause_deg, t_end=None, label="", stall
               f"늦은 주기(> {2000 * period:.0f} ms) {stats['late_ticks']}", flush=True)
 
 
-def main():
+def build_parser():
+    """인자 정의 (mission_run.py 도 같은 기본값을 쓰려고 따로)."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("plan", nargs="?", type=Path)
     ap.add_argument("--setup", choices=["mobile", "data_collection"], default="mobile",
@@ -405,6 +406,11 @@ def main():
                     help="끝 도착으로 인정하는 오차 [도]. 실기 정상 오차(4번 처짐 등)로 끝에서 멈추면 4~5 로")
     ap.add_argument("--stall", type=float, default=1.0, help="이만큼 [s] 계속 늦으면 부딪힘으로 보고 고정·정지")
     ap.add_argument("--gravity-scale", default="wrist_flex=0.85", help="관절별 중력 배율, 예 'wrist_flex=0.85' 또는 '4=0.85', 빈 값이면 안 검")
+    return ap
+
+
+def main():
+    ap = build_parser()
     args = ap.parse_args()
 
     if not (-270.0 <= args.grip_open_deg < args.grip_close_deg <= 0.0):
