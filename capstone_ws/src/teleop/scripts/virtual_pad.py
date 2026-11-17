@@ -299,6 +299,16 @@ class NavSource:
             self.rclpy.shutdown()
 
 
+def boost_min(vx, vy, w, min_lin, min_ang, eps_lin=0.005, eps_ang=0.01):
+    """마찰 보상: Nav2 가 0 이 아닌데 너무 작은 속도를 내면 (바퀴가 안 돎) 방향은 그대로 최소값까지 올림. 0 근처 (eps) 는 0 그대로."""
+    v = math.hypot(vx, vy)
+    if min_lin > 0 and eps_lin < v < min_lin:
+        vx, vy = vx * min_lin / v, vy * min_lin / v
+    if min_ang > 0 and eps_ang < abs(w) < min_ang and v <= eps_lin:     # 제자리 돌기만 (움직이는 중엔 그대로)
+        w = math.copysign(min_ang, w)
+    return vx, vy, w
+
+
 class NavUdpSource:
     """NavSource 와 같은 역할을 UDP 로 (--nav-udp PORT). Jetson nav_cmd_udp.py 가 /nav/cmd_vel 을 보냄. ROS 필요 없음.
     순서가 뒤집힌 옛 패킷은 버림 (보내는 쪽이 다시 켜져 seq 가 작아지면 1 초 뒤부터 다시 받음)."""
@@ -559,7 +569,8 @@ def run(args):
                         source = "nav: no cmd"
                     else:
                         lim = lambda v, m: max(-m, min(m, v))  # noqa: E731
-                        vx, vy, omega = lim(c[0], args.max_lin), lim(c[1], args.max_lin), lim(c[2], args.max_ang)
+                        vx, vy, omega = boost_min(lim(c[0], args.max_lin), lim(c[1], args.max_lin), lim(c[2], args.max_ang),
+                                                  args.nav_min_lin, args.nav_min_ang)
                         source = "nav"
             es_stop = nav is not None and hasattr(nav, "estop") and nav.estop() == "stop"
             if keys[pygame.K_SPACE] or es_stop:    # 노트북 정지 명령 = 수동 조종도 막음 (끊김은 Nav2 만 막음 → 패드로 수습 가능)
@@ -641,6 +652,10 @@ def main():
     ap.add_argument("--nav-auto", action="store_true",
                     help="데드맨 없음 (실기 배포): Nav2 명령을 늘 통과. RT 한 번 = 정지 (걸어 둠), Start (RB 없이) = 다시, "
                          "RB 수동이 우선, 게임패드가 없거나 빠지면 정지")
+    ap.add_argument("--nav-min-lin", type=float, default=0.0,
+                    help="Nav2 선속도가 0 이 아닌데 이보다 작으면 이 값으로 올림 [m/s] (마찰로 안 움직일 때, 0 = 끔)")
+    ap.add_argument("--nav-min-ang", type=float, default=0.0,
+                    help="Nav2 제자리 회전이 이보다 작으면 이 값으로 [rad/s] (0 = 끔)")
     ap.add_argument("--nav-timeout", type=float, default=0.5, help="Nav2 명령이 이보다 오래되면 0 [s]")
     ap.add_argument("--rate", type=float, default=20.0, help="발행 주기 [Hz] (swerve cmd_timeout 0.3 s 보다 충분히 빠르게)")
     ap.add_argument("--max-lin", type=float, default=0.3, help="패드 끝 |vx|,|vy| [m/s] (swerve max_wheel_mps 0.6)")

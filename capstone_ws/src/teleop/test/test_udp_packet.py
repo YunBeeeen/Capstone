@@ -83,6 +83,15 @@ class TestNavUdp(unittest.TestCase):
         src.close()
         tx.close()
 
+    def test_boost_min(self):
+        from virtual_pad import boost_min
+        self.assertEqual(boost_min(0.02, 0, 0, 0.08, 0.25)[0], 0.08)        # 작으면 최소값까지
+        self.assertEqual(boost_min(0.003, 0, 0, 0.08, 0.25)[0], 0.003)      # 0 근처는 그대로 (서 있을 때)
+        self.assertEqual(boost_min(0.2, 0, 0, 0.08, 0.25)[0], 0.2)
+        self.assertEqual(boost_min(0, 0, -0.05, 0.08, 0.25)[2], -0.25)      # 제자리 돌기
+        self.assertEqual(boost_min(0.05, 0, 0.1, 0.08, 0.25)[2], 0.1)       # 움직이는 중 회전은 그대로
+        self.assertEqual(boost_min(0.02, 0, 0, 0.0, 0.0)[0], 0.02)          # 끔
+
     def test_estop_states_and_ack(self):
         import socket
         import time
