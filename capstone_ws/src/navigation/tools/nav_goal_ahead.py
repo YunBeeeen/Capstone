@@ -32,6 +32,8 @@ def main():
     ap.add_argument("yaw", type=float, nargs="?", default=0.0, help="회전 [deg] (--abs 면 map yaw)")
     ap.add_argument("--abs", action="store_true", help="map 좌표로 직접")
     ap.add_argument("--name", help="place_mark.py 로 기억한 장소 이름")
+    ap.add_argument("--back", type=float, default=0.0,
+                    help="--name 장소에서 같은 방향을 본 채 이만큼 뒤 [m] (예: 선반 보는 자리 = --name shelf_A --back 0.6)")
     ap.add_argument("--places", help="places.yaml 경로 (기본: RTAB-Map 지도 옆)")
     ap.add_argument("--dry", action="store_true", help="목표만 출력하고 보내지 않음")
     ap.add_argument("--force", action="store_true", help="기준 노드가 지도에 없어도 저장 좌표로 보냄")
@@ -68,6 +70,9 @@ def main():
             print(f"'{a.name}' 이 {path} 에 없음. 있는 것: {', '.join(pl) or '(없음)'}")
             return
         (gx, gy, gyaw), how = places.resolve(pl[a.name], mc.graph())
+        if a.back:
+            gx, gy = gx - a.back * math.cos(gyaw), gy - a.back * math.sin(gyaw)
+            how += f", {a.back:.2f} m 뒤"
         print(f"'{a.name}' ({pl[a.name].get('kind', '?')}) — {how}")
         if pl[a.name].get("anchors") and "기준 노드 없음" in how and not a.force:
             # 이어서 매핑한 새 세션이 아직 옛 지도와 안 이어졌거나 다른 지도를 띄운 경우: 저장 좌표는 지금 지도와 기준이 다를 수 있음
@@ -100,7 +105,7 @@ def main():
     if h is None or not h.accepted:
         print("목표 거절됨")
         return
-    print("목표 수락 — 가상 패드 창에서 N (게임패드 RT) 을 누르고 있어야 움직임")
+    print("목표 수락 — 라파 패드: 자동이면 그냥 감 (RT = 정지, Start = 다시), 데드맨 모드면 RT 를 누르고 있기")
     res = h.get_result_async()
     last = 0.0
     try:

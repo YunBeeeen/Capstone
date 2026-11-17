@@ -25,7 +25,7 @@
               그 자리에서 곧게 --basket-lift (10 cm) 올림. 이후 손 자세 통째로 고정 (--rotation).
               **바구니는 짧은 변이 로봇을 보게 (긴 축이 앞뒤)** 둠
   carry       기본은 안 함 (든 자리 그대로). --carry-side 면 예전처럼 오른쪽 앞으로 (계획 잘 안 나옴)
-  nav_shelf   shelf_A_view 까지 Nav2 → (선반이 멀 때) 팔로 바구니를 몸 쪽 (손끝 x 0.20~0.32) 에서 판 5 cm 위 높이로 →
+  nav_shelf   선반 보는 자리 (shelf_A 0.6 m 뒤, --view-back) 까지 Nav2 → (선반이 멀 때) 팔로 바구니를 몸 쪽 (손끝 x 0.20~0.32) 에서 판 5 cm 위 높이로 →
               Nav2 로 shelf_A: 도착하면 바구니가 3층 판 위로 들어가 있음. 선반 바로 앞에서 올리면 바구니가 판에 걸림.
               (--place-lift-mm N: 예전 방식 — 보는 자리에서 리프트를 N 으로 올리고 패드로 다가감)
   place       --tier 층 판 (잰 수평면 중 가장 가까운 것). 판 1 cm 위 높이로 내려 앞으로 수평으로 밀어 넣기 (안 되면 판 위에서
@@ -55,9 +55,8 @@ GRIP_BELOW_RIM = 0.03          # 바구니 벽을 테두리에서 이만큼 아�
 DROP_ABOVE_RIM = 0.03          # 물체 놓을 때 손끝 = 테두리 + 이만큼
 PLACE_CLEAR = 0.01             # 놓을 때 바구니 바닥 ↔ 판
 GRAB_TILTS = ("30,50", "20,40", "40,60")   # 바구니 벽 잡을 손 기울기 [도] — 선반에 앞에서 넣을 때와 같아야 바구니가 수평
-SHELF_FRONT_OK = (0.44, 0.52)
-RAISE_X = (0.24, 0.28, 0.20, 0.32)
-VIEW_FRONT = 1.2                           # 보는 자리에서 선반 앞면까지 (대략, 충돌 검사용)         # 선반 앞에서 바구니를 올려 둘 손끝 x [m] (바구니가 아직 선반 앞)              # 선반에 앞에서 넣을 수 있는 선반 앞면 거리 [m] (계획·MuJoCo 검사 2026-11-17)
+SHELF_FRONT_OK = (0.44, 0.52)              # 선반 앞면 거리 [m] (로봇 중심 기준, 계획 검사 2026-11-18)
+RAISE_X = (0.24, 0.28, 0.20, 0.32)         # 선반 앞에서 바구니를 올려 둘 손끝 x [m] (바구니가 아직 선반 앞)
 
 
 def phrase(word):
@@ -244,16 +243,29 @@ def find(a, words):
         raise Stop("찾기 결과 json 이 없음 (위 로그)")
 
 
-def nav(a, name):
+def nav(a, name, back=0.0):
+    what = f"{name} {back:.1f} m 뒤" if back else name
     if a.dry_run:
-        print(f"  [dry] Nav2 → {name}")
+        print(f"  [dry] Nav2 → {what}")
         return
-    print(f"  Nav2 → {name}: 게임패드 RT 를 당기면 정지, RB = 수동")
-    r = jetson(a, f"python3 $NAV/nav_goal_ahead.py --name {shlex.quote(name)}", stream=True)
+    print(f"  Nav2 → {what}: 패드 RT = 정지 (Start = 다시), RB = 수동, 여기서 Ctrl+C = 목표 취소")
+    try:
+        r = jetson(a, f"python3 $NAV/nav_goal_ahead.py --name {shlex.quote(name)}" + (f" --back {back:.2f}" if back else ""), stream=True)
+    except KeyboardInterrupt:
+        nav_cancel(a)
+        raise Stop(f"{what} 이동 취소 (Ctrl+C)")
     print("   " + "\n   ".join(r.stdout.strip().splitlines()[-4:]))
     if "결과: 성공" not in r.stdout:
-        raise Stop(f"{name} 로 이동 실패 (위 출력)")
+        nav_cancel(a)
+        raise Stop(f"{what} 로 이동 실패 (위 출력)")
 
+
+def nav_cancel(a):
+    """Jetson 의 Nav2 목표를 모두 취소 (ssh 가 끊겨도 Jetson 쪽 nav_goal_ahead·목표는 살아 있을 수 있어서)."""
+    print("  Nav2 목표 취소 중…")
+    r = jetson(a, "pkill -INT -f nav_goal_ahead.py; ros2 service call /navigate_to_pose/_action/cancel_goal "
+                  "action_msgs/srv/CancelGoal '{}' | tail -1")
+    print("   " + (r.stdout.strip().splitlines() or ["(응답 없음)"])[-1])
 
 def plan(a, arm, name, xyz, desk_top, front, lateral, zed, descend=None, extra=(), target="desk", held=None):
     """ik_sim_run --no-sim. target = desk (책상, 윗면 desk_top) 또는 shelf3/shelf4 (시뮬 선반 모양, 판 높이 --shelf-tops).
@@ -344,7 +356,9 @@ def main():
     ap.add_argument("--raise-dz", type=float, default=0.05, help="선반에 놓기 전 바구니 바닥을 판보다 이만큼 더 위로 [m] (곧게 내려놓는 거리)")
     ap.add_argument("--desk", default="desk_1")
     ap.add_argument("--shelf", default="shelf_A")
-    ap.add_argument("--shelf-view", default="shelf_A_view", help="선반 앞에서 먼저 들를 장소 (없으면 '')")
+    ap.add_argument("--shelf-view", default="", help="선반 앞에서 먼저 들를 저장된 장소. 비우면 (기본) shelf_A 에서 --view-back 뒤")
+    ap.add_argument("--view-back", type=float, default=0.6,
+                    help="선반 보는 자리 = shelf_A 에서 같은 방향을 본 채 이만큼 뒤 [m]. 여기서 바구니를 판 위 높이로 올리고 다가감")
     ap.add_argument("--basket", default="basket", help="바구니를 찾는 말")
     ap.add_argument("--basket-size", type=float, nargs=3, default=(0.21, 0.13, 0.10), metavar=("L", "W", "H"))
     ap.add_argument("--descend", type=float, default=0.06)
@@ -473,25 +487,24 @@ def main():
                     ask("게임패드로 리프트를 최저로 (RB+A/B) — 바구니가 차체에 닿지 않는지 보면서 → ENTER: ",
                         allow_skip=False, always=True)
             elif s == "nav_shelf":
-                if a.place_lift_mm and a.shelf_view:
+                if a.place_lift_mm:
                     # 리프트를 선반에서만 올리는 방식: 보는 자리 (선반 1 m 앞) 에서 올리고 패드로 천천히 다가감
-                    if ask(f"{a.shelf_view} 로 이동. ENTER (s = 건너뜀): ") != "s":
-                        nav(a, a.shelf_view)
+                    if ask(f"{view_name(a)} 로 이동. ENTER (s = 건너뜀): ") != "s":
+                        go_view(a)
                     ask(f"게임패드로 리프트 {a.place_lift_mm:.0f} mm (RB+X/Y) → RB 로 천천히 똑바로 앞으로: 바구니가 3층 판 위로 들어가고 "
                         f"차체 앞면과 선반 사이 18~26 cm, 선반 가운데를 보게 → ENTER: ", allow_skip=False, always=True)
-                elif ask(f"{a.shelf_view or '-'} → {a.shelf} 로 이동. ENTER (s = 건너뜀): ") != "s":
-                    if a.shelf_view:
-                        nav(a, a.shelf_view)
-                        # 리프트 고정: 보는 자리 (선반이 멀리) 에서 팔로 바구니를 판 위 높이로 올려 두고 다가감 → 도착하면
-                        # 바구니가 판 위로 들어가 있음. 선반 앞에서 올리면 앞으로 나온 바구니가 판에 걸림 (계획 검사 2026-11-18)
-                        need(st, "hold_orient")
-                        _, tip = place_tip(a, st, a.board, SHELF_FRONT_OK[0])
-                        zed = 0.675 + a.lift_mm / 1000 if a.lift_mm else st["zed"]
-                        p_up = raise_plan(a, arm, st, tip, a.board, VIEW_FRONT, zed)
-                        if not p_up or ask(f"   바구니를 판 ({100 * a.board:.0f} cm) {100 * a.raise_dz:.0f} cm 위 높이로 (몸 쪽). ENTER: ") == "s":
-                            raise Stop("보는 자리에서 바구니 올리기 계획 실패" if not p_up else "건너뜀")
-                        st["tl_up"] = arm.run(p_up, "판 위 높이로 올리기")[0]
-                        print("   ⚠ 바구니가 차체 앞으로 나와 있음 — 선반까지 똑바로 다가가는지 보기")
+                elif ask(f"{view_name(a)} → {a.shelf} 로 이동. ENTER (s = 건너뜀): ") != "s":
+                    go_view(a)
+                    # 리프트 고정: 보는 자리 (선반이 멀리) 에서 팔로 바구니를 판 위 높이로 올려 두고 다가감 → 도착하면
+                    # 바구니가 판 위로 들어가 있음. 선반 앞에서 올리면 앞으로 나온 바구니가 판에 걸림 (계획 검사 2026-11-18)
+                    need(st, "hold_orient")
+                    _, tip = place_tip(a, st, a.board, SHELF_FRONT_OK[0])
+                    zed = 0.675 + a.lift_mm / 1000 if a.lift_mm else st["zed"]
+                    p_up = raise_plan(a, arm, st, tip, a.board, SHELF_FRONT_OK[0] + a.view_back, zed)
+                    if not p_up or ask(f"   바구니를 판 ({100 * a.board:.0f} cm) {100 * a.raise_dz:.0f} cm 위 높이로 (몸 쪽). ENTER: ") == "s":
+                        raise Stop("보는 자리에서 바구니 올리기 계획 실패" if not p_up else "건너뜀")
+                    st["tl_up"] = arm.run(p_up, "판 위 높이로 올리기")[0]
+                    print("   ⚠ 바구니가 차체 앞으로 나와 있음 — 선반까지 똑바로 다가가는지 보기")
                     nav(a, a.shelf)
             elif s == "lift_place":
                 if not a.lift_mm:
@@ -567,6 +580,18 @@ def raise_plan(a, arm, st, tip, board, front, zed):
         if p:
             return p
     return None
+
+
+def view_name(a):
+    return a.shelf_view or f"{a.shelf} {a.view_back:.1f} m 뒤"
+
+
+def go_view(a):
+    """선반 보는 자리: --shelf-view 로 저장한 장소가 있으면 거기, 없으면 shelf_A 에서 같은 방향으로 --view-back 뒤."""
+    if a.shelf_view:
+        nav(a, a.shelf_view)
+    else:
+        nav(a, a.shelf, back=a.view_back)
 
 
 def need(st, k):

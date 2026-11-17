@@ -26,7 +26,7 @@ ros2 run capstone_teleop udp_teleop_bridge.py                # 4  패드 UDP 수
 ros2 run lift_bridge lift_bridge_node.py                     # 5  리프트
 ~/pad/scripts/pad_pi.sh                                      # 6  게임패드 (source 필요 없음)
 ```
-게임패드: **RB 누른 채 스틱 = 수동**, **Nav2 는 누를 것 없이 통과 (실기 배포), RT 당기면 정지**, RB 수동이 우선 (예전 데드맨: `NAV_DEADMAN=1 ~/pad/scripts/pad_pi.sh`), 십자키 = 속도 상한, RB+Y/A/X/B = 리프트.
+게임패드: **RB 누른 채 스틱 = 수동**, **Nav2 는 누를 것 없이 통과 (실기 배포). RT 한 번 = 정지 (걸어 둠, 놓아도 그대로), Start (RB 없이) = 다시**, RB 수동이 우선, **패드가 빠지면 정지** (예전 데드맨: `NAV_DEADMAN=1 ~/pad/scripts/pad_pi.sh`), 십자키 = 속도 상한, RB+Y/A/X/B = 리프트.
 6 번 첫 줄에 `[gamepad] Xbox 360 Controller` 가 나와야 함 (안 나오면 다시 꽂기). 리프트 **최저**, 팔 **접힘** 으로 시작.
 
 ### Jetson — 터미널마다 첫 줄
@@ -102,13 +102,14 @@ Jetson 시계는 1970 (인터넷 없음, 원래 그럼) — Jetson 안에선 문
 
 ---
 
-## 3. 명령 보내기 CLI (J5, 누를 것 없음 — 멈추려면 **RT**)
+## 3. 명령 보내기 CLI (J5, 누를 것 없음 — 멈추려면 **RT**, 다시 **Start**)
 
 ```bash
 python3 $NAV/place_mark.py --list                              # 갈 수 있는 장소
 python3 $NAV/nav_goal_ahead.py --name desk_1 --dry             # 좌표만 확인 (안 움직임)
 python3 $NAV/nav_goal_ahead.py --name desk_1                   # 장소로
 python3 $NAV/nav_goal_ahead.py --name shelf_A
+python3 $NAV/nav_goal_ahead.py --name shelf_A --back 0.6           # 선반 보는 자리 (shelf_A 에서 같은 방향으로 0.6 m 뒤, 저장 안 해도 됨)
 python3 $NAV/place_go.py shelf_A                               # 선반: 보는 자리까지 Nav2 → 선반 다시 재고 → 천천히 직접 접근 (--view 필요, 실기 미확인)
 python3 $NAV/place_go.py shelf_A --check-only                  #   보는 자리까지 가서 재기만
 python3 $NAV/place_tour.py shelf_A desk_1 --loops 3 --wait 5   # 여러 곳 왕복 (--loops 0 = 계속, --keep-going)
@@ -125,7 +126,7 @@ python3 $NAV/place_tour.py shelf_A desk_1 --loops 3 --wait 5   # 여러 곳 왕�
 
 ### 4-A. 전체 임무 한 번에 (`mission_run.py`, 라파) — 계획·MuJoCo·대회장 시뮬 통과, 실기 미확인
 
-desk_1 → 물체 찾기 → 집기 → 바구니에 넣기 → 바구니 로봇 쪽 **짧은 벽** 잡고 그 자리에서 10 cm 들기 → shelf_A_view 에서 **팔로 바구니를 판 위 높이로** → shelf_A (바구니가 판 위로 들어감) → 선반 3 층 (1.00 m) 오른쪽에 수평으로 밀어 넣기.
+desk_1 → 물체 찾기 → 집기 → 바구니에 넣기 → 바구니 로봇 쪽 **짧은 벽** 잡고 그 자리에서 10 cm 들기 → 선반 보는 자리 (**shelf_A 0.6 m 뒤**, 저장 필요 없음) 에서 **팔로 바구니를 판 위 높이로** → shelf_A (바구니가 판 위로 들어감) → 선반 3 층 (1.00 m) 오른쪽에 수평으로 밀어 넣기.
 **리프트는 처음부터 끝까지 325 mm = 카메라 바닥에서 1.00 m** (2026-11-18 계획 검사). 팔 연결 하나로 끝까지. 물체 찾기는 ROS 영상 (`ros_find`).
 ```bash
 # 준비 — 리프트를 325 mm (카메라 1.00 m) 로 올려 두고 시작 (게임패드 RB+X/Y)
@@ -143,13 +144,13 @@ $PY tools/mission_run.py pumpkin --from find     # 중간부터 (바구니·선�
 |---|---|
 | 리프트 | **325 mm 고정 (카메라 1.00 m)** → 내비 `cam_z:=1.0`. 다른 높이면 `--lift-mm` 와 `cam_z` 를 같이 (cam_z = 0.675 + mm/1000) |
 | 바구니 두는 방향 (책상) | **짧은 변이 로봇을 보게 (긴 축이 앞뒤)**. 로봇 쪽 짧은 벽을 잡음 |
-| 선반 앞 | `shelf_A_view` 에서 팔이 바구니를 판 5 cm 위 높이로 올린 뒤 Nav2 로 `shelf_A` — 바구니가 차체 앞으로 ~20 cm 나와 있음, **shelf_A_view 는 선반 정면 (똑바로 다가가게)** |
+| 선반 앞 | `shelf_A` 0.6 m 뒤 (`--view-back`, 저장한 장소를 쓰려면 `--shelf-view 이름`) 에서 팔이 바구니를 판 5 cm 위 높이로 올린 뒤 Nav2 로 `shelf_A` — 바구니가 차체 앞으로 ~20 cm 나와 있음, **shelf_A 는 선반 정면을 보게 저장** (0.6 m 똑바로 다가감) |
 | 놓는 자리 | 바구니 가운데 로봇 오른쪽 15 cm (`--place-y`, 오른팔이라 가장 쉬움) — 선반 가운데를 보고 서면 선반 가운데보다 15 cm 오른쪽 |
 | 손 기울기 | 잡을 때 30~50° 앞으로 → 들고 다니고 넣을 때도 그대로 (선반 3 층은 윗판까지 35 cm 라 위에서 수직으로는 못 넣음) |
 | **shelf_A 설 자리** | **선반 앞면이 로봇 중심에서 0.44~0.52 m = 차체 앞면과 선반 사이 18~26 cm** (예전 10~15 cm 는 못 넣음 → 다시 저장) |
 | 선반 모양 | 시뮬 선반 (폭 0.6·깊이 0.33·기둥) 에 판 높이 0.21/0.55/1.00/1.35 (`--shelf-tops`) — 계획 때 선반·든 바구니 충돌 검사 |
 
-- 단계마다 ENTER (s = 건너뜀, q = 지금 자세 유지하고 끝). 이동은 누를 것 없음, **멈추려면 RT**
+- 단계마다 ENTER (s = 건너뜀, q = 지금 자세 유지하고 끝). 이동은 누를 것 없음, **멈추려면 RT (다시 Start)**, 라파에서 **Ctrl+C = Nav2 목표 취소**
 - 막히거나 Ctrl+C → 팔 고정 → ENTER = 그 동작 시작 자세로 복귀, q = 그대로
 - 바구니 벽을 잡은 뒤 "잘 끼었나?" 를 눈으로 확인하고 ENTER
 - 끝날 때 팀 팔로워가 "팔을 받친 뒤 ENTER" 를 물음 (바구니를 들고 있으면 먼저 받치기)

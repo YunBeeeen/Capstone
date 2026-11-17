@@ -39,7 +39,8 @@
     Jetson: python3 nav_cmd_udp.py --to <라파>          (/nav/cmd_vel → UDP 5006)
     라파:   SDL_VIDEODRIVER=dummy python3 virtual_pad.py --udp 127.0.0.1 --nav-udp 5006 --max-lin 0.15 --max-ang 0.4
   마우스 패드·Q/E·게임패드(RB)를 쓰면 사람 입력이 우선. Nav2 명령도 --max-lin / --max-ang 로 다시 자름.
-  --nav-auto (실기 배포, pad_pi.sh 기본): 데드맨 없이 Nav2 명령을 늘 통과. RT 를 당기면 정지 (브레이크).
+  --nav-auto (실기 배포, pad_pi.sh 기본): 데드맨 없이 Nav2 명령을 늘 통과. RT 한 번 = 정지 (걸어 둠, 놓아도 그대로),
+    Start (RB 없이) = 다시. 게임패드가 없거나 빠지면 정지 (멈출 수단이 없으니).
 
 패드에서 손을 떼도 0 을 계속 보냄 (rate Hz) → swerve_controller 는 ACTIVE 유지(속도 0 = 제자리).
 창을 닫으면 발행이 멈춰서 swerve_controller 가 cmd_timeout 뒤 HOLD.
@@ -80,6 +81,7 @@ def adjust_limits(max_lin, max_ang, dx, dy):
     return max_lin, max_ang
 LIFT_BTN_FAST_UP, LIFT_BTN_FAST_DOWN, LIFT_BTN_SLOW_UP, LIFT_BTN_SLOW_DOWN = 3, 0, 2, 1  # Y, A, X, B
 LIFT_BTN_PARK, LIFT_BTN_ZERO, LIFT_BTN_CLEAR = 7, 6, 4  # Start, Select, LB
+NAV_RESUME_BTN = 7              # --nav-auto: RT 로 걸린 정지를 풂 = Start (RB 없이)
 
 
 def lift_pwm(fast_up, fast_down, slow_up, slow_down, fast, slow):
@@ -165,6 +167,14 @@ class Gamepad:
     def rt_pulled(self):
         js = self.js
         return bool(js is not None and js.get_numaxes() > NAV_AXIS and js.get_axis(NAV_AXIS) > NAV_AXIS_ON)
+
+    def start_alone(self):
+        """Start 를 RB 없이 (RB+Start 는 리프트 주차)."""
+        js = self.js
+        if js is None:
+            return False
+        b = lambda i: 0 <= i < js.get_numbuttons() and js.get_button(i)  # noqa: E731
+        return bool(b(NAV_RESUME_BTN) and not b(self.cfg["enable_button"]))
 
     def dpad(self):
         """(dx, dy) 오른쪽·위 = +1."""
@@ -430,6 +440,9 @@ def run(args):
               f"deadman 버튼 {gcfg['enable_button']}")
     source = "mouse"
     period = 1.0 / args.rate
+    nav_stopped = False          # --nav-auto: RT 를 한 번 당기면 걸리고 Start 로 풂
+    if args.nav_auto:
+        print("[nav] 자동 (데드맨 없음): RT 한 번 = 정지 (걸어 둠), Start (RB 없이) = 다시, RB = 수동. 패드가 빠지면 정지")
     next_send = time.monotonic()
     last_dir = None
     dpad_last, dpad_next = (0, 0), 0.0
@@ -499,8 +512,15 @@ def run(args):
             if nav is not None:
                 nav.poll()
                 manual = left.dragging or right.dragging or keys[pygame.K_q] or keys[pygame.K_e] or source == "gamepad"
-                if args.nav_auto:      # 실기 배포: 누르지 않아도 통과, RT 를 당기면 정지 (브레이크), RB 수동이 우선
-                    nav_hold = not (gpad is not None and gpad.rt_pulled())
+                if args.nav_auto:      # 실기 배포: 누르지 않아도 통과. RT = 정지 (걸어 둠), Start = 풂, 패드 없으면 정지
+                    pad_ok = gpad is not None and gpad.js is not None
+                    if pad_ok and gpad.rt_pulled() and not nav_stopped:
+                        nav_stopped = True
+                        print("[nav] ■ 정지 (RT) — 다시 가려면 Start (RB 없이)", flush=True)
+                    elif pad_ok and nav_stopped and gpad.start_alone() and not gpad.rt_pulled():
+                        nav_stopped = False
+                        print("[nav] ▶ 다시 (Start)", flush=True)
+                    nav_hold = pad_ok and not nav_stopped
                 else:
                     nav_hold = keys[pygame.K_n] or (gpad is not None and gpad.nav_held())
                 if nav_hold and not manual:
@@ -545,7 +565,7 @@ def run(args):
                                     True, (220, 220, 230)), (16, 16))
             if nav is not None:
                 a = nav.age()
-                held = args.nav_auto or keys[pygame.K_n] or (gpad is not None and gpad.nav_held())
+                held = (args.nav_auto and not nav_stopped) or keys[pygame.K_n] or (gpad is not None and gpad.nav_held())
                 screen.blit(font.render(f"NAV: hold N or RT = autonomous ({nav_label}, last cmd {a:.1f}s ago)"
                                         if a < 1e6 else f"NAV: hold N = autonomous ({nav_label}, no cmd yet)",
                                         True, (120, 230, 120) if held and source == "nav" else (200, 180, 90)), (16, 96))
@@ -589,7 +609,8 @@ def main():
                     help="Nav2 명령을 ROS 대신 이 UDP 포트로 받음 (Jetson nav_cmd_udp.py, 기본 5006). --nav-topic 대신")
     ap.add_argument("--nav-udp-from", metavar="HOST", help="--nav-udp 에서 이 주소에서 온 것만 받음 (예 Jetson)")
     ap.add_argument("--nav-auto", action="store_true",
-                    help="데드맨 없음 (실기 배포): Nav2 명령을 늘 통과. 게임패드 RT 를 당기면 정지, RB 수동 조종이 우선")
+                    help="데드맨 없음 (실기 배포): Nav2 명령을 늘 통과. RT 한 번 = 정지 (걸어 둠), Start (RB 없이) = 다시, "
+                         "RB 수동이 우선, 게임패드가 없거나 빠지면 정지")
     ap.add_argument("--nav-timeout", type=float, default=0.5, help="Nav2 명령이 이보다 오래되면 0 [s]")
     ap.add_argument("--rate", type=float, default=20.0, help="발행 주기 [Hz] (swerve cmd_timeout 0.3 s 보다 충분히 빠르게)")
     ap.add_argument("--max-lin", type=float, default=0.3, help="패드 끝 |vx|,|vy| [m/s] (swerve max_wheel_mps 0.6)")
