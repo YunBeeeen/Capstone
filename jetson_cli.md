@@ -1,7 +1,7 @@
 # Jetson CLI — 대회장: 1. 매핑 → 2. 이동 자동화
 
-구성 (2026-11-17~): **Jetson = ZED·매핑·Nav2 (+ Nav2 명령 UDP 중계)**, **라파 = 게임패드·주행·리프트 브리지**, 둘은 iDLE 유선 (Jetson 192.168.1.11, 라파 192.168.1.12).
-노트북은 접속·RViz 용 (랜선으로 iDLE 에 꽂으면 `ssh jetson` 이 바로 붙음).
+구성 (2026-11-17~): **Jetson = ZED·매핑·Nav2 (+ Nav2 명령 UDP 중계)**, **라파 = 게임패드·주행·리프트 브리지**, 둘은 iDLE 유선 (2026-11-17 오후부터 **192.168.0.x**: Jetson 0.11, 라파 0.12 — 주소 대신 이름 `jetson.local` / `raspberrypi.local` 을 씀).
+노트북은 접속·RViz 용 — iDLE WiFi 에 붙어도 같은 192.168.0.x 라 `ssh jetson` · `ssh raspberrypi` 바로 됨 (랜선 필요 없음).
 
 > Jetson 에서 확인한 것: ZED ROS (영상 13 Hz·깊이 15 Hz·자세 30 Hz), 게임패드 주행. **매핑·Nav2 주행은 Jetson 에서 아직 안 돌려 봄** — 대회장에서 처음이면 짧게 먼저 시험.
 > 노트북 때의 배경·옵션은 [`CLI.md`](CLI.md) 11장, 대회 순서는 [`CHALLENGE.md`](CHALLENGE.md).
