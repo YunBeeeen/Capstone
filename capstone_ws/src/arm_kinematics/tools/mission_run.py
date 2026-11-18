@@ -5,7 +5,9 @@
   cd ~/arm && PY=~/rebot_env/venv/bin/python
   $PY tools/mission_run.py pumpkin                   # 리프트 325 mm 고정 (카메라 1.00 m), 선반 3 층 (1.00 m) 에 놓기
   $PY tools/mission_run.py pumpkin --tier 4 --lift-mm 0   # 4 층 꼭대기 (1.35 m): 리프트를 단계마다 올리고 내림
-  $PY tools/mission_run.py pumpkin --tier 3 --from basket_grab     # 그 단계부터 (find 결과가 필요 → --from find)
+  $PY tools/mission_run.py pumpkin --from basket_grab     # 물체가 이미 바구니 안: 바구니만 찾아 잡기 → 선반 → 놓기
+  $PY tools/mission_run.py pumpkin --from lift_place      # 바구니 든 채 선반 앞에 와 있음: 판 재기 → 넣고 놓기 → 빼기
+                                                          # (바구니 든 손 자세는 지난 실행의 /tmp/mission_state.json)
   $PY tools/mission_run.py pumpkin --from find --to basket_grab --zed-height 1.0   # 카메라 높이를 재지 않고 1.0 m 로
   $PY tools/mission_run.py pumpkin --tier 3 --dry-run --vision v.json   # 팔·Jetson 없이 계획·순서만
 
@@ -22,7 +24,7 @@
 동작 (오른팔, 로봇 바닥 기준 m):
   pick        물체 (인식 + --dx·--dz) 바로 위 → 곧게 내려와 그리퍼 --pick-close (80%) 만 닫기 → 제자리에서 곧게 올림:
               올린 높이 = 넣기 접근 높이 (테두리 + 3 + 9 cm) + --carry-up (2 cm) — 이 높이 그대로 바구니 위로 감
-  drop        바구니 가운데 위 그 높이 → 곧게 11 cm 내려와 (손끝 = 테두리 + 3 cm) 열기 → 곧게 올림
+  drop        바구니 가운데 위 (든 높이 + --drop-up 5 cm) → 곧게 16 cm 내려와 (손끝 = 테두리 + 3 cm) 열기 → 곧게 16 cm 올림
   basket_grab 바구니 짧은 벽 (로봇 쪽 먼저), 손끝 = 테두리 − 3 cm. 손을 30~50° 앞으로 기울여 위에서 내려와 닫기 →
               그 자리에서 곧게 --basket-lift (10 cm) 올림. 이후 손 자세 통째로 고정 (--rotation).
               **바구니는 짧은 변이 로봇을 보게 (긴 축이 앞뒤)** 둠
@@ -368,6 +370,10 @@ def main():
     ap.add_argument("--pick-close", type=float, default=0.8, help="물체 집을 때 그리퍼를 이만큼만 닫음 (0~1, 1 = 끝까지). 바구니 잡기는 끝까지")
     ap.add_argument("--carry-up", type=float, default=0.02,
                     help="잡은 뒤 제자리에서 넣기 접근 높이보다 이만큼 [m] 더 올려서 바구니로 감 (그 높이에서 곧게 내려와 넣기)")
+    ap.add_argument("--drop-up", type=float, default=0.05,
+                    help="넣기 접근점을 든 높이보다 이만큼 [m] 더 위로 → 놓은 뒤 곧게 그만큼 더 올라감 (바구니 잡기 전)")
+    ap.add_argument("--basket-yaw", type=float,
+                    help="바구니 긴 축 방향 [도] 을 직접 (0 = 앞뒤 → 앞·뒤 벽이 짧은 벽, 90 = 좌우). 기본: 인식값")
     ap.add_argument("--dx", type=float, default=0.04, help="물체 목표 앞뒤 보정 [m] (+ = 더 앞, 기본 4 cm: 실기에서 인식보다 앞에 있었음)")
     ap.add_argument("--dz", type=float, default=0.02, help="물체 목표 높이 보정 [m] (+ = 더 위, − = 더 깊이, 기본 2 cm 위)")
     ap.add_argument("--min-score", type=float, default=0.15)
@@ -379,6 +385,7 @@ def main():
     ap.add_argument("--from", dest="from_", choices=STEPS, default=STEPS[0])
     ap.add_argument("--to", choices=STEPS, default=STEPS[-1])
     ap.add_argument("--yes", action="store_true", help="단계마다 묻지 않음 (리프트 안내는 물음)")
+    ap.add_argument("--state", help="단계 결과 파일 (기본 /tmp/mission_state.json). 끝날 때 저장, --from nav_shelf 이후면 읽음")
     ap.add_argument("--jetson", default="idle@jetson.local")
     ap.add_argument("--dry-run", action="store_true", help="팔·Jetson 없이: --vision json 으로 계획·순서만")
     ap.add_argument("--vision", help="--dry-run 용 ros_find json")
@@ -392,6 +399,16 @@ def main():
     L, W, H = a.basket_size
     q_obj, q_bk = phrase(a.word), phrase(a.basket)
     st = {}                                                     # 단계 사이 값
+    state = Path(a.state if a.state else ("/tmp/mission_state_dry.json" if a.dry_run else "/tmp/mission_state.json"))
+    if STEPS.index(a.from_) > STEPS.index("basket_grab"):     # 바구니를 든 뒤부터: 그때 잰 손 자세·바구니 위치를 파일에서
+        if not state.exists():
+            raise SystemExit(f"{state} 없음 — 바구니 잡기 (basket_grab) 를 이 프로그램으로 한 적이 있어야 함")
+        st = json.loads(state.read_text())
+        miss = [k for k in ("hold_orient", "held", "held_d", "held_ext_x") if k not in st]
+        if miss:
+            raise SystemExit(f"{state} 에 바구니 든 정보 ({', '.join(miss)}) 가 없음 — basket_grab 이 끝까지 안 됐음")
+        print(f"이전 결과 {state} ({(time.time() - state.stat().st_mtime) / 60:.0f} 분 전): 바구니 든 손 자세 사용 — "
+              "그 뒤로 바구니를 다시 잡았으면 맞지 않음")
 
     arm = Arm(a)
     print(f"시작 자세 (모터 1~6): {np.round(arm.q(), 1).tolist()}, 단계: {' → '.join(steps)}")
@@ -450,15 +467,37 @@ def main():
                 need(st, "bk")
                 b = st["bk"]["center"]
                 top = st["desk"] + H
-                p = plan(a, arm, "drop", (b[0], b[1], top + DROP_ABOVE_RIM), st["desk"], st["front"], b[1], st["zed"],
-                         drop_descend(a) + a.carry_up)
-                if not p or ask(f"   그 높이로 바구니 위 → 곧게 {100 * (drop_descend(a) + a.carry_up):.0f} cm 내려와 열기 → 올림. ENTER: ") == "s":
+                # 접근점 = 든 높이 + --drop-up (가며 올라감) → 곧게 내려와 열기 → 같은 길로 곧게 올림: 놓은 뒤 손이 그만큼 더 높이
+                # (바구니 잡으러 갈 때 손가락이 바구니·물체를 안 쓸게)
+                p = None
+                for up in sorted({a.drop_up, min(a.drop_up, 0.03), 0.0}, reverse=True):   # 높으면 팔이 안 닿을 수 있음 → 낮춰 봄
+                    d_drop = drop_descend(a) + a.carry_up + up
+                    p = plan(a, arm, "drop", (b[0], b[1], top + DROP_ABOVE_RIM), st["desk"], st["front"], b[1], st["zed"], d_drop)
+                    if p:
+                        if up < a.drop_up:
+                            print(f"   ⚠ --drop-up {100 * a.drop_up:.0f} cm 는 팔이 안 닿아 {100 * up:.0f} cm 로")
+                        break
+                if not p or ask(f"   바구니 위 {100 * (top + DROP_ABOVE_RIM + d_drop):.0f} cm 로 → 곧게 {100 * d_drop:.0f} cm 내려와 열기 → "
+                                f"곧게 {100 * d_drop:.0f} cm 올림. ENTER: ") == "s":
                     raise Stop("넣기 계획 실패" if not p else "넣기 건너뜀")
                 tl, t = arm.run(p, "넣기", grip_after="open")
                 arm.back(tl, t, phases=("insert",), label="올림")
             elif s == "basket_grab":
-                need(st, "bk")
+                if "bk" not in st:          # --from basket_grab: 물체는 이미 바구니 안 → 바구니만 찾음
+                    v = find(a, [a.basket])
+                    bk = v["objects"].get(q_bk)
+                    if not bk or bk.get("support_z") is None or bk.get("desk_front_x") is None:
+                        raise Stop(f"'{q_bk}' 를 못 찾았거나 책상 면·앞 모서리를 못 잼 (Jetson /tmp/m_find.jpg)")
+                    st.update(bk=bk, desk=bk["support_z"], front=bk["desk_front_x"], zed=bk["zed_height"])
+                    b = bk["center"]
+                    print(f"   {q_bk} ({100 * b[0]:.1f}, {100 * b[1]:.1f}) cm yaw {math.degrees(bk['yaw'] or 0):.0f}°, "
+                          f"책상 {100 * st['desk']:.1f} cm·앞 {100 * st['front']:.1f} cm, ZED {st['zed']:.3f} m")
                 b, yaw = st["bk"]["center"], st["bk"].get("yaw") or 0.0
+                sz = st["bk"].get("size") or (0.0, 0.0, 0.0)
+                print(f"   바구니 긴 축 인식 {math.degrees(yaw):+.0f}° (0 = 앞뒤, ±90 = 좌우), 보인 크기 {100 * sz[0]:.0f}×{100 * sz[1]:.0f} cm")
+                if a.basket_yaw is not None:
+                    yaw = math.radians(a.basket_yaw)
+                    print(f"   → --basket-yaw 로 긴 축 {a.basket_yaw:+.0f}° 사용")
                 u = np.array([math.cos(yaw), math.sin(yaw)])
                 v_ = np.array([-u[1], u[0]])
                 top = st["desk"] + H
@@ -480,6 +519,8 @@ def main():
                     if p:
                         break
                 which = "로봇 쪽" if wxy is near[0] else "먼 쪽"
+                if p:
+                    print(f"   잡을 곳 = {which} 짧은 벽 가운데 ({100 * wxy[0]:.1f}, {100 * wxy[1]:.1f}) cm — 긴 벽이면 q 후 --basket-yaw 로 고침")
                 if not p or ask(f"   바구니 {which} 짧은 벽: 열기 → 손 기울여 위에서 내려와 닫기 → 그 자리에서 {100 * a.basket_lift:.0f} cm 올림. ENTER: ") == "s":
                     raise Stop("바구니 잡기 계획 실패" if not p else "바구니 잡기 건너뜀")
                 tl, t = arm.run(p, "바구니 잡기", grip_before="open", grip_after="close")
@@ -587,6 +628,10 @@ def main():
     except Stop as e:
         print(f"\n■ 멈춤: {e}. 팔은 지금 자세 유지. 다시: --from <단계> (위 === 이름 ===)")
     finally:
+        try:
+            state.write_text(json.dumps({k: v for k, v in st.items() if not k.startswith("tl_")}, default=float))
+        except (OSError, TypeError, ValueError) as e:
+            print(f"(단계 결과 저장 실패: {e})")
         arm.close()
     return 0
 
