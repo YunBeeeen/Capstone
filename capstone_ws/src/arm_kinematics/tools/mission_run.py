@@ -78,6 +78,7 @@ class Arm:
         self.pp, self.a, self.dry = pp, a, a.dry_run
         self.pargs = pp.build_parser().parse_args([])
         self.pargs.speed = a.speed
+        self.pargs.settle_deg = a.settle_deg
         self.T = pp.load_timeline_module()
         self.robot = None
         if self.dry:
@@ -368,6 +369,8 @@ def main():
     ap.add_argument("--min-score", type=float, default=0.15)
     ap.add_argument("--zed-height", default="auto",
                     help="바닥 → ZED 나사 [m] 를 ros_find 에 줌. 기본 auto = 보이는 바닥으로 잼 (바닥이 안 보이면 찾기 실패 → 1.0 처럼 숫자로)")
+    ap.add_argument("--settle-deg", type=float, default=5.0,
+                    help="동작 끝에서 이만큼 [도] 안이면 도착으로 봄 (play_plan 기본 2° 는 팔 처짐 2~4° 로 자꾸 멈춤). 끝나면 그 자리로 고정 (더 안 밂)")
     ap.add_argument("--speed", type=float, default=1.0, help="재생 속도 배율 (1.0 = 30°/s)")
     ap.add_argument("--from", dest="from_", choices=STEPS, default=STEPS[0])
     ap.add_argument("--to", choices=STEPS, default=STEPS[-1])
