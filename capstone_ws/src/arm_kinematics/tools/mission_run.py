@@ -363,7 +363,7 @@ def main():
     ap.add_argument("--basket", default="basket", help="바구니를 찾는 말")
     ap.add_argument("--basket-size", type=float, nargs=3, default=(0.21, 0.13, 0.10), metavar=("L", "W", "H"))
     ap.add_argument("--descend", type=float, default=0.06)
-    ap.add_argument("--dx", type=float, default=0.02, help="물체 목표 앞뒤 보정 [m] (+ = 더 앞, 기본 2 cm: 실기에서 인식보다 앞에 있었음)")
+    ap.add_argument("--dx", type=float, default=0.04, help="물체 목표 앞뒤 보정 [m] (+ = 더 앞, 기본 4 cm: 실기에서 인식보다 앞에 있었음)")
     ap.add_argument("--dz", type=float, default=0.0, help="물체 목표 높이 보정 [m] (− = 더 깊이)")
     ap.add_argument("--min-score", type=float, default=0.15)
     ap.add_argument("--zed-height", default="auto",
