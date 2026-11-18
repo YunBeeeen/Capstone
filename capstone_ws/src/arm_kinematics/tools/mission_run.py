@@ -20,8 +20,9 @@
   - 끝날 때 팀 팔로워가 "팔을 받친 뒤 ENTER" 를 물은 다음 토크를 끔 (바구니를 든 채면 먼저 받칠 것)
 
 동작 (오른팔, 로봇 바닥 기준 m):
-  pick        물체 중심 6 cm 위 → 곧게 내려와 닫기 → 곧게 6 cm 올림
-  drop        바구니 가운데 위 (손끝 = 테두리 + 3 cm) 9 cm 위 → 곧게 내려와 열기 → 곧게 올림
+  pick        물체 (인식 + --dx·--dz) 바로 위 → 곧게 내려와 그리퍼 --pick-close (80%) 만 닫기 → 제자리에서 곧게 올림:
+              올린 높이 = 넣기 접근 높이 (테두리 + 3 + 9 cm) + --carry-up (2 cm) — 이 높이 그대로 바구니 위로 감
+  drop        바구니 가운데 위 그 높이 → 곧게 11 cm 내려와 (손끝 = 테두리 + 3 cm) 열기 → 곧게 올림
   basket_grab 바구니 짧은 벽 (로봇 쪽 먼저), 손끝 = 테두리 − 3 cm. 손을 30~50° 앞으로 기울여 위에서 내려와 닫기 →
               그 자리에서 곧게 --basket-lift (10 cm) 올림. 이후 손 자세 통째로 고정 (--rotation).
               **바구니는 짧은 변이 로봇을 보게 (긴 축이 앞뒤)** 둠
@@ -109,7 +110,7 @@ class Arm:
 
     def grip(self, how):
         if self.dry:
-            self.g_fake = -270.0 if how == "open" else -40.0
+            self.g_fake = -270.0 if how == "open" else -100.0
             print(f"  [dry] 그리퍼 {how}")
             return self.g_fake
         self.pp.recheck(self.robot, "그리퍼")
@@ -364,6 +365,9 @@ def main():
     ap.add_argument("--basket", default="basket", help="바구니를 찾는 말")
     ap.add_argument("--basket-size", type=float, nargs=3, default=(0.21, 0.13, 0.10), metavar=("L", "W", "H"))
     ap.add_argument("--descend", type=float, default=0.06)
+    ap.add_argument("--pick-close", type=float, default=0.8, help="물체 집을 때 그리퍼를 이만큼만 닫음 (0~1, 1 = 끝까지). 바구니 잡기는 끝까지")
+    ap.add_argument("--carry-up", type=float, default=0.02,
+                    help="잡은 뒤 제자리에서 넣기 접근 높이보다 이만큼 [m] 더 올려서 바구니로 감 (그 높이에서 곧게 내려와 넣기)")
     ap.add_argument("--dx", type=float, default=0.04, help="물체 목표 앞뒤 보정 [m] (+ = 더 앞, 기본 4 cm: 실기에서 인식보다 앞에 있었음)")
     ap.add_argument("--dz", type=float, default=0.02, help="물체 목표 높이 보정 [m] (+ = 더 위, − = 더 깊이, 기본 2 cm 위)")
     ap.add_argument("--min-score", type=float, default=0.15)
@@ -416,13 +420,25 @@ def main():
             elif s == "pick":
                 need(st, "obj")
                 c = st["obj"]["center"]
-                p = plan(a, arm, "pick", (c[0] + a.dx, c[1], c[2] + a.dz), st["desk"], st["front"], c[1], st["zed"], a.descend)
-                if not p or ask(f"   집기 목표 ({100 * (c[0] + a.dx):.1f}, {100 * c[1]:.1f}, {100 * (c[2] + a.dz):.1f}) cm "
-                                 f"(인식 + x {100 * a.dx:.1f}·z {100 * a.dz:.1f}): 열기 → 6 cm 위 → 내려와 닫기 → 곧게 올림. ENTER: ") == "s":
+                pz = c[2] + a.dz
+                # 잡은 뒤 제자리에서 곧게 올리는 높이 = 넣기 접근 높이 + --carry-up → 그 높이로 바구니 위까지 감.
+                # 곧게 올리는 길 = 곧게 내려온 길 (insert) 이라 접근점도 그 높이 (물체 바로 위에서 길게 내려옴)
+                z_up = st["desk"] + H + DROP_ABOVE_RIM + drop_descend(a) + a.carry_up
+                d_pick = max(a.descend, z_up - pz)
+                p = plan(a, arm, "pick", (c[0] + a.dx, c[1], pz), st["desk"], st["front"], c[1], st["zed"], d_pick)
+                if not p or ask(f"   집기 목표 ({100 * (c[0] + a.dx):.1f}, {100 * c[1]:.1f}, {100 * pz:.1f}) cm "
+                                 f"(인식 + x {100 * a.dx:.1f}·z {100 * a.dz:.1f}): 열기 → {100 * d_pick:.0f} cm 위 → 곧게 내려와 "
+                                 f"{100 * a.pick_close:.0f}% 닫기 → 곧게 {100 * d_pick:.0f} cm 올림 (손끝 {100 * z_up:.0f} cm). ENTER: ") == "s":
                     raise Stop("집기 계획 실패" if not p else "집기 건너뜀")
-                tl, t = arm.run(p, "집기", grip_before="open", grip_after="close")
-                g = arm.gripper()
-                if g >= arm.pargs.grip_empty_deg:
+                gc, ge = arm.pargs.grip_close_deg, arm.pargs.grip_empty_deg
+                arm.pargs.grip_close_deg = arm.pargs.grip_open_deg + a.pick_close * (gc - arm.pargs.grip_open_deg)
+                arm.pargs.grip_empty_deg = arm.pargs.grip_close_deg - 5.0     # 목표 근처까지 닫히면 빈손
+                try:
+                    tl, t = arm.run(p, "집기", grip_before="open", grip_after="close")
+                    g, empty_deg = arm.gripper(), arm.pargs.grip_empty_deg
+                finally:
+                    arm.pargs.grip_close_deg, arm.pargs.grip_empty_deg = gc, ge
+                if g >= empty_deg:
                     arm.back(tl, t, phases=("insert",), label="올림")
                     raise Stop(f"빈손 ({g:.0f}°) — 물체를 다시 확인 (--from find)")
                 arm.back(tl, t, phases=("insert",), label="올림")
@@ -431,8 +447,8 @@ def main():
                 b = st["bk"]["center"]
                 top = st["desk"] + H
                 p = plan(a, arm, "drop", (b[0], b[1], top + DROP_ABOVE_RIM), st["desk"], st["front"], b[1], st["zed"],
-                         a.descend + 0.03)
-                if not p or ask("   바구니 위 → 내려와 열기 → 올림. ENTER: ") == "s":
+                         drop_descend(a) + a.carry_up)
+                if not p or ask(f"   그 높이로 바구니 위 → 곧게 {100 * (drop_descend(a) + a.carry_up):.0f} cm 내려와 열기 → 올림. ENTER: ") == "s":
                     raise Stop("넣기 계획 실패" if not p else "넣기 건너뜀")
                 tl, t = arm.run(p, "넣기", grip_after="open")
                 arm.back(tl, t, phases=("insert",), label="올림")
@@ -600,6 +616,11 @@ def go_view(a):
         nav(a, a.shelf_view)
     else:
         nav(a, a.shelf, back=a.view_back)
+
+
+def drop_descend(a):
+    """넣기: 바구니 위 접근점 → 놓는 점 (테두리 + DROP_ABOVE_RIM) 까지 곧게 내려오는 거리 (--carry-up 빼고)."""
+    return a.descend + 0.03
 
 
 def need(st, k):
