@@ -22,7 +22,7 @@
   - 끝날 때 팀 팔로워가 "팔을 받친 뒤 ENTER" 를 물은 다음 토크를 끔 (바구니를 든 채면 먼저 받칠 것)
 
 동작 (오른팔, 로봇 바닥 기준 m):
-  pick        물체 (인식 + --dx·--dz) 바로 위 → 곧게 내려와 그리퍼 --pick-close (80%) 만 닫기 → 제자리에서 곧게 올림:
+  pick        물체 (인식 + --dx·--dz) 바로 위 → 곧게 내려와 그리퍼 --pick-close (90%) 만 닫기 → 제자리에서 곧게 올림:
               올린 높이 = 넣기 접근 높이 (테두리 + 3 + 9 cm) + --carry-up (2 cm) — 이 높이 그대로 바구니 위로 감
   drop        바구니 가운데 위 (든 높이 + --drop-up 5 cm) → 곧게 16 cm 내려와 (손끝 = 테두리 + 3 cm) 열기 → 곧게 16 cm 올림
   basket_grab 바구니 짧은 벽 (로봇 쪽 먼저), 손끝 = 테두리 − 3 cm. 손을 30~50° 앞으로 기울여 위에서 내려와 닫기 →
@@ -367,7 +367,7 @@ def main():
     ap.add_argument("--basket", default="basket", help="바구니를 찾는 말")
     ap.add_argument("--basket-size", type=float, nargs=3, default=(0.21, 0.13, 0.10), metavar=("L", "W", "H"))
     ap.add_argument("--descend", type=float, default=0.06)
-    ap.add_argument("--pick-close", type=float, default=0.8, help="물체 집을 때 그리퍼를 이만큼만 닫음 (0~1, 1 = 끝까지). 바구니 잡기는 끝까지")
+    ap.add_argument("--pick-close", type=float, default=0.9, help="물체 집을 때 그리퍼를 이만큼만 닫음 (0~1, 1 = 끝까지). 바구니 잡기는 끝까지")
     ap.add_argument("--carry-up", type=float, default=0.02,
                     help="잡은 뒤 제자리에서 넣기 접근 높이보다 이만큼 [m] 더 올려서 바구니로 감 (그 높이에서 곧게 내려와 넣기)")
     ap.add_argument("--drop-up", type=float, default=0.05,
