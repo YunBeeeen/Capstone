@@ -6,6 +6,7 @@
   $PY tools/mission_run.py pumpkin                   # 리프트 325 mm 고정 (카메라 1.00 m), 선반 3 층 (1.00 m) 에 놓기
   $PY tools/mission_run.py pumpkin --tier 4 --lift-mm 0   # 4 층 꼭대기 (1.35 m): 리프트를 단계마다 올리고 내림
   $PY tools/mission_run.py pumpkin --tier 3 --from basket_grab     # 그 단계부터 (find 결과가 필요 → --from find)
+  $PY tools/mission_run.py pumpkin --from find --to basket_grab --zed-height 1.0   # 카메라 높이를 재지 않고 1.0 m 로
   $PY tools/mission_run.py pumpkin --tier 3 --dry-run --vision v.json   # 팔·Jetson 없이 계획·순서만
 
 단계 (--from / --to 이름): nav_desk → lift_up → find → pick → drop → basket_grab → carry → lift_down → nav_shelf →
@@ -231,7 +232,7 @@ def find(a, words):
             raise Stop("--dry-run 에는 --vision <ros_find json> 이 필요")
         return json.loads(Path(f).read_text())
     q = " ".join(shlex.quote(w) for w in words)
-    r = jetson(a, f"cd ~/arm_vision && python3 tools/ros_find.py {q} --min-score {a.min_score} --json /tmp/m_find.json "
+    r = jetson(a, f"cd ~/arm_vision && python3 tools/ros_find.py {q} --min-score {a.min_score} --zed-height {shlex.quote(str(a.zed_height))} --json /tmp/m_find.json "
                   f"--out /tmp/m_find.jpg > /tmp/m_find.log 2>&1; tail -8 /tmp/m_find.log; echo ===JSON===; cat /tmp/m_find.json")
     if "===JSON===" not in r.stdout:
         raise Stop(f"Jetson 찾기 실패: {r.stdout[-500:]} {r.stderr[-300:]}")
@@ -364,6 +365,8 @@ def main():
     ap.add_argument("--descend", type=float, default=0.06)
     ap.add_argument("--dz", type=float, default=0.0, help="물체 목표 높이 보정 [m] (− = 더 깊이)")
     ap.add_argument("--min-score", type=float, default=0.15)
+    ap.add_argument("--zed-height", default="auto",
+                    help="바닥 → ZED 나사 [m] 를 ros_find 에 줌. 기본 auto = 보이는 바닥으로 잼 (바닥이 안 보이면 찾기 실패 → 1.0 처럼 숫자로)")
     ap.add_argument("--speed", type=float, default=1.0, help="재생 속도 배율 (1.0 = 30°/s)")
     ap.add_argument("--from", dest="from_", choices=STEPS, default=STEPS[0])
     ap.add_argument("--to", choices=STEPS, default=STEPS[-1])
