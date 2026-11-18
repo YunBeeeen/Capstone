@@ -363,6 +363,7 @@ def main():
     ap.add_argument("--basket", default="basket", help="바구니를 찾는 말")
     ap.add_argument("--basket-size", type=float, nargs=3, default=(0.21, 0.13, 0.10), metavar=("L", "W", "H"))
     ap.add_argument("--descend", type=float, default=0.06)
+    ap.add_argument("--dx", type=float, default=0.02, help="물체 목표 앞뒤 보정 [m] (+ = 더 앞, 기본 2 cm: 실기에서 인식보다 앞에 있었음)")
     ap.add_argument("--dz", type=float, default=0.0, help="물체 목표 높이 보정 [m] (− = 더 깊이)")
     ap.add_argument("--min-score", type=float, default=0.15)
     ap.add_argument("--zed-height", default="auto",
@@ -412,8 +413,9 @@ def main():
             elif s == "pick":
                 need(st, "obj")
                 c = st["obj"]["center"]
-                p = plan(a, arm, "pick", (c[0], c[1], c[2] + a.dz), st["desk"], st["front"], c[1], st["zed"], a.descend)
-                if not p or ask("   집기: 열기 → 6 cm 위 → 내려와 닫기 → 곧게 올림. ENTER: ") == "s":
+                p = plan(a, arm, "pick", (c[0] + a.dx, c[1], c[2] + a.dz), st["desk"], st["front"], c[1], st["zed"], a.descend)
+                if not p or ask(f"   집기 목표 ({100 * (c[0] + a.dx):.1f}, {100 * c[1]:.1f}, {100 * (c[2] + a.dz):.1f}) cm "
+                                 f"(인식 x {100 * c[0]:.1f} + {100 * a.dx:.1f}): 열기 → 6 cm 위 → 내려와 닫기 → 곧게 올림. ENTER: ") == "s":
                     raise Stop("집기 계획 실패" if not p else "집기 건너뜀")
                 tl, t = arm.run(p, "집기", grip_before="open", grip_after="close")
                 g = arm.gripper()
