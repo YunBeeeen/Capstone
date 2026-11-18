@@ -364,7 +364,7 @@ def main():
     ap.add_argument("--basket-size", type=float, nargs=3, default=(0.21, 0.13, 0.10), metavar=("L", "W", "H"))
     ap.add_argument("--descend", type=float, default=0.06)
     ap.add_argument("--dx", type=float, default=0.04, help="물체 목표 앞뒤 보정 [m] (+ = 더 앞, 기본 4 cm: 실기에서 인식보다 앞에 있었음)")
-    ap.add_argument("--dz", type=float, default=0.0, help="물체 목표 높이 보정 [m] (− = 더 깊이)")
+    ap.add_argument("--dz", type=float, default=0.02, help="물체 목표 높이 보정 [m] (+ = 더 위, − = 더 깊이, 기본 2 cm 위)")
     ap.add_argument("--min-score", type=float, default=0.15)
     ap.add_argument("--zed-height", default="auto",
                     help="바닥 → ZED 나사 [m] 를 ros_find 에 줌. 기본 auto = 보이는 바닥으로 잼 (바닥이 안 보이면 찾기 실패 → 1.0 처럼 숫자로)")
@@ -415,7 +415,7 @@ def main():
                 c = st["obj"]["center"]
                 p = plan(a, arm, "pick", (c[0] + a.dx, c[1], c[2] + a.dz), st["desk"], st["front"], c[1], st["zed"], a.descend)
                 if not p or ask(f"   집기 목표 ({100 * (c[0] + a.dx):.1f}, {100 * c[1]:.1f}, {100 * (c[2] + a.dz):.1f}) cm "
-                                 f"(인식 x {100 * c[0]:.1f} + {100 * a.dx:.1f}): 열기 → 6 cm 위 → 내려와 닫기 → 곧게 올림. ENTER: ") == "s":
+                                 f"(인식 + x {100 * a.dx:.1f}·z {100 * a.dz:.1f}): 열기 → 6 cm 위 → 내려와 닫기 → 곧게 올림. ENTER: ") == "s":
                     raise Stop("집기 계획 실패" if not p else "집기 건너뜀")
                 tl, t = arm.run(p, "집기", grip_before="open", grip_after="close")
                 g = arm.gripper()
