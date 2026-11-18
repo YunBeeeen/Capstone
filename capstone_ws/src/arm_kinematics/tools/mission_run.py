@@ -432,12 +432,16 @@ def main():
                     raise Stop("집기 계획 실패" if not p else "집기 건너뜀")
                 gc, ge = arm.pargs.grip_close_deg, arm.pargs.grip_empty_deg
                 arm.pargs.grip_close_deg = arm.pargs.grip_open_deg + a.pick_close * (gc - arm.pargs.grip_open_deg)
-                arm.pargs.grip_empty_deg = arm.pargs.grip_close_deg - 5.0     # 목표 근처까지 닫히면 빈손
+                if a.pick_close < 1.0:
+                    # 덜 닫으면 물체가 그 폭에 가까울 때 잡혀도 목표 근처에서 멈춤 → 각도로 빈손을 못 가림 (실기 −56° 잡힘을 빈손으로 봤음)
+                    arm.pargs.grip_empty_deg = 1.0
                 try:
                     tl, t = arm.run(p, "집기", grip_before="open", grip_after="close")
-                    g, empty_deg = arm.gripper(), arm.pargs.grip_empty_deg
+                    g, empty_deg, gc_pick = arm.gripper(), arm.pargs.grip_empty_deg, arm.pargs.grip_close_deg
                 finally:
                     arm.pargs.grip_close_deg, arm.pargs.grip_empty_deg = gc, ge
+                if a.pick_close < 1.0 and not arm.dry:
+                    print(f"   그리퍼 {g:.0f}° (목표 {gc_pick:.0f}°) — {100 * a.pick_close:.0f}% 닫기는 빈손을 못 가림: 손을 직접 보세요")
                 if g >= empty_deg:
                     arm.back(tl, t, phases=("insert",), label="올림")
                     raise Stop(f"빈손 ({g:.0f}°) — 물체를 다시 확인 (--from find)")
